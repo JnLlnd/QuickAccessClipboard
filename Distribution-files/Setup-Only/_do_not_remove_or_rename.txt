@@ -1,0 +1,9 @@
+When installed using the setup program, Quick Access Clipboard should be launched using the shortcut
+(icon) created in the "Start" menu or in the "Startup" folder. These shortcuts set the proper
+working directory to "C:\Users\[username]\AppData\Roaming\QuickAccessClipboard" (where the app
+config is saved in the quickaccessclipboard.ini file).
+
+The current file is a flag helping Quick Access Clipboard to detect that it has been launched
+directly in the app folder under the "C:\Program Files" directory (or the directory you selected
+during setup). When this situation is detected, the working directory is automatically set to
+the proper folder under AppData and Quick Access Clipboard is launched.

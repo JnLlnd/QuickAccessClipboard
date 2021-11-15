@@ -1,0 +1,4 @@
+You must extract the zip file content to the folder of your choice before running the EXE file.
+
+See the README.txt file for more info.
+

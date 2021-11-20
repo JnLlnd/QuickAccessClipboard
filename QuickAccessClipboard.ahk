@@ -11,6 +11,9 @@ Copyright 2021-2021 Jean Lalonde
 HISTORY
 =======
 
+version: 0.0.2 (2021-11-??)
+- 
+
 Version: 0.0.1 (2021-11-14)
 - repository creation
 
@@ -22,7 +25,7 @@ Version: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.1
+;@Ahk2Exe-SetVersion 0.0.2
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -88,7 +91,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.1" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.2" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.2"
@@ -483,6 +486,7 @@ o_Settings.ReadIniOption("SettingsWindow", "blnOpenSettingsOnActiveMonitor", "Op
 o_Settings.ReadIniOption("SettingsWindow", "blnDarkModeCustomize", "DarkModeCustomize", 0, "SettingsWindow", "f_blnDarkModeCustomize")
 o_Settings.ReadIniOption("SettingsWindow", "blnFixedFont", "FixedFont", 0, "SettingsWindow", "")
 o_Settings.ReadIniOption("SettingsWindow", "intFontSize", "FontSize", 10, "SettingsWindow", "")
+o_Settings.ReadIniOption("SettingsWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "SettingsWindow", "")
 
 ; Group MenuAdvanced
 o_Settings.ReadIniOption("MenuAdvanced", "intShowMenuBar", "ShowMenuBar", 3, "MenuAdvanced", "") ; default false, if true reload QAP as admin ; g_blnRunAsAdmin
@@ -672,7 +676,7 @@ InitGuiControls:
 
 ; InsertGuiControlPos(strControlName, intX, intY, blnCenter := false, blnDraw := false)
 
-InsertGuiControlPos("f_strClipboardEditor",				 40,   100)
+InsertGuiControlPos("f_strClipboardEditor",				 20,   120)
 
 InsertGuiControlPos("f_btnGuiSaveAndCloseEditor",		  0,  -50, , true)
 InsertGuiControlPos("f_btnGuiSaveAndStayEditor",		  0,  -50, , true)
@@ -711,9 +715,9 @@ if (o_Settings.MenuAdvanced.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar
 	Gui, Menu, menuBarMain
 
 Gui, 1:Font, s8 w600
-Gui, 1:Add, Text, x40 y10, % o_L["GuiRules"]
+Gui, 1:Add, Text, x20 y10, % o_L["GuiRules"]
 Gui, 1:Font, s8 w400
-Gui, 1:Add, Checkbox, x40 vf_blnLowerCase gRuleCheckbopxChanged, % o_L["GuiLowerCase"]
+Gui, 1:Add, Checkbox, x20 vf_blnLowerCase gRuleCheckbopxChanged, % o_L["GuiLowerCase"]
 Gui, 1:Add, Checkbox, x+1 yp vf_blnUpperCase gRuleCheckbopxChanged, % o_L["GuiUpperCase"]
 Gui, 1:Add, Checkbox, x+1 yp vf_blnFirstUpperCase gRuleCheckbopxChanged, % o_L["GuiFirstUpperCase"]
 Gui, 1:Add, Checkbox, x+1 yp vf_blnTitleCase gRuleCheckbopxChanged, % o_L["GuiTitleCase"]
@@ -722,15 +726,16 @@ Gui, 1:Font, s8 w600, Verdana
 Gui, 1:Add, Button, x+5 yp-5 vf_btnGuiApplyRules gGuiApplyRules h25 Disabled, % o_L["GuiApplyRules"]
 
 Gui, 1:Font, s8 w600
-Gui, 1:Add, Text, x40 y+5, % o_L["MenuEditor"]
+Gui, 1:Add, Text, x20 y+5, % o_L["MenuEditor"]
 Gui, 1:Font, s8 w400
-Gui, 1:Add, Checkbox, % "x40 y+5 vf_blnFixedFont gClipboardEditorFontChanged " . (o_Settings.SettingsWindow.blnFixedFont.IniValue = 1 ? "checked" : ""), % o_L["DialogFixedFont"]
-Gui, 1:Add, Text, x+10 yp-5 vf_lblFontSize, % o_L["DialogFontSize"]
+Gui, 1:Add, Checkbox, % "x20 y+5 vf_blnFixedFont gClipboardEditorFontChanged " . (o_Settings.SettingsWindow.blnFixedFont.IniValue = 1 ? "checked" : ""), % o_L["DialogFixedFont"]
+Gui, 1:Add, Text, x+10 yp vf_lblFontSize, % o_L["DialogFontSize"]
 Gui, 1:Add, Edit, x+5 yp w40 vf_intFontSize gClipboardEditorFontChanged
 Gui, 1:Add, UpDown, Range6-18 vf_intFontUpDown, % o_Settings.SettingsWindow.intFontSize.IniValue
+Gui, 1:Add, Checkbox, % "x+20 yp vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopChanged " . (o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue = 1 ? "checked" : ""), % o_L["DialogAlwaysOnTop"]
 
 Gui, 1:Font, s10 w400, Arial
-Gui, 1:Add, Edit, x10 y50 w600 vf_strClipboardEditor gClipboardEditorChanged ; Edit1 (EditN controls do not support tooltips)
+Gui, 1:Add, Edit, x10 y50 w600 vf_strClipboardEditor gClipboardEditorChanged Multi WantReturn WantTab
 g_blnClipboardChangedOutside := true ; to avoid enabling save button at startup
 Gosub, ClipboardEditorChanged
 
@@ -739,6 +744,9 @@ Gui, 1:Add, Button, vf_btnGuiSaveAndCloseEditor Disabled gGuiSaveAndCloseEditor 
 Gui, 1:Add, Button, vf_btnGuiSaveAndStayEditor Disabled gGuiSaveAndStayEditor x350 yp w140 h35, % o_L["GuiSaveClipboard"]
 Gui, 1:Add, Button, vf_btnGuiCancel gGuiCancel Default x500 yp w100 h35, % o_L["GuiClose"] ; Close until changes occur
 Gui, 1:Font
+
+g_Gui1AlwaysOnTop := !o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue
+gosub, ClipboardEditorAlwaysOnTopChanged
 
 GetSavedSettingsWindowPosition(saSettingsPosition) ; format: x|y|w|h with optional |M if maximized
 
@@ -787,6 +795,20 @@ if (o_Settings.SettingsWindow.blnDarkModeCustomize.IniValue and !blnLightMode)
 
 saSettingsPosition := ""
 strTextColor := ""
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+ClipboardEditorAlwaysOnTopChanged:
+;------------------------------------------------------------
+
+g_Gui1AlwaysOnTop := !g_Gui1AlwaysOnTop
+
+WinSet, AlwaysOnTop, % (g_Gui1AlwaysOnTop ? "On" : "Off"), ahk_id %g_strGui1Hwnd% ; do not use default Toogle for safety
+GuiControl, %g_Gui1AlwaysOnTop%, f_blnAlwaysOnTop
+; Menu, menuBarTools, ToggleCheck, % aaMenuToolsL["ControlToolTipAlwaysOnTopOff"]
 
 return
 ;------------------------------------------------------------
@@ -897,8 +919,8 @@ GuiSize:
 if (A_EventInfo = 1)  ; The window has been minimized.  No action needed.
     return
 
-intEditorH := A_GuiHeight - 165
-g_intEditorW := A_GuiWidth - 40 - 88
+intEditorH := A_GuiHeight - 185
+g_intEditorW := A_GuiWidth - 20 - 20
 
 ; space before, between and after save/reload/close buttons
 ; = (A_GuiWidth - left margin - right margin - (3 buttons width)) // 4 (left, between x 2, right)

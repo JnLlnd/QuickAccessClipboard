@@ -1,3 +1,4 @@
+this["DialogAlwaysOnTop"] := "Always on top"
 this["DiagModeCaution"] := "~1~ is running in diagnostic mode.`n`nInformation about the app's execution will be collected in the file:`n~2~`n`nNothing will be sent without your consent.`n`nDo you want to keep diagnostic mode ON?"
 this["DiagModeExit"] := "~1~ collected diagnostic information in the file ~2~."
 this["DiagModeIntro"] := "Send this file to support@quickaccesspopup.com with a description of the situation requiring diagnostic"

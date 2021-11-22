@@ -611,7 +611,7 @@ if (o_Settings.MenuAdvanced.intShowMenuBar.IniValue > 1) ; 1 Customize menu bar,
 Menu, Tray, Add
 Menu, Tray, Add, % o_L["MenuSuspendHotkeys"], ToggleSuspendHotkeys
 Menu, Tray, Add, % o_L["MenuRunAtStartup"], ToggleRunAtStartup ; function ToggleRunAtStartup replaces RunAtStartup
-Menu, Tray, Add, % L(o_L["MenuExitApp"], g_strAppNameText), GuiCancelAndExitApp
+Menu, Tray, Add, % L(o_L["MenuExitApp"], g_strAppNameText), GuiCloseAndExitApp
 ;@Ahk2Exe-IgnoreBegin
 ; Start of code for developement phase only - won't be compiled
 Menu, Tray, Add
@@ -673,14 +673,12 @@ BuildGuiMenuBar:
 ; see https://docs.microsoft.com/fr-fr/windows/desktop/uxguide/cmd-menus
 ;------------------------------------------------------------
 
-Menu, menuBarFile, Add, % o_L["GuiSaveClipboard"] . "`tCtrl+S", SettingsCtrlS
-Menu, menuBarFile, Add, % o_L["GuiSaveAndClose"], GuiSaveAndCloseEditor
-Menu, menuBarFile, Add, % o_L["GuiClose"], GuiCancel
+Menu, menuBarFile, Add, % o_L["GuiSaveClipboard"] . "`tCtrl+S", EditorCtrlS
+Menu, menuBarFile, Add, % o_L["GuiCancelEditor"], GuiCancelEditor
+Menu, menuBarFile, Add, % o_L["GuiClose"] . "`tEsc", GuiClose
 Menu, menuBarFile, Add
-Menu, menuBarFile, Add, % L(o_L["MenuExitApp"], g_strAppNameText), GuiCancelAndExitApp
+Menu, menuBarFile, Add, % L(o_L["MenuExitApp"], g_strAppNameText), GuiCloseAndExitApp
 Menu, menuBarMain, Add, % o_L["MenuFile"], :menuBarFile
-
-Gosub, DisableSaveAndSetClose
 
 return
 ;------------------------------------------------------------
@@ -714,9 +712,9 @@ InitGuiControls:
 
 InsertGuiControlPos("f_strClipboardEditor",				 20,   130)
 
-InsertGuiControlPos("f_btnGuiSaveAndCloseEditor",		  0,  -65, , true)
-InsertGuiControlPos("f_btnGuiSaveAndStayEditor",		  0,  -65, , true)
-InsertGuiControlPos("f_btnGuiCancel",					  0,  -65, , true)
+InsertGuiControlPos("f_btnGuiSaveEditor",			0,  -65, , true)
+InsertGuiControlPos("f_btnGuiCancelEditor",			0,  -65, , true)
+InsertGuiControlPos("f_btnGuiClose",				0,  -65, , true)
 
 return
 ;------------------------------------------------------------
@@ -742,8 +740,7 @@ InsertGuiControlPos(strControlName, intX, intY, blnCenter := false, blnDraw := f
 BuildGui:
 ;------------------------------------------------------------
 
-g_strGuiFullTitle := L(o_L["GuiTitle"], g_strAppNameText, g_strAppVersion)
-Gui, 1:New, +Hwndg_strGui1Hwnd +Resize -MinimizeBox +MinSize%g_intGuiDefaultWidth%x%g_intGuiDefaultHeight%, %g_strGuiFullTitle%
+Gui, 1:New, +Hwndg_strGui1Hwnd +Resize -MinimizeBox +MinSize%g_intGuiDefaultWidth%x%g_intGuiDefaultHeight%, % QACSettingsString()
 
 if (o_Settings.MenuAdvanced.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar, 2 System menu, 3 both
 	Gui, Menu, menuBarMain
@@ -751,11 +748,11 @@ if (o_Settings.MenuAdvanced.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar
 Gui, 1:Font, s8 w600
 Gui, 1:Add, Text, x20 y10, % o_L["GuiRules"]
 Gui, 1:Font, s8 w400
-Gui, 1:Add, Checkbox, x20 vf_blnLowerCase gRuleCheckbopxChanged, % o_L["GuiLowerCase"]
-Gui, 1:Add, Checkbox, x+1 yp vf_blnUpperCase gRuleCheckbopxChanged, % o_L["GuiUpperCase"]
-Gui, 1:Add, Checkbox, x+1 yp vf_blnFirstUpperCase gRuleCheckbopxChanged, % o_L["GuiFirstUpperCase"]
-Gui, 1:Add, Checkbox, x+1 yp vf_blnTitleCase gRuleCheckbopxChanged, % o_L["GuiTitleCase"]
-Gui, 1:Add, Checkbox, x+1 yp vf_blnUnderscore2Space gRuleCheckbopxChanged, % o_L["GuiUnderscore2Space"]
+Gui, 1:Add, Checkbox, x20 vf_blnLowerCase gRuleCheckboxChanged, % o_L["GuiLowerCase"]
+Gui, 1:Add, Checkbox, x+1 yp vf_blnUpperCase gRuleCheckboxChanged, % o_L["GuiUpperCase"]
+Gui, 1:Add, Checkbox, x+1 yp vf_blnFirstUpperCase gRuleCheckboxChanged, % o_L["GuiFirstUpperCase"]
+Gui, 1:Add, Checkbox, x+1 yp vf_blnTitleCase gRuleCheckboxChanged, % o_L["GuiTitleCase"]
+Gui, 1:Add, Checkbox, x+1 yp vf_blnUnderscore2Space gRuleCheckboxChanged, % o_L["GuiUnderscore2Space"]
 Gui, 1:Font, s8 w600, Verdana
 Gui, 1:Add, Button, x10 y+10 vf_btnGuiApplyRules gGuiApplyRules h25 Disabled, % o_L["GuiApplyRules"]
 GuiCenterButtons(g_strGui1Hwnd, , , , "f_btnGuiApplyRules")
@@ -768,18 +765,21 @@ Gui, 1:Add, Text, x+10 yp vf_lblFontSize, % o_L["DialogFontSize"]
 Gui, 1:Add, Edit, x+5 yp w40 vf_intFontSize gClipboardEditorFontChanged
 Gui, 1:Add, UpDown, Range6-18 vf_intFontUpDown, % o_Settings.SettingsWindow.intFontSize.IniValue
 Gui, 1:Add, Checkbox, % "x+20 yp vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopChanged " . (o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue = 1 ? "checked" : ""), % o_L["DialogAlwaysOnTop"]
+Gui, 1:Add, Checkbox, % "x+10 yp vf_blnUseTab gClipboardEditorUseTabChanged " . (o_Settings.SettingsWindow.blnUseTab.IniValue = 1 ? "checked" : ""), % o_L["DialogUseTab"]
 
 Gui, 1:Font, s10 w400, Arial
-Gui, 1:Add, Edit, x10 y50 w600 vf_strClipboardEditor gClipboardEditorChanged Multi WantReturn WantTab
+Gui, 1:Add, Edit, x10 y50 w600 vf_strClipboardEditor gClipboardEditorChanged Multi WantReturn
 
 Gui, 1:Font, s8 w600, Verdana
-Gui, 1:Add, Button, vf_btnGuiSaveAndCloseEditor Disabled gGuiSaveAndCloseEditor x200 y400 w140 h35, % o_L["GuiSaveAndClose"]
-Gui, 1:Add, Button, vf_btnGuiSaveAndStayEditor Disabled gGuiSaveAndStayEditor x350 yp w140 h35, % o_L["GuiSaveClipboard"]
-Gui, 1:Add, Button, vf_btnGuiCancel gGuiCancel Default x500 yp w100 h35, % o_L["GuiClose"] ; Close until changes occur
+Gui, 1:Add, Button, vf_btnGuiSaveEditor Disabled gGuiSaveEditor x200 y400 w140 h35, % o_L["GuiSaveClipboard"]
+Gui, 1:Add, Button, vf_btnGuiCancelEditor Disabled gGuiCancelEditor x350 yp w140 h35, % o_L["GuiCancelEditor"]
+Gui, 1:Add, Button, vf_btnGuiClose gGuiClose Default x500 yp w100 h35, % o_L["GuiClose"]
 Gui, 1:Font
 
 g_blnAlwaysOnTop := !o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue
 gosub, ClipboardEditorAlwaysOnTopChanged
+g_blnUseTab := !o_Settings.SettingsWindow.blnUseTab.IniValue
+gosub, ClipboardEditorUseTabChanged
 
 Gui, 1:Add, StatusBar
 SB_SetParts(200, 200)
@@ -889,7 +889,7 @@ ClipboardContentChanged()
 	{
 		g_strCliboardBackup := ClipboardAll
 		GuiControl, , f_strClipboardEditor, %Clipboard%
-		Gosub, DisableSaveAndSetClose
+		Gosub, DisableSaveAndCancel
 		SB_SetText("C) " . o_L["GuiLength"] . ": " . StrLen(Clipboard), 1)
 	}
 	DetectHiddenWindows, %strDetectHiddenWindowsBefore%
@@ -928,22 +928,17 @@ return
 
 
 ;------------------------------------------------------------
-GuiSaveAndCloseEditor:
-GuiSaveAndStayEditor:
+GuiSaveEditor:
+GuiCancelEditor:
 ;------------------------------------------------------------
 Gui, Submit, NoHide
 
-gosub, DisableSaveAndSetClose
-GuiControl, Enable, f_btnGuiCancel
-GuiControl, , f_btnGuiCancel, % o_L["GuiClose"]
+gosub, DisableSaveAndCancel
 
-; save clipboard
-Clipboard := f_strClipboardEditor
-
-if (A_ThisLabel = "GuiSaveAndStayEditor")
-	Gosub, GuiShow
+if (A_ThisLabel = "GuiSaveEditor")
+	Clipboard := f_strClipboardEditor
 else
-	Gosub, GuiCancel
+	GuiControl, , f_strClipboardEditor, %Clipboard%
 
 return
 ;------------------------------------------------------------
@@ -991,11 +986,11 @@ for intIndex, aaGuiControl in g_saGuiControls
 		intX := intX - (arrPosW // 2) ; Floor divide
 	}
 
-	if (aaGuiControl.Name = "f_btnGuiSaveAndCloseEditor")
+	if (aaGuiControl.Name = "f_btnGuiSaveEditor")
 		intX := 80 + intButtonSpacing
-	else if (aaGuiControl.Name = "f_btnGuiSaveAndStayEditor")
+	else if (aaGuiControl.Name = "f_btnGuiCancelEditor")
 		intX := 80 + (2 * intButtonSpacing) + 140 ; 140 for 1st button
-	else if (aaGuiControl.Name = "f_btnGuiCancel")
+	else if (aaGuiControl.Name = "f_btnGuiClose")
 		intX := 80 + (3 * intButtonSpacing) + 140 + 140 ; 140 for 1st button, 100 for 2nd button
 		
 	GuiControl, % "1:Move" . (aaGuiControl.Draw ? "Draw" : ""), % aaGuiControl.Name, % "x" . intX	.  " y" . intY
@@ -1267,56 +1262,36 @@ QACrulesExists()
 ;========================================================================================================================
 
 ;------------------------------------------------------------
-GuiClose:
 GuiEscape:
 ;------------------------------------------------------------
 
-GoSub, GuiCancelFromEscape
+GoSub, GuiCloseFromEscape
 
 return
 ;------------------------------------------------------------
 
 
 ;------------------------------------------------------------
-GuiCancel:
-GuiCancelFromEscape:
-GuiCancelAndExitApp:
+GuiClose:
+GuiCloseFromEscape:
+GuiCloseAndExitApp:
 ;------------------------------------------------------------
 
 if EditorUnsaved()
 {
 	Gui, 1:+OwnDialogs
 	MsgBox, 36, % L(o_L["DialogCancelTitle"], g_strAppNameText, g_strAppVersion), % o_L["DialogCancelPrompt"]
-	IfMsgBox, Yes
-	{
-		Clipboard := g_strCliboardBackup
-		
-		GuiControl, Disable, f_btnGuiSaveAndCloseEditor
-		GuiControl, Disable, f_btnGuiSaveAndStayEditor
-		GuiControl, , f_btnGuiCancel, % aaSettingsL["GuiClose"]
-	}
 	IfMsgBox, No
-	{
-		gosub, GuiCancelCleanup
 		return
-	}
 }
 
-if (A_ThisLabel = "GuiCancelAndExitApp")
+if (A_ThisLabel = "GuiCloseAndExitApp")
 	ExitApp
 ; else continue
 
-Gosub, DisableSaveAndSetClose
+Gosub, DisableSaveAndCancel
 
-if (blnStay)
-	Gosub, GuiShow
-else
-	Gui, 1:Cancel
-
-GuiCancelCleanup:
-blnCancelEnabled := ""
-blnCancelEnabled := ""
-blnStay := ""
+Gui, 1:Cancel
 
 return
 ;------------------------------------------------------------
@@ -1324,22 +1299,18 @@ return
 
 ;------------------------------------------------------------
 EnableSaveAndCancel:
-DisableSaveAndSetClose:
+DisableSaveAndCancel:
 ;------------------------------------------------------------
 
 ; enable/disable editor's gui buttons
-GuiControl, % (A_ThisLabel = "EnableSaveAndCancel" ? "1:Enable" : "1:Disable"), f_btnGuiSaveAndCloseEditor
-GuiControl, % (A_ThisLabel = "EnableSaveAndCancel" ? "1:Enable" : "1:Disable"), f_btnGuiSaveAndStayEditor
-GuiControl, 1:, f_btnGuiCancel, % (A_ThisLabel = "EnableSaveAndCancel" ? o_L["GuiCancel"] : o_L["GuiClose"])
-
-; Gosub, % (A_ThisLabel = "EnableSaveAndCancel" ? "EnableSaveButtons" : "DisableSaveButtons")
+GuiControl, % (A_ThisLabel = "EnableSaveAndCancel" ? "1:Enable" : "1:Disable"), f_btnGuiSaveEditor
+GuiControl, % (A_ThisLabel = "EnableSaveAndCancel" ? "1:Enable" : "1:Disable"), f_btnGuiCancelEditor
 
 Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["GuiSaveClipboard"] . "`tCtrl+S"
-Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % L(o_L["GuiSaveAndClose"])
-Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Disable" : "Enable"), % L(o_L["GuiClose"])
+Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % L(o_L["GuiCancelEditor"])
 
-OnClipboardChange("ClipboardContentChanged", (A_ThisLabel = "DisableSaveAndSetClose"))
-SB_SetText("D) Clipboard: " . ((A_ThisLabel = "DisableSaveAndSetClose") ? "" : "NOT") . " connected", 2)
+OnClipboardChange("ClipboardContentChanged", (A_ThisLabel = "DisableSaveAndCancel"))
+SB_SetText("D) Clipboard: " . ((A_ThisLabel = "DisableSaveAndCancel") ? "" : "NOT") . " connected", 2)
 
 return
 ;------------------------------------------------------------
@@ -1399,18 +1370,32 @@ GuiShow:
 GuiShowFromTray:
 ;------------------------------------------------------------
 
+; ##### take a backup of checkboxes 
+
 g_strCliboardBackup := ClipboardAll
 GuiControl, , f_strClipboardEditor, %Clipboard%
+; GuiControl, Focus, f_strClipboardEditor
 SB_SetText("E) " . o_L["GuiLength"] . ": " . StrLen(Clipboard), 1)
 
+Gosub, DisableSaveAndCancel
 Gui, Show
 
-GuiControl, Disable, f_btnGuiSaveAndCloseFavorites
-GuiControl, Disable, f_btnGuiSaveAndStayFavorites
-GuiControl, Disable, f_btnGuiCancel
+strDetectHiddenWindowsBefore := A_DetectHiddenWindows
+DetectHiddenWindows, Off
 
-GuiControl, Enable, f_btnGuiCancel
-GuiControl, , f_btnGuiCancel, % o_L["GuiClose"]
+WinWaitClose, ahk_id %g_strGui1Hwnd%
+Gui, Submit, NoHide
+GuiControlGet, blnUpdateRulesButtonChecked, Enabled, f_btnGuiApplyRules
+if (blnUpdateRulesButtonChecked)
+{
+	; ##### restore backup of checkboxes 
+	ToolTip, Quick Access Clipboard rules *NOT* updated...
+	Sleep, 2000
+	ToolTip
+}
+
+DetectHiddenWindows, %strDetectHiddenWindowsBefore%
+strDetectHiddenWindowsBefore := ""
 
 return
 ;------------------------------------------------------------
@@ -2269,11 +2254,18 @@ EditorUnsaved()
 {
 	global
 
-	GuiControlGet, strCancelButtonLabel, 1:, f_btnGuiCancel ; get Settings Cancel button label ("Cancel" or "Close")
-	blnDialogOpen := (strCancelButtonLabel = aaSettingsL["GuiCancel"]) ; Settings open with changes to save if Cancel button label is "Cancel"
-	; GuiControlGet, blnDialogOpen, 1:Enabled, f_btnGuiSaveAndCloseFavorites ; check if Settings is open with Save button enabled
+	GuiControlGet, blnCancelEnabled, 1:Enabled, f_btnGuiCancelEditor 
 
-	return blnDialogOpen
+	return blnCancelEnabled
+}
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+QACSettingsString()
+;------------------------------------------------------------
+{
+	return L(o_L["GuiTitle"], g_strAppNameText, g_strAppVersion)
 }
 ;------------------------------------------------------------
 

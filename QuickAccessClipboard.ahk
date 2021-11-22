@@ -258,6 +258,18 @@ IniWrite, % (intStartups + 1), % o_Settings.strIniFile, Global, Startups
 IniWrite, %g_strCurrentVersion%, % o_Settings.strIniFile, Global, % "LastVersionUsed" . (g_strCurrentBranch = "alpha" ? "Alpha" : (g_strCurrentBranch = "beta" ? "Beta" : "Prod"))
 IniWrite, % (g_blnPortableMode ? "Portable" : "Easy Setup"), % o_Settings.strIniFile, Global, Installation
 
+;---------------------------------
+; Setting window hotkey conditional assignment
+
+Hotkey, If, WinActive(QACSettingsString()) ; main Gui title
+
+	Hotkey, ^c, EditorCtrlC, On UseErrorLevel
+	Hotkey, ^v, EditorCtrlV, On UseErrorLevel
+
+	; other Hotkeys are created by menu assignement in BuildGuiMenuBar
+
+Hotkey, If
+
 return
 
 ;========================================================================================================================
@@ -274,6 +286,16 @@ return
 ;------------------------------------------------------------
 
 
+;------------------------------------------------------------
+;------------------------------------------------------------
+#If, WinActive(QACSettingsString()) ; main Gui title
+; empty - act as a handle for the "Hotkey, If, Expression" condition in PopupHotkey.__New() (and elsewhere)
+; ("Expression must be an expression which has been used with the #If directive elsewhere in the script.")
+#If
+;------------------------------------------------------------
+;------------------------------------------------------------
+
+
 
 ;========================================================================================================================
 !_012_GUI_HOTKEYS:
@@ -283,21 +305,28 @@ return
 ; see Hotkey, If, WinActive(QAPSettingsString())
 
 ;-----------------------------------------------------------
-SettingsCtrlS: ; ^S::
-SettingsEsc: ; Escape::
+EditorCtrlS: ; ^S::
+EditorEsc: ; Escape::
+EditorCtrlC: ; Copy
+EditorCtrlV: ; Paste
 ;-----------------------------------------------------------
 
-if (A_ThisLabel = "SettingsCtrlS")
+if (A_ThisLabel = "EditorCtrlS")
 {
-	GuiControlGet, blnEnabled, Enabled, f_btnGuiSaveAndStayEditor
-	if (blnEnabled)
-		Gosub, GuiSaveAndStayEditor
+	Gosub, GuiSaveEditor
 }
 
-else if (A_ThisLabel = "SettingsEsc")
-	Gosub, GuiCancel
+else if (A_ThisLabel = "EditorEsc")
+{
+	Gosub, GuiClose
+}
 
-blnEnabled := ""
+else if (A_ThisLabel = "EditorCtrlC" or A_ThisLabel = "EditorCtrlV")
+{
+	; Disable Clipboard change in editor
+	OnClipboardChange("ClipboardContentChanged", 0)
+	Send, % (A_ThisLabel = "EditorCtrlC" ? "^c" : "^v")
+}
 
 return
 ;-----------------------------------------------------------

@@ -162,7 +162,6 @@ global g_intGuiDefaultHeight := 496 ; was 601
 global g_saGuiControls := Object() ; to build Editor gui
 global g_strGui1Hwnd ; editor window ID
 global g_strCliboardBackup
-global g_blnClipboardChangedOutside
 
 ;---------------------------------
 ; Init language
@@ -252,6 +251,7 @@ if (o_Settings.Launch.blnDisplayTrayTip.IniValue)
 
 ; Enabling Clipboard change in editor
 OnClipboardChange("ClipboardContentChanged", 1)
+SB_SetText("A) Clipboard: connected", 2)
 
 ; startups count and trace
 IniWrite, % (intStartups + 1), % o_Settings.strIniFile, Global, Startups
@@ -282,8 +282,10 @@ return
 ; Settings Gui Hotkeys
 ; see Hotkey, If, WinActive(QAPSettingsString())
 
+;-----------------------------------------------------------
 SettingsCtrlS: ; ^S::
 SettingsEsc: ; Escape::
+;-----------------------------------------------------------
 
 if (A_ThisLabel = "SettingsCtrlS")
 {
@@ -298,6 +300,7 @@ else if (A_ThisLabel = "SettingsEsc")
 blnEnabled := ""
 
 return
+;-----------------------------------------------------------
 
 ; End of Gui Hotkeys
 
@@ -526,7 +529,7 @@ else
 	gosub, SetTrayMenuIconForCurrentBranch
 
 if (g_blnTrayIconError)
-	Oops(0, o_L["OopsJLiconsError"], g_strJLiconsVersion)
+	Oops(0, o_L["OopsJLiconsError"], g_strJLiconsVersion, (StrLen(strTempAlternativeTrayIconLocation) ? arrAlternativeTrayIcon[1] : o_JLicons.strFileLocation))
 
 arrAlternativeTrayIcon := ""
 strTempAlternativeTrayIconLocation := ""
@@ -640,11 +643,12 @@ BuildGuiMenuBar:
 
 Menu, menuBarFile, Add, % o_L["GuiSaveClipboard"] . "`tCtrl+S", SettingsCtrlS
 Menu, menuBarFile, Add, % o_L["GuiSaveAndClose"], GuiSaveAndCloseEditor
+Menu, menuBarFile, Add, % o_L["GuiClose"], GuiCancel
 Menu, menuBarFile, Add
 Menu, menuBarFile, Add, % L(o_L["MenuExitApp"], g_strAppNameText), GuiCancelAndExitApp
 Menu, menuBarMain, Add, % o_L["MenuFile"], :menuBarFile
 
-Gosub, DisableSaveButtons
+Gosub, DisableSaveAndSetClose
 
 return
 ;------------------------------------------------------------
@@ -676,11 +680,11 @@ InitGuiControls:
 
 ; InsertGuiControlPos(strControlName, intX, intY, blnCenter := false, blnDraw := false)
 
-InsertGuiControlPos("f_strClipboardEditor",				 20,   120)
+InsertGuiControlPos("f_strClipboardEditor",				 20,   130)
 
-InsertGuiControlPos("f_btnGuiSaveAndCloseEditor",		  0,  -50, , true)
-InsertGuiControlPos("f_btnGuiSaveAndStayEditor",		  0,  -50, , true)
-InsertGuiControlPos("f_btnGuiCancel",					  0,  -50, , true)
+InsertGuiControlPos("f_btnGuiSaveAndCloseEditor",		  0,  -65, , true)
+InsertGuiControlPos("f_btnGuiSaveAndStayEditor",		  0,  -65, , true)
+InsertGuiControlPos("f_btnGuiCancel",					  0,  -65, , true)
 
 return
 ;------------------------------------------------------------
@@ -707,8 +711,6 @@ BuildGui:
 ;------------------------------------------------------------
 
 g_strGuiFullTitle := L(o_L["GuiTitle"], g_strAppNameText, g_strAppVersion)
-; temporarily set the tray icon used for the gui
-gosub, SetTrayMenuIconForCurrentBranch
 Gui, 1:New, +Hwndg_strGui1Hwnd +Resize -MinimizeBox +MinSize%g_intGuiDefaultWidth%x%g_intGuiDefaultHeight%, %g_strGuiFullTitle%
 
 if (o_Settings.MenuAdvanced.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar, 2 System menu, 3 both
@@ -723,7 +725,8 @@ Gui, 1:Add, Checkbox, x+1 yp vf_blnFirstUpperCase gRuleCheckbopxChanged, % o_L["
 Gui, 1:Add, Checkbox, x+1 yp vf_blnTitleCase gRuleCheckbopxChanged, % o_L["GuiTitleCase"]
 Gui, 1:Add, Checkbox, x+1 yp vf_blnUnderscore2Space gRuleCheckbopxChanged, % o_L["GuiUnderscore2Space"]
 Gui, 1:Font, s8 w600, Verdana
-Gui, 1:Add, Button, x+5 yp-5 vf_btnGuiApplyRules gGuiApplyRules h25 Disabled, % o_L["GuiApplyRules"]
+Gui, 1:Add, Button, x10 y+10 vf_btnGuiApplyRules gGuiApplyRules h25 Disabled, % o_L["GuiApplyRules"]
+GuiCenterButtons(g_strGui1Hwnd, , , , "f_btnGuiApplyRules")
 
 Gui, 1:Font, s8 w600
 Gui, 1:Add, Text, x20 y+5, % o_L["MenuEditor"]
@@ -736,8 +739,6 @@ Gui, 1:Add, Checkbox, % "x+20 yp vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopCh
 
 Gui, 1:Font, s10 w400, Arial
 Gui, 1:Add, Edit, x10 y50 w600 vf_strClipboardEditor gClipboardEditorChanged Multi WantReturn WantTab
-g_blnClipboardChangedOutside := true ; to avoid enabling save button at startup
-Gosub, ClipboardEditorChanged
 
 Gui, 1:Font, s8 w600, Verdana
 Gui, 1:Add, Button, vf_btnGuiSaveAndCloseEditor Disabled gGuiSaveAndCloseEditor x200 y400 w140 h35, % o_L["GuiSaveAndClose"]
@@ -745,8 +746,11 @@ Gui, 1:Add, Button, vf_btnGuiSaveAndStayEditor Disabled gGuiSaveAndStayEditor x3
 Gui, 1:Add, Button, vf_btnGuiCancel gGuiCancel Default x500 yp w100 h35, % o_L["GuiClose"] ; Close until changes occur
 Gui, 1:Font
 
-g_Gui1AlwaysOnTop := !o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue
+g_blnAlwaysOnTop := !o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue
 gosub, ClipboardEditorAlwaysOnTopChanged
+
+Gui, 1:Add, StatusBar
+SB_SetParts(200, 200)
 
 GetSavedSettingsWindowPosition(saSettingsPosition) ; format: x|y|w|h with optional |M if maximized
 
@@ -801,26 +805,28 @@ return
 
 
 ;------------------------------------------------------------
-ClipboardEditorAlwaysOnTopChanged:
+ClipboardEditorChanged:
 ;------------------------------------------------------------
+Gui, 1:Submit, NoHide
 
-g_Gui1AlwaysOnTop := !g_Gui1AlwaysOnTop
-
-WinSet, AlwaysOnTop, % (g_Gui1AlwaysOnTop ? "On" : "Off"), ahk_id %g_strGui1Hwnd% ; do not use default Toogle for safety
-GuiControl, %g_Gui1AlwaysOnTop%, f_blnAlwaysOnTop
-; Menu, menuBarTools, ToggleCheck, % aaMenuToolsL["ControlToolTipAlwaysOnTopOff"]
+OnClipboardChange("ClipboardContentChanged", 0)
+SB_SetText("B) " . o_L["GuiLength"] . ": " . StrLen(f_strClipboardEditor), 1)
+SB_SetText("B) " . "Clipboard: NOT connected", 2)
+gosub, EnableSaveAndCancel
 
 return
 ;------------------------------------------------------------
 
 
 ;------------------------------------------------------------
-ClipboardEditorChanged:
+ClipboardEditorAlwaysOnTopChanged:
 ;------------------------------------------------------------
 
-if !(g_blnClipboardChangedOutside)
-	gosub, EnableSaveAndCancel
-g_blnClipboardChangedOutside := false
+g_blnAlwaysOnTop := !g_blnAlwaysOnTop
+
+WinSet, AlwaysOnTop, % (g_blnAlwaysOnTop ? "On" : "Off"), ahk_id %g_strGui1Hwnd% ; do not use default Toogle for safety
+GuiControl, %g_blnAlwaysOnTop%, f_blnAlwaysOnTop
+; Menu, menuBarTools, ToggleCheck, % aaMenuToolsL["ControlToolTipAlwaysOnTopOff"]
 
 return
 ;------------------------------------------------------------
@@ -835,9 +841,9 @@ ClipboardContentChanged()
 	If WinExist("ahk_id " . g_strGui1Hwnd)
 	{
 		g_strCliboardBackup := ClipboardAll
-		g_blnClipboardChangedOutside := true
 		GuiControl, , f_strClipboardEditor, %Clipboard%
-		Gosub, DisableSaveAndCancel
+		Gosub, DisableSaveAndSetClose
+		SB_SetText("C) " . o_L["GuiLength"] . ": " . StrLen(Clipboard), 1)
 	}
 	DetectHiddenWindows, %strDetectHiddenWindowsBefore%
 
@@ -880,14 +886,9 @@ GuiSaveAndStayEditor:
 ;------------------------------------------------------------
 Gui, Submit, NoHide
 
-GuiControl, Disable, f_btnGuiSaveAndCloseFavorites
-GuiControl, Disable, f_btnGuiSaveAndStayFavorites
-GuiControl, Disable, f_btnGuiCancel
-
+gosub, DisableSaveAndSetClose
 GuiControl, Enable, f_btnGuiCancel
 GuiControl, , f_btnGuiCancel, % o_L["GuiClose"]
-
-Gosub, DisableSaveButtons
 
 ; save clipboard
 Clipboard := f_strClipboardEditor
@@ -906,6 +907,7 @@ GuiApplyRules:
 ;------------------------------------------------------------
 Gui, Submit, NoHide
 
+GuiControl, Disable, f_btnGuiApplyRules
 Gosub, RulesUpdate
 
 return
@@ -919,8 +921,8 @@ GuiSize:
 if (A_EventInfo = 1)  ; The window has been minimized.  No action needed.
     return
 
-intEditorH := A_GuiHeight - 185
-g_intEditorW := A_GuiWidth - 20 - 20
+intEditorH := A_GuiHeight - 205
+g_intEditorW := A_GuiWidth - 40
 
 ; space before, between and after save/reload/close buttons
 ; = (A_GuiWidth - left margin - right margin - (3 buttons width)) // 4 (left, between x 2, right)
@@ -1257,7 +1259,7 @@ if (A_ThisLabel = "GuiCancelAndExitApp")
 	ExitApp
 ; else continue
 
-Gosub, DisableSaveButtons
+Gosub, DisableSaveAndSetClose
 
 if (blnStay)
 	Gosub, GuiShow
@@ -1275,27 +1277,22 @@ return
 
 ;------------------------------------------------------------
 EnableSaveAndCancel:
-DisableSaveAndCancel:
+DisableSaveAndSetClose:
 ;------------------------------------------------------------
 
-; enable save gui buttons
+; enable/disable editor's gui buttons
 GuiControl, % (A_ThisLabel = "EnableSaveAndCancel" ? "1:Enable" : "1:Disable"), f_btnGuiSaveAndCloseEditor
 GuiControl, % (A_ThisLabel = "EnableSaveAndCancel" ? "1:Enable" : "1:Disable"), f_btnGuiSaveAndStayEditor
 GuiControl, 1:, f_btnGuiCancel, % (A_ThisLabel = "EnableSaveAndCancel" ? o_L["GuiCancel"] : o_L["GuiClose"])
 
-Gosub, % (A_ThisLabel = "EnableSaveAndCancel" ? "EnableSaveButtons" : "DisableSaveButtons")
+; Gosub, % (A_ThisLabel = "EnableSaveAndCancel" ? "EnableSaveButtons" : "DisableSaveButtons")
 
-return
-;------------------------------------------------------------
+Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["GuiSaveClipboard"] . "`tCtrl+S"
+Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % L(o_L["GuiSaveAndClose"])
+Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Disable" : "Enable"), % L(o_L["GuiClose"])
 
-
-;------------------------------------------------------------
-EnableSaveButtons:
-DisableSaveButtons:
-;------------------------------------------------------------
-
-Menu, menuBarFile, % (A_ThisLabel = "EnableSaveButtons" ? "Enable" : "Disable"), % o_L["GuiSaveClipboard"] . "`tCtrl+S"
-Menu, menuBarFile, % (A_ThisLabel = "EnableSaveButtons" ? "Enable" : "Disable"), % L(o_L["GuiSaveAndClose"], g_strAppNameText)
+OnClipboardChange("ClipboardContentChanged", (A_ThisLabel = "DisableSaveAndSetClose"))
+SB_SetText("D) Clipboard: " . ((A_ThisLabel = "DisableSaveAndSetClose") ? "" : "NOT") . " connected", 2)
 
 return
 ;------------------------------------------------------------
@@ -1356,8 +1353,9 @@ GuiShowFromTray:
 ;------------------------------------------------------------
 
 g_strCliboardBackup := ClipboardAll
-g_blnClipboardChangedOutside := true
 GuiControl, , f_strClipboardEditor, %Clipboard%
+SB_SetText("E) " . o_L["GuiLength"] . ": " . StrLen(Clipboard), 1)
+
 Gui, Show
 
 GuiControl, Disable, f_btnGuiSaveAndCloseFavorites

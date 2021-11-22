@@ -494,6 +494,8 @@ if (g_blnIniFileCreation) ; if it exists, it is not first launch
 			FontSize=10
 			DisplayTrayTip=1
 			RulesTimeoutSecs=60
+			AlwaysOnTop=0
+			UseTab=0
 			[Rules]
 
 ) ; leave the last extra line above
@@ -519,6 +521,7 @@ o_Settings.ReadIniOption("SettingsWindow", "blnDarkModeCustomize", "DarkModeCust
 o_Settings.ReadIniOption("SettingsWindow", "blnFixedFont", "FixedFont", 0, "SettingsWindow", "")
 o_Settings.ReadIniOption("SettingsWindow", "intFontSize", "FontSize", 10, "SettingsWindow", "")
 o_Settings.ReadIniOption("SettingsWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "SettingsWindow", "")
+o_Settings.ReadIniOption("SettingsWindow", "blnUseTab", "UseTab", 0, "SettingsWindow", "")
 
 ; Group MenuAdvanced
 o_Settings.ReadIniOption("MenuAdvanced", "intShowMenuBar", "ShowMenuBar", 3, "MenuAdvanced", "") ; default false, if true reload QAP as admin ; g_blnRunAsAdmin
@@ -862,6 +865,21 @@ return
 
 
 ;------------------------------------------------------------
+ClipboardEditorUseTabChanged:
+;------------------------------------------------------------
+
+g_blnUseTab := !g_blnUseTab
+
+; GuiControl, % (g_blnUseTab ? "+" : "-") . "WantTab", f_blnUseTab
+GuiControl, % (g_blnUseTab ? "+" : "-") . "WantTab", f_strClipboardEditor
+GuiControl, %g_blnUseTab%, f_blnUseTab
+; Menu, menuBarTools, ToggleCheck, % aaMenuToolsL["ControlToolTipAlwaysOnTopOff"]
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
 ClipboardContentChanged()
 ;------------------------------------------------------------
 {
@@ -900,7 +918,7 @@ return
 
 
 ;------------------------------------------------------------
-RuleCheckbopxChanged:
+RuleCheckboxChanged:
 ;------------------------------------------------------------
 
 GuiControl, Enable, f_btnGuiApplyRules

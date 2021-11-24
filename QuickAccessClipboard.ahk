@@ -94,7 +94,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 global g_strCurrentVersion := "0.0.2" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
-global g_strJLiconsVersion := "1.6.2"
+global g_strJLiconsVersion := "1.6.3"
 
 ;---------------------------------
 ; Init class for JLicons
@@ -1370,7 +1370,14 @@ GuiShow:
 GuiShowFromTray:
 ;------------------------------------------------------------
 
-; ##### take a backup of checkboxes 
+strCheckBoxes := "f_blnLowerCase|f_blnUpperCase|f_blnFirstUpperCase|f_blnTitleCase|f_blnUnderscore2Space"
+aaCheckBoxesValues := Object()
+loop, Parse, strCheckBoxes, |
+{
+	GuiControlGet, blnValue, , %A_LoopField%
+	aaCheckBoxesValues[A_LoopField] := blnValue
+}
+blnValue := ""
 
 g_strCliboardBackup := ClipboardAll
 GuiControl, , f_strClipboardEditor, %Clipboard%
@@ -1380,17 +1387,26 @@ SB_SetText("E) " . o_L["GuiLength"] . ": " . StrLen(Clipboard), 1)
 Gosub, DisableSaveAndCancel
 Gui, Show
 
+; wait until window is closed to alert user if rules were changed but not applied
+
 strDetectHiddenWindowsBefore := A_DetectHiddenWindows
 DetectHiddenWindows, Off
-
 WinWaitClose, ahk_id %g_strGui1Hwnd%
+
+; from here, window has been closed
 Gui, Submit, NoHide
 GuiControlGet, blnUpdateRulesButtonChecked, Enabled, f_btnGuiApplyRules
-if (blnUpdateRulesButtonChecked)
+
+if (blnUpdateRulesButtonChecked) ; rules were changed but not applied
 {
-	; ##### restore backup of checkboxes 
-	ToolTip, Quick Access Clipboard rules *NOT* updated...
-	Sleep, 2000
+	; reset checkboxes to their original value
+	loop, Parse, strCheckBoxes, |
+		GuiControl, , %A_LoopField%, % aaCheckBoxesValues[A_LoopField]
+	strCheckBoxes := ""
+	oCheckBoxesValues := ""
+	
+	ToolTip, % o_L["GuiRulesNotUpdated"]
+	Sleep, 2500
 	ToolTip
 }
 

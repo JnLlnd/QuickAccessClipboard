@@ -2887,8 +2887,8 @@ class Triggers.MouseButtons
 			if StrLen(this.strKey) ; localize system key names
 			{
 				strSystemKeyNames := "sc15D|AppsKey|Space|Enter|Escape"
-				saLocalizedKeyNames := StrSplit(o_L["DialogMenuKey"] . "|" . o_L["DialogMenuKey"] . "|" . o_L["ToolTipSnippetWaitSpace"]
-					. "|" . o_L["ToolTipSnippetWaitEnter"] . "|" . o_L["ToolTipSnippetWaitEscape"], "|")
+				saLocalizedKeyNames := StrSplit(o_L["DialogMenuKey"] . "|" . o_L["DialogMenuKey"] . "|" . o_L["DialogSpace"]
+					. "|" . o_L["DialogEnter"] . "|" . o_L["DialogEscape"], "|")
 				Loop, Parse, strSystemKeyNames, |
 					if (this.strKey = A_LoopField)
 						this.strKey := saLocalizedKeyNames[A_Index]

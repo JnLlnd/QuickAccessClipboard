@@ -12,7 +12,13 @@ HISTORY
 =======
 
 version: 0.0.2 (2021-11-??)
-- 
+- add always on top checkbox to editor, add value to ini file
+- use status bar to display editor's content length and Clipboard "connected" status (with temporary debugging info); display file nam if JLicons.dll outdated; add "File, Close" menu; resize buttons and editor controls; center "Apply rules" button, enable when window activated and disable when editing content (* to be continued when saving content to Clipboard); add always on top checkbox and option in ini file and read option (default false);
+- intercept Ctrl+C and Ctr+V to disable clipboard connection when using these keys in the editor
+- add AlwaysOnTop and UseTab checkboxes and ini options;
+- change editors button and item under File menu to Save Clipboard, Cancel (revert to clipboard content) and Close and adjust enbabling of buttons and menus; add checkbox Use tab;
+- take a backup of rules checkboxes when showing the gui; if gui is closed without applying changed rules, restore backup values and alert user with a tooltip; change JLicons required version number
+
 
 Version: 0.0.1 (2021-11-14)
 - repository creation
@@ -161,6 +167,7 @@ global g_intGuiDefaultWidth := 636
 global g_intGuiDefaultHeight := 496 ; was 601
 global g_saGuiControls := Object() ; to build Editor gui
 global g_strGui1Hwnd ; editor window ID
+global g_strEditorControlHwnd ; editor control ID
 global g_strCliboardBackup
 
 ;---------------------------------
@@ -226,6 +233,7 @@ if (o_Settings.Launch.blnDiagMode.IniValue)
 ; Build menu used in Settings Gui
 Gosub, BuildGuiMenuBar ; must be before BuildMainMenuInit
 Gosub, BuildTrayMenu
+Gosub, BuildEditorContextMenu
 
 ; Build Editor Gui
 Gosub, BuildGui
@@ -251,7 +259,7 @@ if (o_Settings.Launch.blnDisplayTrayTip.IniValue)
 
 ; Enabling Clipboard change in editor
 OnClipboardChange("ClipboardContentChanged", 1)
-SB_SetText("A) Clipboard: connected", 2)
+SB_SetText("A) " . o_L["DialogClipboard"] . ": " . o_L["DialogConnected"], 2)
 
 ; startups count and trace
 IniWrite, % (intStartups + 1), % o_Settings.strIniFile, Global, Startups
@@ -264,13 +272,18 @@ IniWrite, % (g_blnPortableMode ? "Portable" : "Easy Setup"), % o_Settings.strIni
 Hotkey, If, WinActive(QACSettingsString()) ; main Gui title
 
 	Hotkey, ^c, EditorCtrlC, On UseErrorLevel
-	Hotkey, ^v, EditorCtrlV, On UseErrorLevel
+	Hotkey, ^x, EditorCtrlX, On UseErrorLevel
 
 	; other Hotkeys are created by menu assignement in BuildGuiMenuBar
 
 Hotkey, If
 
 return
+
+;========================================================================================================================
+; END OF INITIALISATION
+;========================================================================================================================
+
 
 ;========================================================================================================================
 ; Handles for the "Hotkey, If" condition
@@ -308,7 +321,7 @@ return
 EditorCtrlS: ; ^S::
 EditorEsc: ; Escape::
 EditorCtrlC: ; Copy
-EditorCtrlV: ; Paste
+EditorCtrlX: ; Cut
 ;-----------------------------------------------------------
 
 if (A_ThisLabel = "EditorCtrlS")
@@ -321,11 +334,12 @@ else if (A_ThisLabel = "EditorEsc")
 	Gosub, GuiClose
 }
 
-else if (A_ThisLabel = "EditorCtrlC" or A_ThisLabel = "EditorCtrlV")
+else if (A_ThisLabel = "EditorCtrlC") or (A_ThisLabel = "EditorCtrlX")
 {
 	; Disable Clipboard change in editor
 	OnClipboardChange("ClipboardContentChanged", 0)
-	Send, % (A_ThisLabel = "EditorCtrlC" ? "^c" : "^v")
+	SB_SetText("E) " . o_L["DialogClipboard"] . ": " . StrUpper(o_L["DialogNot"]) . " " . o_L["DialogConnected"], 2)
+	Send, % (A_ThisLabel = "EditorCtrlC" ? "^c" : "^x")
 }
 
 return
@@ -627,6 +641,57 @@ return
 
 
 ;------------------------------------------------------------
+BuildEditorContextMenu:
+;------------------------------------------------------------
+
+; OnMessage to intercept Context menu in Edit control
+; from Malcev (https://www.autohotkey.com/board/topic/116431-trying-to-replace-edit-box-context-menu/#entry732693)
+OnMessage(0x204, "WM_RBUTTONDOWN")
+OnMessage(0x205, "WM_RBUTTONUP")
+
+Menu, menuEditorContextMenu, Add, % o_L["DialogUndo"], EditorContextMenuActions
+Menu, menuEditorContextMenu, Add
+Menu, menuEditorContextMenu, Add, % o_L["DialogCut"], EditorContextMenuActions
+Menu, menuEditorContextMenu, Add, % o_L["DialogCopy"], EditorContextMenuActions
+Menu, menuEditorContextMenu, Add, % o_L["DialogPaste"], EditorContextMenuActions
+Menu, menuEditorContextMenu, Add, % o_L["DialogDelete"], EditorContextMenuActions
+Menu, menuEditorContextMenu, Add
+Menu, menuEditorContextMenu, Add, % o_L["DialogSelectAll"], EditorContextMenuActions
+
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+EditorContextMenuActions:
+;------------------------------------------------------------
+
+if (A_ThisMenuItem = "DialogCut" or A_ThisMenuItem = "DialogCopy")
+; disconnect before changing the Clipboard content
+{
+	OnClipboardChange("ClipboardContentChanged", 0)
+	SB_SetText("F) " . o_L["DialogClipboard"] . ": " . StrUpper(o_L["DialogNot"]) . " " . o_L["DialogConnected"], 2)
+}
+
+if (A_ThisMenuItem = o_L["DialogUndo"])
+	Send, ^z
+else if (A_ThisMenuItem = o_L["DialogCut"])
+	Send, ^x
+else if (A_ThisMenuItem = o_L["DialogCopy"])
+	Send, ^c
+else if (A_ThisMenuItem = o_L["DialogPaste"])
+	Send, ^v
+else if (A_ThisMenuItem = o_L["DialogDelete"])
+	Send, {Del}
+else if (A_ThisMenuItem = o_L["DialogSelectAll"])
+	Send, ^a
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
 InitDiagMode:
 ;------------------------------------------------------------
 
@@ -741,7 +806,6 @@ BuildGui:
 ;------------------------------------------------------------
 
 Gui, 1:New, +Hwndg_strGui1Hwnd +Resize -MinimizeBox +MinSize%g_intGuiDefaultWidth%x%g_intGuiDefaultHeight%, % QACSettingsString()
-
 if (o_Settings.MenuAdvanced.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar, 2 System menu, 3 both
 	Gui, Menu, menuBarMain
 
@@ -768,8 +832,7 @@ Gui, 1:Add, Checkbox, % "x+20 yp vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopCh
 Gui, 1:Add, Checkbox, % "x+10 yp vf_blnUseTab gClipboardEditorUseTabChanged " . (o_Settings.SettingsWindow.blnUseTab.IniValue = 1 ? "checked" : ""), % o_L["DialogUseTab"]
 
 Gui, 1:Font, s10 w400, Arial
-Gui, 1:Add, Edit, x10 y50 w600 vf_strClipboardEditor gClipboardEditorChanged Multi WantReturn
-
+Gui, 1:Add, Edit, x10 y50 w600 vf_strClipboardEditor gClipboardEditorChanged Multi WantReturn +hwndg_strEditorControlHwnd
 Gui, 1:Font, s8 w600, Verdana
 Gui, 1:Add, Button, vf_btnGuiSaveEditor Disabled gGuiSaveEditor x200 y400 w140 h35, % o_L["GuiSaveClipboard"]
 Gui, 1:Add, Button, vf_btnGuiCancelEditor Disabled gGuiCancelEditor x350 yp w140 h35, % o_L["GuiCancelEditor"]
@@ -831,6 +894,7 @@ if (o_Settings.SettingsWindow.blnDarkModeCustomize.IniValue and !blnLightMode)
 
 saSettingsPosition := ""
 strTextColor := ""
+strHwnd := ""
 
 return
 ;------------------------------------------------------------
@@ -843,7 +907,7 @@ Gui, 1:Submit, NoHide
 
 OnClipboardChange("ClipboardContentChanged", 0)
 SB_SetText("B) " . o_L["GuiLength"] . ": " . StrLen(f_strClipboardEditor), 1)
-SB_SetText("B) " . "Clipboard: NOT connected", 2)
+SB_SetText("B) " . o_L["DialogClipboard"] . ": " . StrUpper(o_L["DialogNot"]) . " " . o_L["DialogConnected"], 2)
 gosub, EnableSaveAndCancel
 
 return
@@ -1187,13 +1251,13 @@ FileDelete, %strRulesPathNoExt%.ahk
 intTimeoutSecs := o_Settings.Launch.intRulesTimeoutSecs.IniValue
 intTimeoutMs := intTimeoutSecs * 1000
 
-FileAppend,
+strSource =
 	(LTrim Join`r`n
 	#NoEnv
 	#Persistent
 	#SingleInstance force
 	#NoTrayIcon
-
+	
 	global g_intLastTick := A_TickCount ; initial timeout delay after rules are enabled
 	
 	OnClipboardChange("LowerCase", %f_blnLowerCase%)
@@ -1212,7 +1276,7 @@ FileAppend,
 
 	if (A_TickCount - g_intLastTick > %intTimeoutMs%)
 	{
-		ToolTip, Quick Access Clipboard rules disabled (%intTimeoutSecs% seconds timeout)
+		ToolTip, ~1~
 		Sleep, 2000
 		ExitApp
 	}
@@ -1222,7 +1286,8 @@ FileAppend,
 
 
 ) ; leave the 2 last extra lines above
-	, %strRulesPathNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
+strSource := StrReplace(strSource, "~1~", o_L["QACrulesDisabled"])
+FileAppend, % L(strSource, intTimeoutSecs), %strRulesPathNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
 
 ; #### temporary until generated by QAC
 FileRead, strRules, %strRulesPathNoExt%.txt
@@ -1230,7 +1295,7 @@ FileAppend, %strRules%, %strRulesPathNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
 
 Run, %strRulesPathNoExt%.exe
 
-ToolTip, Quick Access Clipboard rules updated...
+ToolTip, o_L["QACrulesUpdated"]
 Sleep, 1000
 ToolTip
 
@@ -1310,7 +1375,7 @@ Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"
 Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % L(o_L["GuiCancelEditor"])
 
 OnClipboardChange("ClipboardContentChanged", (A_ThisLabel = "DisableSaveAndCancel"))
-SB_SetText("D) Clipboard: " . ((A_ThisLabel = "DisableSaveAndCancel") ? "" : "NOT") . " connected", 2)
+SB_SetText("D) " . o_L["DialogClipboard"] . ": " . ((A_ThisLabel = "DisableSaveAndCancel") ? "" : StrUpper(o_L["DialogNot"])) . " " . o_L["DialogConnected"], 2)
 
 return
 ;------------------------------------------------------------
@@ -2285,6 +2350,54 @@ QACSettingsString()
 }
 ;------------------------------------------------------------
 
+
+;------------------------------------------------------------
+WM_RBUTTONDOWN()
+; see OnMessage(0x204, "WM_RBUTTONDOWN")
+;------------------------------------------------------------
+{
+    if (A_GuiControl = "f_strClipboardEditor")
+       Return 0
+}
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+WM_RBUTTONUP()
+; see OnMessage(0x205, "WM_RBUTTONUP")
+;------------------------------------------------------------
+{
+    if (A_GuiControl = "f_strClipboardEditor")
+	{
+		GuiControl, Focus, f_strClipboardEditor ; give focus to control for EditorContextMenuActions
+		
+		GuiControlGet, blnEnable, Enabled, f_btnGuiCancelEditor ; enable Undo item if Cancel button is enabled
+		Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogUndo"]
+		
+		blnEnable := GetSelectedTextLenght(g_strEditorControlHwnd) ; enable Cut, Copy, Delete if text is selected in the control
+		Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCut"]
+		Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCopy"]
+		Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogDelete"]
+		
+		Menu, menuEditorContextMenu, % (StrLen(Clipboard) ? "Enable" : "Disable"), % o_L["DialogPaste"]
+        Menu, menuEditorContextMenu, Show
+	}
+}
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GetSelectedTextLenght(strHwnd)
+; from just me (https://www.autohotkey.com/boards/viewtopic.php?p=27857#p27857)
+;------------------------------------------------------------
+{
+	intStart := 0
+	intEnd := 0
+	; EM_GETSEL = 0x00B0 -> msdn.microsoft.com/en-us/library/bb761598(v=vs.85).aspx
+	DllCall("User32.dll\SendMessage", "Ptr", strHwnd, "UInt", 0x00B0, "UIntP", intStart, "UIntP", intEnd, "Ptr")
+	return (intEnd - intStart)
+}
+;------------------------------------------------------------
 
 
 ;========================================================================================================================

@@ -18,7 +18,7 @@ version: 0.0.2 (2021-11-??)
 - add AlwaysOnTop and UseTab checkboxes and ini options;
 - change editors button and item under File menu to Save Clipboard, Cancel (revert to clipboard content) and Close and adjust enbabling of buttons and menus; add checkbox Use tab;
 - take a backup of rules checkboxes when showing the gui; if gui is closed without applying changed rules, restore backup values and alert user with a tooltip; change JLicons required version number
-
+- replace edit control context menu to manage clipboard connection; enable or disable context menu items based on selected text, clipboard content or editor changed status; intercept Ctrl+C and Ctrl+X in editor control to manage clipboard connection; add editor content length and clipboard connection status to status bar; move tooltips text to language file
 
 Version: 0.0.1 (2021-11-14)
 - repository creation
@@ -145,7 +145,7 @@ global g_strTempDir := g_strTempDirParent . "\_QAC_temp_" . RandomBetween()
 FileCreateDir, %g_strTempDir%
 
 ; remove temporary folders older than 7 days
-SetTimer, RemoveOldTemporaryFolders, -10000, -100 ; run once in 60 seconds, low priority -100
+SetTimer, RemoveOldTemporaryFolders, -10000, -100 ; run once in 10 seconds, low priority -100
 
 ;---------------------------------
 ; Init temporary folder
@@ -1513,7 +1513,7 @@ RemoveOldTemporaryFolders:
 ; remove temporary folders older than 5 days
 ;------------------------------------------------------------
 
-Loop, Files, %g_strTempDirParent%\_QAP_temp_*,  D
+Loop, Files, %g_strTempDirParent%\_QAC_temp_*,  D
 {
 	strDate := A_Now
 	EnvSub, strDate, %A_LoopFileTimeModified%, D

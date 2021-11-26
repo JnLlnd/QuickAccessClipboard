@@ -20,7 +20,7 @@
 #define MyAppDescription "Quick Access Clipboard (Windows software)"
 #define QACmessengerVersionFileName "QACmessenger-0_1-32-bit.exe"
 #define JLdir "JeanLalonde"
-#define JLicons "JLicons-1_6_2.dll"
+#define JLicons "JLicons-1_6_3.dll"
 #define QACrules "QACrules.exe"
 
 [CustomMessages]

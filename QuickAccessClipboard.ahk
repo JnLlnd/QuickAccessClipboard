@@ -198,7 +198,8 @@ global g_intGuiDefaultHeight := 496 ; was 601
 global g_saGuiControls := Object() ; to build Editor gui
 global g_strGui1Hwnd ; editor window ID
 global g_strEditorControlHwnd ; editor control ID
-global g_strCliboardBackup
+global g_strCliboardBackup ; not used...
+global g_intClipboardContentType ; updated by ClipboardContentChanged()
 
 ;---------------------------------
 ; Init language
@@ -289,7 +290,7 @@ if (o_Settings.Launch.blnDisplayTrayTip.IniValue)
 
 ; Enabling Clipboard change in editor
 OnClipboardChange("ClipboardContentChanged", 1)
-SB_SetText("A) " . o_L["DialogClipboard"] . ": " . o_L["DialogConnected"], 2)
+SB_SetText("", 2)
 
 ; startups count and trace
 IniWrite, % (intStartups + 1), % o_Settings.strIniFile, Global, Startups
@@ -368,7 +369,7 @@ else if (A_ThisLabel = "EditorCtrlC") or (A_ThisLabel = "EditorCtrlX")
 {
 	; Disable Clipboard change in editor
 	OnClipboardChange("ClipboardContentChanged", 0)
-	SB_SetText("E) " . o_L["DialogClipboard"] . ": " . StrUpper(o_L["DialogNot"]) . " " . o_L["DialogConnected"], 2)
+	SB_SetText(o_L["DialogClipboardDisconnected"], 2)
 	Send, % (A_ThisLabel = "EditorCtrlC" ? "^c" : "^x")
 }
 
@@ -602,7 +603,7 @@ strTempAlternativeTrayIconLocation := arrAlternativeTrayIcon[1]
 if StrLen(arrAlternativeTrayIcon[1]) and FileExistInPath(strTempAlternativeTrayIconLocation) ; return strTempLocation with expanded relative path and envvars, and absolute location if in PATH
 	Menu, Tray, Icon, %strTempAlternativeTrayIconLocation%, % arrAlternativeTrayIcon[2], 1 ; last 1 to freeze icon during pause or suspend
 else
-	gosub, SetTrayMenuIconForCurrentBranch
+	Gosub, SetTrayMenuIconForCurrentBranch
 
 if (g_blnTrayIconError)
 	Oops(0, o_L["OopsJLiconsError"], g_strJLiconsVersion, (StrLen(strTempAlternativeTrayIconLocation) ? arrAlternativeTrayIcon[1] : o_JLicons.strFileLocation))
@@ -701,7 +702,7 @@ if (A_ThisMenuItem = "DialogCut" or A_ThisMenuItem = "DialogCopy")
 ; disconnect before changing the Clipboard content
 {
 	OnClipboardChange("ClipboardContentChanged", 0)
-	SB_SetText("F) " . o_L["DialogClipboard"] . ": " . StrUpper(o_L["DialogNot"]) . " " . o_L["DialogConnected"], 2)
+	SB_SetText(o_L["DialogClipboardDisconnected"], 2)
 }
 
 if (A_ThisMenuItem = o_L["DialogUndo"])
@@ -870,9 +871,9 @@ Gui, 1:Add, Button, vf_btnGuiClose gGuiClose Default x500 yp w100 h35, % o_L["Gu
 Gui, 1:Font
 
 g_blnAlwaysOnTop := !o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue
-gosub, ClipboardEditorAlwaysOnTopChanged
+Gosub, ClipboardEditorAlwaysOnTopChanged
 g_blnUseTab := !o_Settings.SettingsWindow.blnUseTab.IniValue
-gosub, ClipboardEditorUseTabChanged
+Gosub, ClipboardEditorUseTabChanged
 
 Gui, 1:Add, StatusBar
 SB_SetParts(200, 200)
@@ -936,9 +937,9 @@ ClipboardEditorChanged:
 Gui, 1:Submit, NoHide
 
 OnClipboardChange("ClipboardContentChanged", 0)
-SB_SetText("B) " . o_L["GuiLength"] . ": " . StrLen(f_strClipboardEditor), 1)
-SB_SetText("B) " . o_L["DialogClipboard"] . ": " . StrUpper(o_L["DialogNot"]) . " " . o_L["DialogConnected"], 2)
-gosub, EnableSaveAndCancel
+SB_SetText(o_L["MenuEditor"] . ": " . (StrLen(f_strClipboardEditor) = 1 ? o_L["GuiOneCharacter"] : L(o_L["GuiCharacters"], StrLen(f_strClipboardEditor))), 1)
+SB_SetText(o_L["DialogClipboardDisconnected"], 2)
+Gosub, EnableSaveAndCancel
 
 return
 ;------------------------------------------------------------
@@ -974,17 +975,18 @@ return
 
 
 ;------------------------------------------------------------
-ClipboardContentChanged()
+ClipboardContentChanged(intClipboardContentType)
+; intClipboardContentType: 0 = empty / 1 = contains text / 2 = contains binary
+
 ;------------------------------------------------------------
 {
 	strDetectHiddenWindowsBefore := A_DetectHiddenWindows
 	DetectHiddenWindows, Off
-	If WinExist("ahk_id " . g_strGui1Hwnd)
+	If WinExist("ahk_id " . g_strGui1Hwnd) ; if editor is visible, update content
 	{
-		g_strCliboardBackup := ClipboardAll
-		GuiControl, , f_strClipboardEditor, %Clipboard%
+		g_intClipboardContentType := intClipboardContentType
+		Gosub, UpdateEditorWithClipboard
 		Gosub, DisableSaveAndCancel
-		SB_SetText("C) " . o_L["GuiLength"] . ": " . StrLen(Clipboard), 1)
 	}
 	DetectHiddenWindows, %strDetectHiddenWindowsBefore%
 
@@ -1027,12 +1029,12 @@ GuiCancelEditor:
 ;------------------------------------------------------------
 Gui, Submit, NoHide
 
-gosub, DisableSaveAndCancel
+Gosub, DisableSaveAndCancel
 
 if (A_ThisLabel = "GuiSaveEditor")
 	Clipboard := f_strClipboardEditor
 else
-	GuiControl, , f_strClipboardEditor, %Clipboard%
+	Gosub, UpdateEditorWithClipboard
 
 return
 ;------------------------------------------------------------
@@ -1406,7 +1408,7 @@ Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"
 Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % L(o_L["GuiCancelEditor"])
 
 OnClipboardChange("ClipboardContentChanged", (A_ThisLabel = "DisableSaveAndCancel"))
-SB_SetText("D) " . o_L["DialogClipboard"] . ": " . ((A_ThisLabel = "DisableSaveAndCancel") ? "" : StrUpper(o_L["DialogNot"])) . " " . o_L["DialogConnected"], 2)
+SB_SetText((A_ThisLabel = "EnableSaveAndCancel" ? o_L["DialogClipboardDisconnected"] : ""), 2)
 
 return
 ;------------------------------------------------------------
@@ -1475,12 +1477,9 @@ loop, Parse, strCheckBoxes, |
 }
 blnValue := ""
 
-g_strCliboardBackup := ClipboardAll
-GuiControl, , f_strClipboardEditor, %Clipboard%
-; GuiControl, Focus, f_strClipboardEditor
-SB_SetText("E) " . o_L["GuiLength"] . ": " . StrLen(Clipboard), 1)
-
+Gosub, UpdateEditorWithClipboardFromGuiShow
 Gosub, DisableSaveAndCancel
+
 Gui, Show
 
 ; wait until window is closed to alert user if rules were changed but not applied
@@ -1508,6 +1507,31 @@ if (blnUpdateRulesButtonChecked) ; rules were changed but not applied
 
 DetectHiddenWindows, %strDetectHiddenWindowsBefore%
 strDetectHiddenWindowsBefore := ""
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+UpdateEditorWithClipboard:
+UpdateEditorWithClipboardFromGuiShow:
+;------------------------------------------------------------
+
+strContent := o_L["GuiClipboard"] . ": "
+if (A_ThisLabel = "UpdateEditorWithClipboardFromGuiShow" and !StrLen(Clipboard))
+	strContent .= o_L["GuiEmptyOrBinary"] ; we can't tell which one it is
+else if (g_intClipboardContentType = 2)
+	strContent .= o_L["GuiBinary"]
+else if (g_intClipboardContentType = 0)
+	strContent .= o_L["GuiEmpty"]
+else ; Clipboard contains text (g_intClipboardContentType = 1 or StrLen(Clipboard))
+	strContent .= (StrLen(Clipboard) = 1 ? o_L["GuiOneCharacter"] : L(o_L["GuiCharacters"], StrLen(Clipboard)))
+
+g_strCliboardBackup := ClipboardAll ; not used...
+GuiControl, , f_strClipboardEditor, %Clipboard%
+SB_SetText(strContent, 1)
+
+strContent := ""
 
 return
 ;------------------------------------------------------------
@@ -1598,7 +1622,7 @@ if !StrLen(strLatestVersions)
 	if (A_ThisLabel = "Check4UpdateNow")
 	{
 		Oops(0, o_L["UpdateError"])
-		gosub, Check4UpdateCleanup
+		Gosub, Check4UpdateCleanup
 		return ; an error occured during ComObjCreate
 	}
 
@@ -1609,13 +1633,13 @@ Loop, Parse, strLatestVersions, , 0123456789.| ; strLatestVersions should only c
 	; if we get here, the content returned by the URL above is wrong
 	if (A_ThisMenuItem <> aaHelpL["MenuUpdate"])
 	{
-		gosub, Check4UpdateCleanup
+		Gosub, Check4UpdateCleanup
 		return ; return silently
 	}
 	else
 	{
 		Oops(0, o_L["UpdateError"]) ; return with an error message
-		gosub, Check4UpdateCleanup
+		Gosub, Check4UpdateCleanup
 		return
 	}
 

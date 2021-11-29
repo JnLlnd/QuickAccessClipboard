@@ -807,17 +807,17 @@ else
 	new Rule("Underscore to Space", "Replace", "_", " ") ; StrReplace(Clipboard, "_", " ")
 	new Rule("MsgBox", "AutoHotkey", "MsgBox, %Clipboard%")
 
-	new Rule("Lower case", "ChangeCase", ".*", "$L0") ;  RegExReplace(Clipboard, ".*", "$L0"))
-	new Rule("Upper case", "ChangeCase", ".*", "$U0") ;  RegExReplace(Clipboard, ".*", "$U0")
-	new Rule("Title case", "ChangeCase", ".*", "$T0") ;  RegExReplace(Clipboard, ".*", "$T0")
-	new Rule("Underscore to Space", "Replace", "_", " ") ; StrReplace(Clipboard, "_", " ")
-	new Rule("MsgBox", "AutoHotkey", "MsgBox, %Clipboard%")
+	new Rule("Lower case2", "ChangeCase", ".*", "$L0") ;  RegExReplace(Clipboard, ".*", "$L0"))
+	new Rule("Upper case2", "ChangeCase", ".*", "$U0") ;  RegExReplace(Clipboard, ".*", "$U0")
+	new Rule("Title case2", "ChangeCase", ".*", "$T0") ;  RegExReplace(Clipboard, ".*", "$T0")
+	new Rule("Underscore to Space2", "Replace", "_", " ") ; StrReplace(Clipboard, "_", " ")
+	new Rule("MsgBox2", "AutoHotkey", "MsgBox, %Clipboard%")
 
-	new Rule("Lower case", "ChangeCase", ".*", "$L0") ;  RegExReplace(Clipboard, ".*", "$L0"))
-	new Rule("Upper case", "ChangeCase", ".*", "$U0") ;  RegExReplace(Clipboard, ".*", "$U0")
-	new Rule("Title case", "ChangeCase", ".*", "$T0") ;  RegExReplace(Clipboard, ".*", "$T0")
-	new Rule("Underscore to Space", "Replace", "_", " ") ; StrReplace(Clipboard, "_", " ")
-	new Rule("MsgBox", "AutoHotkey", "MsgBox, %Clipboard%")
+	new Rule("Lower case3", "ChangeCase", ".*", "$L0") ;  RegExReplace(Clipboard, ".*", "$L0"))
+	new Rule("Upper case3", "ChangeCase", ".*", "$U0") ;  RegExReplace(Clipboard, ".*", "$U0")
+	new Rule("Title case3", "ChangeCase", ".*", "$T0") ;  RegExReplace(Clipboard, ".*", "$T0")
+	new Rule("Underscore to Space3", "Replace", "_", " ") ; StrReplace(Clipboard, "_", " ")
+	new Rule("MsgBox3", "AutoHotkey", "MsgBox, %Clipboard%")
 
 	; load
 }
@@ -1375,26 +1375,11 @@ strBottom =
 
 ) ; leave the 2 last extra lines above
 strSource := strTop . strRules . StrReplace(strBottom, "~1~", L(o_L["RulesDisabled"], g_strAppNameText, intTimeoutSecs))
-FileAppend, %strSource%, %strRulesPathNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
 
-strRules := ""
 for intOrder, aaRule in g_saRulesOrder
-{
-	; begin rule
-	strRules .= "Rule" . intOrder . "(strType) `; " . aaRule.strType . " > " . aaRule.strName . "`n{`nif (strType = 1)`n{`n"
-	
-	if (aaRule.strType = "Replace")
-		strRules .= "Clipboard := StrReplace(Clipboard, """ . aaRule.strFind . """, """ . aaRule.strReplace . """)"
-	else if (aaRule.strType = "ChangeCase")
-		strRules .= "Clipboard := RegExReplace(Clipboard, """ . aaRule.strFind . """, """ . aaRule.strReplace . """)"
-	else if (aaRule.strType = "AutoHotkey")
-		strRules .= "`n" . aaRule.strCode . "`n"
-	
-	; end rule
-	strRules .= "`n}`n}`n`n"
-}
+	strSource .= aaRule.GetCode(intOrder)
 
-FileAppend, %strRules%, %strRulesPathNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
+FileAppend, %strSource%, %strRulesPathNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
 
 Run, %strRulesPathNoExt%.exe
 
@@ -1403,7 +1388,7 @@ Sleep, 1000
 ToolTip
 
 strRulesPathNoExt := ""
-strRules := ""
+strSource := ""
 
 return
 ;-----------------------------------------------------------
@@ -3407,6 +3392,28 @@ class Rule
 		
 		g_aaRulesByName[strName] := this
 		g_saRulesOrder.Push(this)
+	}
+	;---------------------------------------------------------
+	
+	;---------------------------------------------------------
+	GetCode(intOrder)
+	;---------------------------------------------------------
+	{
+		; begin rule
+		strCode := "Rule" . intOrder . "(strType) `; " . this.strType . " > " . this.strName . "`n{`nif (strType = 1)`n{`n"
+		
+		if (this.strType = "Replace")
+			strCode .= "Clipboard := StrReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
+		else if (this.strType = "ChangeCase")
+			strCode .= "Clipboard := RegExReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
+		else if (this.strType = "AutoHotkey")
+			strCode .= "`n" . this.strCode . "`n"
+		
+		; end rule
+		strCode .= "`n}`n}`n`n"
+		
+		###_V("", strCode)
+		return strCode
 	}
 	;---------------------------------------------------------
 	

@@ -193,6 +193,8 @@ global o_L := new Language
 
 global g_strDiagFile := A_WorkingDir . "\" . g_strAppNameFile . "-DIAG.txt"
 
+global g_aaRulesByName := Object()
+global g_saRulesOrder := Object()
 global g_intGuiDefaultWidth := 636
 global g_intGuiDefaultHeight := 496 ; was 601
 global g_saGuiControls := Object() ; to build Editor gui
@@ -792,6 +794,31 @@ if !FileExist(o_Settings.strIniFile)
 }
 else
 {
+	; harcoded until coding ini save/load
+	
+	;Types:
+	; ChangeCase -> use RegExReplace to change case -> strFind, strReplace
+	; Replace -> use StrReplace (see options) -> strFind, strReplace
+	; AutoHotkey -> execute script -> strCode
+	
+	new Rule("Lower case", "ChangeCase", ".*", "$L0") ;  RegExReplace(Clipboard, ".*", "$L0"))
+	new Rule("Upper case", "ChangeCase", ".*", "$U0") ;  RegExReplace(Clipboard, ".*", "$U0")
+	new Rule("Title case", "ChangeCase", ".*", "$T0") ;  RegExReplace(Clipboard, ".*", "$T0")
+	new Rule("Underscore to Space", "Replace", "_", " ") ; StrReplace(Clipboard, "_", " ")
+	new Rule("MsgBox", "AutoHotkey", "MsgBox, %Clipboard%")
+
+	new Rule("Lower case", "ChangeCase", ".*", "$L0") ;  RegExReplace(Clipboard, ".*", "$L0"))
+	new Rule("Upper case", "ChangeCase", ".*", "$U0") ;  RegExReplace(Clipboard, ".*", "$U0")
+	new Rule("Title case", "ChangeCase", ".*", "$T0") ;  RegExReplace(Clipboard, ".*", "$T0")
+	new Rule("Underscore to Space", "Replace", "_", " ") ; StrReplace(Clipboard, "_", " ")
+	new Rule("MsgBox", "AutoHotkey", "MsgBox, %Clipboard%")
+
+	new Rule("Lower case", "ChangeCase", ".*", "$L0") ;  RegExReplace(Clipboard, ".*", "$L0"))
+	new Rule("Upper case", "ChangeCase", ".*", "$U0") ;  RegExReplace(Clipboard, ".*", "$U0")
+	new Rule("Title case", "ChangeCase", ".*", "$T0") ;  RegExReplace(Clipboard, ".*", "$T0")
+	new Rule("Underscore to Space", "Replace", "_", " ") ; StrReplace(Clipboard, "_", " ")
+	new Rule("MsgBox", "AutoHotkey", "MsgBox, %Clipboard%")
+
 	; load
 }
 
@@ -806,7 +833,7 @@ InitGuiControls:
 
 ; InsertGuiControlPos(strControlName, intX, intY, blnCenter := false, blnDraw := false)
 
-InsertGuiControlPos("f_strClipboardEditor",				 20,   130)
+InsertGuiControlPos("f_strClipboardEditor",				 20,   130) ; must be first g_saGuiControls[1]
 
 InsertGuiControlPos("f_btnGuiSaveEditor",			0,  -65, , true)
 InsertGuiControlPos("f_btnGuiCancelEditor",			0,  -65, , true)
@@ -843,24 +870,45 @@ if (o_Settings.MenuAdvanced.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar
 Gui, 1:Font, s8 w600
 Gui, 1:Add, Text, x20 y10, % o_L["GuiRules"]
 Gui, 1:Font, s8 w400
-Gui, 1:Add, Checkbox, x20 vf_blnLowerCase gRuleCheckboxChanged, % o_L["GuiLowerCase"]
-Gui, 1:Add, Checkbox, x+1 yp vf_blnUpperCase gRuleCheckboxChanged, % o_L["GuiUpperCase"]
-Gui, 1:Add, Checkbox, x+1 yp vf_blnFirstUpperCase gRuleCheckboxChanged, % o_L["GuiFirstUpperCase"]
-Gui, 1:Add, Checkbox, x+1 yp vf_blnTitleCase gRuleCheckboxChanged, % o_L["GuiTitleCase"]
-Gui, 1:Add, Checkbox, x+1 yp vf_blnUnderscore2Space gRuleCheckboxChanged, % o_L["GuiUnderscore2Space"]
+
+Gui, 1:Add, Text, x10
+intCheckboxesWidth := 0
+for intOrder, aaRule in g_saRulesOrder
+{
+	; new line iw wider that gui
+	if (intCheckboxesWidth + 100 > g_intGuiDefaultWidth)
+	{
+		Gui, 1:Add, Text, x10
+		intCheckboxesWidth := 0
+	}
+	
+	Gui, 1:Add, Checkbox, % "x+1 yp vf_blnRule" . intOrder . " gRuleCheckboxChanged", % aaRule.strName ; o_L["GuiLowerCase"]
+	
+	GuiControlGet, arrControlPos, Pos, % "f_blnRule" . intOrder
+	intCheckboxesWidth += arrControlPosW
+	
+}
+
 Gui, 1:Font, s8 w600, Verdana
 Gui, 1:Add, Button, x10 y+10 vf_btnGuiApplyRules gGuiApplyRules h25 Disabled, % o_L["GuiApplyRules"]
+Gui, 1:Font ; reset default font
 GuiCenterButtons(g_strGui1Hwnd, , , , "f_btnGuiApplyRules")
 
 Gui, 1:Font, s8 w600
 Gui, 1:Add, Text, x20 y+5, % o_L["MenuEditor"]
 Gui, 1:Font, s8 w400
-Gui, 1:Add, Checkbox, % "x20 y+5 vf_blnFixedFont gClipboardEditorFontChanged " . (o_Settings.SettingsWindow.blnFixedFont.IniValue = 1 ? "checked" : ""), % o_L["DialogFixedFont"]
+
+Gui, 1:Add, Text, x10
+Gui, 1:Add, Checkbox, % "x+1 yp vf_blnFixedFont gClipboardEditorFontChanged " . (o_Settings.SettingsWindow.blnFixedFont.IniValue = 1 ? "checked" : ""), % o_L["DialogFixedFont"]
 Gui, 1:Add, Text, x+10 yp vf_lblFontSize, % o_L["DialogFontSize"]
 Gui, 1:Add, Edit, x+5 yp w40 vf_intFontSize gClipboardEditorFontChanged
 Gui, 1:Add, UpDown, Range6-18 vf_intFontUpDown, % o_Settings.SettingsWindow.intFontSize.IniValue
 Gui, 1:Add, Checkbox, % "x+20 yp vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopChanged " . (o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue = 1 ? "checked" : ""), % o_L["DialogAlwaysOnTop"]
 Gui, 1:Add, Checkbox, % "x+10 yp vf_blnUseTab gClipboardEditorUseTabChanged " . (o_Settings.SettingsWindow.blnUseTab.IniValue = 1 ? "checked" : ""), % o_L["DialogUseTab"]
+
+Gui, 1:Add, Text, y+20 vf_lblBeginEditor ; mark for top of editor
+GuiControlGet, arrControlPos, Pos, f_lblBeginEditor
+g_saGuiControls[1].Y := arrControlPosY
 
 Gui, 1:Font, s10 w400, Arial
 Gui, 1:Add, Edit, x10 y50 w600 vf_strClipboardEditor gClipboardEditorChanged Multi WantReturn +hwndg_strEditorControlHwnd
@@ -1059,7 +1107,7 @@ GuiSize:
 if (A_EventInfo = 1)  ; The window has been minimized.  No action needed.
     return
 
-intEditorH := A_GuiHeight - 205
+intEditorH := A_GuiHeight - (g_saGuiControls[1].Y + 80)
 g_intEditorW := A_GuiWidth - 40
 
 ; space before, between and after save/reload/close buttons
@@ -1283,7 +1331,8 @@ FileDelete, %strRulesPathNoExt%.ahk
 intTimeoutSecs := o_Settings.Launch.intRulesTimeoutSecs.IniValue
 intTimeoutMs := intTimeoutSecs * 1000
 
-strSource =
+; script header
+strTop =
 	(LTrim Join`r`n
 	#NoEnv
 	#Persistent
@@ -1292,11 +1341,17 @@ strSource =
 	
 	global g_intLastTick := A_TickCount ; initial timeout delay after rules are enabled
 	
-	OnClipboardChange("LowerCase", %f_blnLowerCase%)
-	OnClipboardChange("UpperCase", %f_blnUpperCase%)
-	OnClipboardChange("FirstUpperCase", %f_blnFirstUpperCase%)
-	OnClipboardChange("TitleCase", %f_blnTitleCase%)
-	OnClipboardChange("Underscore2Space", %f_blnUnderscore2Space%)
+
+) ; leave the 2 last extra lines above
+
+; OnClipboardChange functions
+strRules := ""
+for intOrder, aaRule in g_saRulesOrder
+	strRules .= "OnClipboardChange(""Rule" . intOrder . """, " . f_blnRule%A_Index% . ")`n"
+
+; end of header
+strBottom =
+	(LTrim Join`r`n
 
 	SetTimer, CheckTimeOut, 2000
 	
@@ -1319,11 +1374,26 @@ strSource =
 
 
 ) ; leave the 2 last extra lines above
-strSource := StrReplace(strSource, "~1~", o_L["RulesDisabled"])
-FileAppend, % L(strSource, g_strAppNameText, intTimeoutSecs), %strRulesPathNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
+strSource := strTop . strRules . StrReplace(strBottom, "~1~", L(o_L["RulesDisabled"], g_strAppNameText, intTimeoutSecs))
+FileAppend, %strSource%, %strRulesPathNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
 
-; #### temporary until generated by QAC
-FileRead, strRules, %strRulesPathNoExt%.txt
+strRules := ""
+for intOrder, aaRule in g_saRulesOrder
+{
+	; begin rule
+	strRules .= "Rule" . intOrder . "(strType) `; " . aaRule.strType . " > " . aaRule.strName . "`n{`nif (strType = 1)`n{`n"
+	
+	if (aaRule.strType = "Replace")
+		strRules .= "Clipboard := StrReplace(Clipboard, """ . aaRule.strFind . """, """ . aaRule.strReplace . """)"
+	else if (aaRule.strType = "ChangeCase")
+		strRules .= "Clipboard := RegExReplace(Clipboard, """ . aaRule.strFind . """, """ . aaRule.strReplace . """)"
+	else if (aaRule.strType = "AutoHotkey")
+		strRules .= "`n" . aaRule.strCode . "`n"
+	
+	; end rule
+	strRules .= "`n}`n}`n`n"
+}
+
 FileAppend, %strRules%, %strRulesPathNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
 
 Run, %strRulesPathNoExt%.exe
@@ -2342,6 +2412,7 @@ GuiCenterButtons(strWindowHandle, intInsideHorizontalMargin := 10, intInsideVert
 	; A_DetectHiddenWindows must be on (app's default); Gui, Show acts on current default gui (1: or 2: , etc)
 	Gui, Show, Hide ; hides the window and activates the one beneath it, allows a hidden window to be moved, resized, or given a new title without showing it
 	WinGetPos, , , intWidth, , ahk_id %strWindowHandle%
+	intWidth := intWidth // (A_ScreenDPI / 96)
 
 	; find largest control height and width
 	intMaxControlWidth := 0
@@ -3310,6 +3381,64 @@ class Language
 	}
 	;---------------------------------------------------------
 	
+}
+;-------------------------------------------------------------
+
+;-------------------------------------------------------------
+class Rule
+;-------------------------------------------------------------
+{
+	;---------------------------------------------------------
+	__New(strName, strType, strVar*)
+	; ChangeCase -> use RegExReplace to change case -> strFind, strReplace
+	; Replace -> use StrReplace (see options) -> strFind, strReplace
+	; AutoHotkey -> execute script -> strCode
+	;---------------------------------------------------------
+	{
+		this.strName := strName
+		this.strType := strType
+		if (this.strType = "ChangeCase" or this.strType = "Replace")
+		{
+			this.strFind := strVar[1]
+			this.strReplace := strVar[2]
+		}
+		if (this.strType = "AutoHotkey")
+			this.strCode := strVar[1]
+		
+		g_aaRulesByName[strName] := this
+		g_saRulesOrder.Push(this)
+	}
+	;---------------------------------------------------------
+	
+	;---------------------------------------------------------
+	Method()
+	; Each method has a hidden parameter named this, which typically contains a reference to an object derived from the class.
+	; Inside a method, the pseudo-keyword base can be used to access the super-class versions of methods or properties which are overridden in a derived class.
+	;---------------------------------------------------------
+	{
+		
+	}
+	;---------------------------------------------------------
+	
+	;---------------------------------------------------------
+	Property[]
+	; obj.Property would call get while obj.Property := value would call set. Within get or set, this refers to the object being invoked. Within set, value contains the value being assigned.
+	; https://autohotkey.com/docs/Objects.htm#Custom_Classes_property
+	; Lexikos: "The "property" doesn't have a value - a "property" is a set of methods which are called when you get or set the property. Not all properties will store a value - some will compute it,
+	; such as from a different property. For instance, a Colour object might have R, G, B and RBG properties, but the first three would be derived from the last one.
+	; https://www.autohotkey.com/boards/viewtopic.php?t=9792#p54480
+	;---------------------------------------------------------
+	{
+		get
+		{
+			return this._propertyname ; Lexikos: "One common convention is to use a single underscore for internal members, as in _propertyname. But it's just a convention."
+		}
+		set
+		{
+			return this._propertyname := value
+		}
+	}
+	;---------------------------------------------------------
 }
 ;-------------------------------------------------------------
 

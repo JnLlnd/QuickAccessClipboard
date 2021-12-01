@@ -85,7 +85,7 @@ ComObjError(False) ; we will do our own error handling
 
 ; #Include %A_ScriptDir%\XML_Class.ahk ; by Maestrith (Chad) https://autohotkey.com/boards/viewtopic.php?f=62&t=33114
 #Include %A_ScriptDir%\..\QuickAccessPopup\QAPtools.ahk ; by Jean Lalonde
-; #Include %A_ScriptDir%\..\QuickAccessPopup\Class_LV_Rows.ahk ; https://github.com/Pulover/Class_LV_Rows from Rodolfo U. Batista / Pulover (as of 2020-11-22)
+#Include %A_ScriptDir%\..\QuickAccessPopup\Class_LV_Rows.ahk ; https://github.com/Pulover/Class_LV_Rows from Rodolfo U. Batista / Pulover (as of 2020-11-22)
 
 ; avoid error message when shortcut destination is missing
 ; see http://ahkscript.org/boards/viewtopic.php?f=5&t=4477&p=25239#p25236
@@ -807,17 +807,10 @@ else
 	new Rule("Underscore to Space", "Replace", "_", " ") ; StrReplace(Clipboard, "_", " ")
 	new Rule("MsgBox", "AutoHotkey", "MsgBox, %Clipboard%")
 
-	new Rule("Lower case2", "ChangeCase", ".*", "$L0") ;  RegExReplace(Clipboard, ".*", "$L0"))
-	new Rule("Upper case2", "ChangeCase", ".*", "$U0") ;  RegExReplace(Clipboard, ".*", "$U0")
-	new Rule("Title case2", "ChangeCase", ".*", "$T0") ;  RegExReplace(Clipboard, ".*", "$T0")
-	new Rule("Underscore to Space2", "Replace", "_", " ") ; StrReplace(Clipboard, "_", " ")
-	new Rule("MsgBox2", "AutoHotkey", "MsgBox, %Clipboard%")
+	new Rule("Dumas-Trim 2", "TrimFromStart", 2)
+	new Rule("Dumas-Begin", "Replace", "-Dumas_", "")
+	new Rule("Dumas-End", "Replace", " (Live 2021)", "")
 
-	new Rule("Lower case3", "ChangeCase", ".*", "$L0") ;  RegExReplace(Clipboard, ".*", "$L0"))
-	new Rule("Upper case3", "ChangeCase", ".*", "$U0") ;  RegExReplace(Clipboard, ".*", "$U0")
-	new Rule("Title case3", "ChangeCase", ".*", "$T0") ;  RegExReplace(Clipboard, ".*", "$T0")
-	new Rule("Underscore to Space3", "Replace", "_", " ") ; StrReplace(Clipboard, "_", " ")
-	new Rule("MsgBox3", "AutoHotkey", "MsgBox, %Clipboard%")
 
 	; load
 }
@@ -868,26 +861,28 @@ if (o_Settings.MenuAdvanced.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar
 	Gui, Menu, menuBarMain
 
 Gui, 1:Font, s8 w600
-Gui, 1:Add, Text, x20 y10, % o_L["GuiRules"]
+Gui, 1:Add, Text, x20 y10, % o_L["GuiRulesAvailable"]
+Gui, 1:Add, Text, x335 y10, % o_L["GuiRulesSelected"]
 Gui, 1:Font, s8 w400
 
-Gui, 1:Add, Text, x10
-intCheckboxesWidth := 0
+Gui, 1:Add, ListView
+	, % "vf_lvRulesAvailable +Hwndg_strRulesAvailableHwnd Count32 -Multi AltSubmit LV0x10 LV0x10000 x20 y+10 w280 Section"
+	, % o_L["GuiLvRulesHeader"] ; SysHeader321 / SysListView321
 for intOrder, aaRule in g_saRulesOrder
-{
-	; new line iw wider that gui
-	if (intCheckboxesWidth + 100 > g_intGuiDefaultWidth)
-	{
-		Gui, 1:Add, Text, x10
-		intCheckboxesWidth := 0
-	}
-	
-	Gui, 1:Add, Checkbox, % "x+1 yp vf_blnRule" . intOrder . " gRuleCheckboxChanged", % aaRule.strName ; o_L["GuiLowerCase"]
-	
-	GuiControlGet, arrControlPos, Pos, % "f_blnRule" . intOrder
-	intCheckboxesWidth += arrControlPosW
-	
-}
+	LV_Add(, aaRule.strName)
+
+Gui, Font, s10, Arial
+Gui, 1:Add, Button, ys+30 x305 vf_btnRuleSelect gGuiRuleSelect, % chr(0x25BA)
+Gui, 1:Add, Button, ys+60 x305 vf_btnRuleDeselect gGuiRuleDeselect, % chr(0x25C4)
+Gui, Font
+
+Gui, 1:Add, ListView
+	, % "vf_lvRulesSelected +Hwndg_strRulesSelectedHwnd Count32 -Multi AltSubmit NoSortHdr LV0x10 LV0x10000 gGuiRulesSelectedEvents x335 ys w280"
+	, % o_L["GuiLvRulesHeader"] ; SysHeader321 / SysListView321
+
+; initialize LV_Rows class (https://github.com/Pulover/Class_LV_Rows)
+o_LvRowsHandle := New LV_Rows(Hwndg_strRulesSelectedHwnd)
+o_LvRowsHandle.SetHwnd(Hwndg_strRulesSelectedHwnd)
 
 Gui, 1:Font, s8 w600, Verdana
 Gui, 1:Add, Button, x10 y+10 vf_btnGuiApplyRules gGuiApplyRules h25 Disabled, % o_L["GuiApplyRules"]
@@ -980,6 +975,147 @@ return
 
 
 ;------------------------------------------------------------
+GuiRuleSelect:
+GuiRuleDeselect:
+;------------------------------------------------------------
+Gui, 1:ListView, % (A_ThisLabel = "GuiRuleSelect" ? "f_lvRulesAvailable" : "f_lvRulesSelected")
+
+intPosition := LV_GetNext()
+if !(intPosition)
+{
+	Oops(1, (A_ThisLabel = "GuiRuleSelect" ? o_L["GuiSelectRuleSelect"] : o_L["GuiSelectRuleDeselect"]))
+	return
+}
+LV_GetText(strName, intPosition, 1)
+LV_Delete(intPosition)
+
+Gui, 1:ListView, % (A_ThisLabel = "GuiRuleDeselect" ? "f_lvRulesAvailable" : "f_lvRulesSelected")
+LV_Insert(1, "Select", strName)
+
+intPosition := ""
+intOrder := ""
+strName := ""
+
+GuiControl, Enable, f_btnGuiApplyRules
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GuiRulesSelectedEvents:
+;------------------------------------------------------------
+
+if (A_GuiEvent == "D") ; case sensitive to exclude "d" for right click
+{
+	; drop item in gui using LV_Rows class
+	o_LvRowsHandle.SetHwnd(h%A_GuiControl%) ; select active hwnd in Handle.
+	; A_EventInfo ; original position, not used
+    intNewItemPos := o_LvRowsHandle.Drag("D", true, 80, 2, "3F51B5") ; returns the new item position, 3F51B5 is the color of the up/down buttons
+	; intNewItemPos not used
+	GuiControl, Enable, f_btnGuiApplyRules
+}
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GuiApplyRules:
+;------------------------------------------------------------
+Gui, Submit, NoHide
+
+While QACrulesExists()
+	Process, Close, QACrules.exe
+
+strRulesPathNoExt := g_strTempDir . "\QACrules"
+FileDelete, %strRulesPathNoExt%.ahk
+
+intTimeoutSecs := o_Settings.Launch.intRulesTimeoutSecs.IniValue
+intTimeoutMs := intTimeoutSecs * 1000
+
+; script header
+strTop =
+	(LTrim Join`r`n
+	#NoEnv
+	#Persistent
+	#SingleInstance force
+	#NoTrayIcon
+	
+	global g_intLastTick := A_TickCount ; initial timeout delay after rules are enabled
+	
+
+) ; leave the 2 last extra lines above
+
+; OnClipboardChange functions
+strRules := ""
+
+loop, Parse, % "f_lvRulesAvailable|f_lvRulesSelected", |
+{
+	Gui, 1:ListView, %A_LoopField%
+	intPos := 1
+	loop
+	{
+		LV_GetText(strName, intPos, 1)
+		if !StrLen(strName)
+			break
+		strRules .= "OnClipboardChange(""Rule" . g_aaRulesByName[strName].intID . """, " . (A_LoopField = "f_lvRulesSelected")  . ")`n"
+		intPos++
+	}
+}
+
+; end of header
+strBottom =
+	(LTrim Join`r`n
+
+	SetTimer, CheckTimeOut, 2000
+	
+	return
+	
+	;-----------------------------------------------------------
+	CheckTimeOut:
+	;-----------------------------------------------------------
+
+	if (A_TickCount - g_intLastTick > %intTimeoutMs%)
+	{
+		ToolTip, ~1~
+		; send message to main app to uncheck rules checkboxes
+		Sleep, 2000
+		ExitApp
+	}
+
+	return
+	;-----------------------------------------------------------
+
+
+) ; leave the 2 last extra lines above
+strSource := strTop . strRules . StrReplace(strBottom, "~1~", L(o_L["RulesDisabled"], g_strAppNameText, intTimeoutSecs))
+
+; rules code
+for intOrder, aaRule in g_saRulesOrder
+	strSource .= aaRule.GetCode()
+
+; save AHK script file QACrules.ahk
+FileAppend, %strSource%, %strRulesPathNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
+
+; run the AHK runtime QACrules.exe that will call the script having the same name QACrules.ahk
+Run, %strRulesPathNoExt%.exe
+
+ToolTip, % L(o_L["RulesUpdated"], g_strAppNameText)
+Sleep, 1000
+ToolTip
+
+GuiControl, Disable, f_btnGuiApplyRules
+
+strRulesPathNoExt := ""
+strSource := ""
+
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
 ClipboardEditorChanged:
 ;------------------------------------------------------------
 Gui, 1:Submit, NoHide
@@ -1062,16 +1198,6 @@ return
 
 
 ;------------------------------------------------------------
-RuleCheckboxChanged:
-;------------------------------------------------------------
-
-GuiControl, Enable, f_btnGuiApplyRules
-
-return
-;------------------------------------------------------------
-
-
-;------------------------------------------------------------
 GuiSaveEditor:
 GuiCancelEditor:
 ;------------------------------------------------------------
@@ -1083,18 +1209,6 @@ if (A_ThisLabel = "GuiSaveEditor")
 	Clipboard := f_strClipboardEditor
 else
 	Gosub, UpdateEditorWithClipboard
-
-return
-;------------------------------------------------------------
-
-
-;------------------------------------------------------------
-GuiApplyRules:
-;------------------------------------------------------------
-Gui, Submit, NoHide
-
-GuiControl, Disable, f_btnGuiApplyRules
-Gosub, RulesUpdate
 
 return
 ;------------------------------------------------------------
@@ -1307,93 +1421,6 @@ ExitApp
 ;-----------------------------------------------------------
 
 
-;========================================================================================================================
-; END OF EXIT
-;========================================================================================================================
-
-
-
-;========================================================================================================================
-!_040_RULES:
-;========================================================================================================================
-
-;-----------------------------------------------------------
-RulesUpdate:
-;-----------------------------------------------------------
-Gui, Submit, NoHide
-
-While QACrulesExists()
-	Process, Close, QACrules.exe
-
-strRulesPathNoExt := g_strTempDir . "\QACrules"
-FileDelete, %strRulesPathNoExt%.ahk
-
-intTimeoutSecs := o_Settings.Launch.intRulesTimeoutSecs.IniValue
-intTimeoutMs := intTimeoutSecs * 1000
-
-; script header
-strTop =
-	(LTrim Join`r`n
-	#NoEnv
-	#Persistent
-	#SingleInstance force
-	#NoTrayIcon
-	
-	global g_intLastTick := A_TickCount ; initial timeout delay after rules are enabled
-	
-
-) ; leave the 2 last extra lines above
-
-; OnClipboardChange functions
-strRules := ""
-for intOrder, aaRule in g_saRulesOrder
-	strRules .= "OnClipboardChange(""Rule" . intOrder . """, " . f_blnRule%A_Index% . ")`n"
-
-; end of header
-strBottom =
-	(LTrim Join`r`n
-
-	SetTimer, CheckTimeOut, 2000
-	
-	return
-	
-	;-----------------------------------------------------------
-	CheckTimeOut:
-	;-----------------------------------------------------------
-
-	if (A_TickCount - g_intLastTick > %intTimeoutMs%)
-	{
-		ToolTip, ~1~
-		; send message to main app to uncheck rules checkboxes
-		Sleep, 2000
-		ExitApp
-	}
-
-	return
-	;-----------------------------------------------------------
-
-
-) ; leave the 2 last extra lines above
-strSource := strTop . strRules . StrReplace(strBottom, "~1~", L(o_L["RulesDisabled"], g_strAppNameText, intTimeoutSecs))
-
-for intOrder, aaRule in g_saRulesOrder
-	strSource .= aaRule.GetCode(intOrder)
-
-FileAppend, %strSource%, %strRulesPathNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
-
-Run, %strRulesPathNoExt%.exe
-
-ToolTip, % L(o_L["RulesUpdated"], g_strAppNameText)
-Sleep, 1000
-ToolTip
-
-strRulesPathNoExt := ""
-strSource := ""
-
-return
-;-----------------------------------------------------------
-
-
 ;-----------------------------------------------------------
 QACrulesExists()
 ;-----------------------------------------------------------
@@ -1405,7 +1432,7 @@ QACrulesExists()
 
 
 ;========================================================================================================================
-; END OF RULES
+; END OF EXIT
 ;========================================================================================================================
 
 
@@ -3378,6 +3405,7 @@ class Rule
 	; ChangeCase -> use RegExReplace to change case -> strFind, strReplace
 	; Replace -> use StrReplace (see options) -> strFind, strReplace
 	; AutoHotkey -> execute script -> strCode
+	; TrimFromStart -> Trim n characters from start -> intLength
 	;---------------------------------------------------------
 	{
 		this.strName := strName
@@ -3390,29 +3418,39 @@ class Rule
 		if (this.strType = "AutoHotkey")
 			this.strCode := strVar[1]
 		
+		if (this.strType = "TrimFromStart")
+			this.intLength := strVar[1]
+		
 		g_aaRulesByName[strName] := this
-		g_saRulesOrder.Push(this)
+		this.intID := g_saRulesOrder.Push(this)
 	}
 	;---------------------------------------------------------
 	
 	;---------------------------------------------------------
-	GetCode(intOrder)
+	GetCode()
 	;---------------------------------------------------------
 	{
 		; begin rule
-		strCode := "Rule" . intOrder . "(strType) `; " . this.strType . " > " . this.strName . "`n{`nif (strType = 1)`n{`n"
+		strCode := "Rule" . this.intID . "(strType) `; " . this.strType . " > " . this.strName . "`n{`nif (strType = 1)`n{`n"
 		
+		strCode .= "`; strBefore := Clipboard`n"
 		if (this.strType = "Replace")
 			strCode .= "Clipboard := StrReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
 		else if (this.strType = "ChangeCase")
 			strCode .= "Clipboard := RegExReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
 		else if (this.strType = "AutoHotkey")
-			strCode .= "`n" . this.strCode . "`n"
+			strCode .= "`n" . this.strCode
+		else if (this.strType = "TrimFromStart")
+			strCode .= "Clipboard := SubStr(Clipboard, " . this.intLength + 1 . ")"
+		strCode .= "`n"
+		strCode .= "Sleep, 20`n"
+		strCode .= "`; strAfter := Clipboard`n"
+		strCode .= "`; MsgBox, %strBefore%``n%strAfter%"
 		
 		; end rule
 		strCode .= "`n}`n}`n`n"
 		
-		###_V("", strCode)
+		; ###_V("", strCode)
 		return strCode
 	}
 	;---------------------------------------------------------

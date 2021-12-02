@@ -195,8 +195,8 @@ global g_strDiagFile := A_WorkingDir . "\" . g_strAppNameFile . "-DIAG.txt"
 
 global g_aaRulesByName := Object()
 global g_saRulesOrder := Object()
-global g_intGuiDefaultWidth := 636
-global g_intGuiDefaultHeight := 496 ; was 601
+global g_intGuiDefaultWidth := 784 ; 636
+global g_intGuiDefaultHeight := 546 ; 496 ; was 601
 global g_saGuiControls := Object() ; to build Editor gui
 global g_strGui1Hwnd ; editor window ID
 global g_strEditorControlHwnd ; editor control ID
@@ -801,16 +801,15 @@ else
 	; Replace -> use StrReplace (see options) -> strFind, strReplace
 	; AutoHotkey -> execute script -> strCode
 	
-	new Rule("Lower case", "ChangeCase", ".*", "$L0") ;  RegExReplace(Clipboard, ".*", "$L0"))
-	new Rule("Upper case", "ChangeCase", ".*", "$U0") ;  RegExReplace(Clipboard, ".*", "$U0")
-	new Rule("Title case", "ChangeCase", ".*", "$T0") ;  RegExReplace(Clipboard, ".*", "$T0")
-	new Rule("Underscore to Space", "Replace", "_", " ") ; StrReplace(Clipboard, "_", " ")
-	new Rule("MsgBox", "AutoHotkey", "MsgBox, %Clipboard%")
+	new Rule("Lower case", "ChangeCase", "Example", ".*", "$L0") ;  RegExReplace(Clipboard, ".*", "$L0"))
+	new Rule("Upper case", "ChangeCase", "Example", ".*", "$U0") ;  RegExReplace(Clipboard, ".*", "$U0")
+	new Rule("Title case", "ChangeCase", "Example", ".*", "$T0") ;  RegExReplace(Clipboard, ".*", "$T0")
+	new Rule("Underscore to Space", "Replace", "Example", "_", " ") ; StrReplace(Clipboard, "_", " ")
+	new Rule("MsgBox", "AutoHotkey", "Example", "MsgBox, %Clipboard%")
 
-	new Rule("Dumas-Trim 2", "TrimFromStart", 2)
-	new Rule("Dumas-Begin", "Replace", "-Dumas_", "")
-	new Rule("Dumas-End", "Replace", " (Live 2021)", "")
-
+	new Rule("Dumas-Trim 2", "TrimFromStart", "Example", 2)
+	new Rule("Dumas-Begin", "Replace", "Example", "-Dumas_", "")
+	new Rule("Dumas-End", "Replace", "Example", " (Live 2021)", "")
 
 	; load
 }
@@ -862,23 +861,25 @@ if (o_Settings.MenuAdvanced.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar
 
 Gui, 1:Font, s8 w600
 Gui, 1:Add, Text, x20 y10, % o_L["GuiRulesAvailable"]
-Gui, 1:Add, Text, x335 y10, % o_L["GuiRulesSelected"]
+Gui, 1:Add, Text, x564 y10, % o_L["GuiRulesSelected"]
 Gui, 1:Font, s8 w400
 
 Gui, 1:Add, ListView
-	, % "vf_lvRulesAvailable +Hwndg_strRulesAvailableHwnd Count32 -Multi AltSubmit LV0x10 LV0x10000 x20 y+10 w280 Section"
-	, % o_L["GuiLvRulesHeader"] ; SysHeader321 / SysListView321
-for intOrder, aaRule in g_saRulesOrder
-	LV_Add(, aaRule.strName)
+	, % "vf_lvRulesAvailable +Hwndg_strRulesAvailableHwnd Count32 Sort -Multi AltSubmit LV0x10 LV0x10000 gGuiRulesAvailableEvents x20 y+10 w510 r10 Section"
+	, % o_L["DialogRuleName"] . "|" . o_L["DialogRuleType"] . "|" . o_L["DialogRuleCategory"] ; SysHeader321 / SysListView321
 
-Gui, Font, s10, Arial
-Gui, 1:Add, Button, ys+30 x305 vf_btnRuleSelect gGuiRuleSelect, % chr(0x25BA)
-Gui, 1:Add, Button, ys+60 x305 vf_btnRuleDeselect gGuiRuleDeselect, % chr(0x25C4)
+Gui, Font, s9, Arial
+; Unicode chars: https://www.fileformat.info/info/unicode/category/So/list.htm
+Gui, 1:Add, Button, ys+30 x535 w24 vf_btnRuleSelect gGuiRuleSelect, % chr(0x25BA)
+Gui, 1:Add, Button, ys+60 x535 w24 vf_btnRuleDeselect gGuiRuleDeselect, % chr(0x25C4)
+Gui, 1:Add, Button, ys+120 x535 w24 vf_btnRuleDeslectAll gGuiRuleDeselectAll, % chr(0x232B)
 Gui, Font
 
 Gui, 1:Add, ListView
-	, % "vf_lvRulesSelected +Hwndg_strRulesSelectedHwnd Count32 -Multi AltSubmit NoSortHdr LV0x10 LV0x10000 gGuiRulesSelectedEvents x335 ys w280"
-	, % o_L["GuiLvRulesHeader"] ; SysHeader321 / SysListView321
+	, % "vf_lvRulesSelected +Hwndg_strRulesSelectedHwnd Count32 -Multi AltSubmit NoSortHdr LV0x10 LV0x10000 gGuiRulesSelectedEvents x564 ys w200 r10"
+	, % o_L["DialogRuleName"] ; SysHeader321 / SysListView321
+
+Gosub, GuiLoadRulesAvailable
 
 ; initialize LV_Rows class (https://github.com/Pulover/Class_LV_Rows)
 o_LvRowsHandle := New LV_Rows(Hwndg_strRulesSelectedHwnd)
@@ -975,9 +976,37 @@ return
 
 
 ;------------------------------------------------------------
+GuiLoadRulesAvailable:
+;------------------------------------------------------------
+
+Gui, 1:ListView, f_lvRulesAvailable
+LV_Delete()
+for intOrder, aaRule in g_saRulesOrder
+	LV_Add(, aaRule.strName, aaRule.strType, aaRule.strCategory)
+LV_ModifyCol()
+
+Gui, 1:ListView, f_lvRulesSelected
+LV_Delete()
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
 GuiRuleSelect:
 GuiRuleDeselect:
+GuiRuleDeselectAll:
 ;------------------------------------------------------------
+
+GuiControl, Enable, f_btnGuiApplyRules
+
+if (A_ThisLabel = "GuiRuleDeselectAll")
+{
+	Gosub, GuiLoadRulesAvailable
+	return
+}
+; else
+
 Gui, 1:ListView, % (A_ThisLabel = "GuiRuleSelect" ? "f_lvRulesAvailable" : "f_lvRulesSelected")
 
 intPosition := LV_GetNext()
@@ -990,23 +1019,30 @@ LV_GetText(strName, intPosition, 1)
 LV_Delete(intPosition)
 
 Gui, 1:ListView, % (A_ThisLabel = "GuiRuleDeselect" ? "f_lvRulesAvailable" : "f_lvRulesSelected")
-LV_Insert(1, "Select", strName)
+if (A_ThisLabel = "GuiRuleDeselect")
+	LV_Insert(1, "Select", strName)
+else
+	LV_Add("Select", strName)
 
 intPosition := ""
 intOrder := ""
 strName := ""
-
-GuiControl, Enable, f_btnGuiApplyRules
 
 return
 ;------------------------------------------------------------
 
 
 ;------------------------------------------------------------
+GuiRulesAvailableEvents:
 GuiRulesSelectedEvents:
 ;------------------------------------------------------------
 
-if (A_GuiEvent == "D") ; case sensitive to exclude "d" for right click
+if (A_GuiEvent = "DoubleClick")
+{
+	Gui, 1:ListView, %A_GuiControl%
+	Gosub, % (A_GuiControl = "f_lvRulesAvailable" ? "GuiRuleSelect" : "GuiRuleDeSelect")
+}
+else if (A_ThisLabel = "GuiRulesSelectedEvents" and A_GuiEvent == "D") ; case sensitive to exclude "d" for right click
 {
 	; drop item in gui using LV_Rows class
 	o_LvRowsHandle.SetHwnd(h%A_GuiControl%) ; select active hwnd in Handle.
@@ -1053,14 +1089,10 @@ strRules := ""
 loop, Parse, % "f_lvRulesAvailable|f_lvRulesSelected", |
 {
 	Gui, 1:ListView, %A_LoopField%
-	intPos := 1
-	loop
+	loop, % LV_GetCount()
 	{
-		LV_GetText(strName, intPos, 1)
-		if !StrLen(strName)
-			break
+		LV_GetText(strName, A_Index, 1)
 		strRules .= "OnClipboardChange(""Rule" . g_aaRulesByName[strName].intID . """, " . (A_LoopField = "f_lvRulesSelected")  . ")`n"
-		intPos++
 	}
 }
 
@@ -1109,7 +1141,6 @@ GuiControl, Disable, f_btnGuiApplyRules
 
 strRulesPathNoExt := ""
 strSource := ""
-
 
 return
 ;------------------------------------------------------------
@@ -1460,7 +1491,7 @@ GuiCloseAndExitApp:
 if EditorUnsaved()
 {
 	Gui, 1:+OwnDialogs
-	MsgBox, 36, % L(o_L["DialogCancelTitle"], g_strAppNameText, g_strAppVersion), % o_L["DialogCancelPrompt"]
+	MsgBox, 36, % L(o_L["DialogCancelTitle"], g_strAppNameText, g_strAppVersion), % o_L["DialogCancelClipboardPrompt"]
 	IfMsgBox, No
 		return
 }
@@ -1550,14 +1581,20 @@ GuiShow:
 GuiShowFromTray:
 ;------------------------------------------------------------
 
-strCheckBoxes := "f_blnLowerCase|f_blnUpperCase|f_blnFirstUpperCase|f_blnTitleCase|f_blnUnderscore2Space"
-aaCheckBoxesValues := Object()
-loop, Parse, strCheckBoxes, |
+saRulesBackupSelected := Object()
+saRulesBackupAvailable := Object()
+loop, Parse, % "f_lvRulesAvailable|f_lvRulesSelected", |
 {
-	GuiControlGet, blnValue, , %A_LoopField%
-	aaCheckBoxesValues[A_LoopField] := blnValue
+	Gui, 1:ListView, %A_LoopField%
+	loop, % LV_GetCount()
+	{
+		LV_GetText(strName, A_Index, 1)
+		if (A_LoopField = "f_lvRulesAvailable")
+			saRulesBackupAvailable.Push(strName)
+		else
+			saRulesBackupSelected.Push(strName)
+	}
 }
-blnValue := ""
 
 Gosub, UpdateEditorWithClipboardFromGuiShow
 Gosub, DisableSaveAndCancel
@@ -1576,15 +1613,23 @@ GuiControlGet, blnUpdateRulesButtonChecked, Enabled, f_btnGuiApplyRules
 
 if (blnUpdateRulesButtonChecked) ; rules were changed but not applied
 {
-	; reset checkboxes to their original value
-	loop, Parse, strCheckBoxes, |
-		GuiControl, , %A_LoopField%, % aaCheckBoxesValues[A_LoopField]
-	strCheckBoxes := ""
-	oCheckBoxesValues := ""
+	Gui, 1:+OwnDialogs
+	MsgBox, 36, % L(o_L["DialogCancelTitle"], g_strAppNameText, g_strAppVersion), % o_L["DialogCancelRulesPrompt"]
+	IfMsgBox, No
+		return
 	
-	ToolTip, % L(o_L["RulesNotUpdated"], g_strAppNameText)
-	Sleep, 2500
-	ToolTip
+	loop, Parse, % "f_lvRulesAvailable|f_lvRulesSelected", |
+	{
+		Gui, 1:ListView, %A_LoopField%
+		LV_Delete() ; delete all rows
+		for intIndex, strName in (A_LoopField = "f_lvRulesAvailable" ? saRulesBackupAvailable : saRulesBackupSelected)
+			LV_Add(, strName)
+	}
+	
+	saRulesBackupAvailable := ""
+	saRulesBackupSelected := ""
+	intIndex := ""
+	strName := ""
 }
 
 DetectHiddenWindows, %strDetectHiddenWindowsBefore%
@@ -3401,7 +3446,7 @@ class Rule
 ;-------------------------------------------------------------
 {
 	;---------------------------------------------------------
-	__New(strName, strType, strVar*)
+	__New(strName, strType, strCategory, strVar*)
 	; ChangeCase -> use RegExReplace to change case -> strFind, strReplace
 	; Replace -> use StrReplace (see options) -> strFind, strReplace
 	; AutoHotkey -> execute script -> strCode
@@ -3410,6 +3455,7 @@ class Rule
 	{
 		this.strName := strName
 		this.strType := strType
+		this.strCategory := strCategory
 		if (this.strType = "ChangeCase" or this.strType = "Replace")
 		{
 			this.strFind := strVar[1]

@@ -202,6 +202,7 @@ global g_strGui1Hwnd ; editor window ID
 global g_strEditorControlHwnd ; editor control ID
 global g_strCliboardBackup ; not used...
 global g_intClipboardContentType ; updated by ClipboardContentChanged()
+global g_intInvisibleChars ; nb of characters added to editor to show invisible characters
 
 ;---------------------------------
 ; Init language
@@ -538,11 +539,12 @@ if (g_blnIniFileCreation) ; if it exists, it is not first launch
 			[Global]
 			LanguageCode=%strLanguageCode%
 			FixedFont=1
-			FontSize=10
+			FontSize=12
 			DisplayTrayTip=1
 			RulesTimeoutSecs=60
 			AlwaysOnTop=0
 			UseTab=0
+			SeeInvisible=0
 			[Rules]
 
 ) ; leave the last extra line above
@@ -569,6 +571,7 @@ o_Settings.ReadIniOption("SettingsWindow", "blnFixedFont", "FixedFont", 0, "Sett
 o_Settings.ReadIniOption("SettingsWindow", "intFontSize", "FontSize", 10, "SettingsWindow", "")
 o_Settings.ReadIniOption("SettingsWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "SettingsWindow", "")
 o_Settings.ReadIniOption("SettingsWindow", "blnUseTab", "UseTab", 0, "SettingsWindow", "")
+o_Settings.ReadIniOption("SettingsWindow", "blnSeeInvisible", "SeeInvisible", 0, "SettingsWindow", "")
 
 ; Group MenuAdvanced
 o_Settings.ReadIniOption("MenuAdvanced", "intShowMenuBar", "ShowMenuBar", 3, "MenuAdvanced", "") ; default false, if true reload QAP as admin ; g_blnRunAsAdmin
@@ -771,8 +774,8 @@ BuildGuiMenuBar:
 ; see https://docs.microsoft.com/fr-fr/windows/desktop/uxguide/cmd-menus
 ;------------------------------------------------------------
 
-Menu, menuBarFile, Add, % o_L["GuiSaveClipboard"] . "`tCtrl+S", EditorCtrlS
-Menu, menuBarFile, Add, % o_L["GuiCancelEditor"], GuiCancelEditor
+Menu, menuBarFile, Add, % o_L["GuiSave"] . "`tCtrl+S", EditorCtrlS
+Menu, menuBarFile, Add, % o_L["GuiCancel"], GuiCancelEditor
 Menu, menuBarFile, Add, % o_L["GuiClose"] . "`tEsc", GuiClose
 Menu, menuBarFile, Add
 Menu, menuBarFile, Add, % L(o_L["MenuExitApp"], g_strAppNameText), GuiCloseAndExitApp
@@ -864,15 +867,24 @@ Gui, 1:Add, Text, x20 y10, % o_L["GuiRulesAvailable"]
 Gui, 1:Add, Text, x564 y10, % o_L["GuiRulesSelected"]
 Gui, 1:Font, s8 w400
 
+Gui, 1:Add, Text, x10 y+10 Section
+
+Gui, Font, s9, Arial
+; Unicode chars: https://www.fileformat.info/info/unicode/category/So/list.htm
+Gui, 1:Add, Button, ys x10 ys+30 w24 vf_btnRuleAdd gGuiRuleAdd, % chr(0x2795) ; or chr(0x271B)
+Gui, 1:Add, Button, ys+60 x10 w24 vf_btnRuleEdit gGuiRuleEdit, % chr(0x2328)
+Gui, 1:Add, Button, ys+90 x10 w24 vf_btnRuleRemove gGuiRuleRemove, % chr(0x2796)
+Gui, Font
+
 Gui, 1:Add, ListView
-	, % "vf_lvRulesAvailable +Hwndg_strRulesAvailableHwnd Count32 Sort -Multi AltSubmit LV0x10 LV0x10000 gGuiRulesAvailableEvents x20 y+10 w510 r10 Section"
+	, % "vf_lvRulesAvailable +Hwndg_strRulesAvailableHwnd Count32 Sort -Multi AltSubmit LV0x10 LV0x10000 gGuiRulesAvailableEvents x40 ys w490 r10 Section"
 	, % o_L["DialogRuleName"] . "|" . o_L["DialogRuleType"] . "|" . o_L["DialogRuleCategory"] ; SysHeader321 / SysListView321
 
 Gui, Font, s9, Arial
 ; Unicode chars: https://www.fileformat.info/info/unicode/category/So/list.htm
 Gui, 1:Add, Button, ys+30 x535 w24 vf_btnRuleSelect gGuiRuleSelect, % chr(0x25BA)
 Gui, 1:Add, Button, ys+60 x535 w24 vf_btnRuleDeselect gGuiRuleDeselect, % chr(0x25C4)
-Gui, 1:Add, Button, ys+120 x535 w24 vf_btnRuleDeslectAll gGuiRuleDeselectAll, % chr(0x232B)
+Gui, 1:Add, Button, ys+90 x535 w24 vf_btnRuleDeslectAll gGuiRuleDeselectAll, % chr(0x232B)
 Gui, Font
 
 Gui, 1:Add, ListView
@@ -898,9 +910,10 @@ Gui, 1:Add, Text, x10
 Gui, 1:Add, Checkbox, % "x+1 yp vf_blnFixedFont gClipboardEditorFontChanged " . (o_Settings.SettingsWindow.blnFixedFont.IniValue = 1 ? "checked" : ""), % o_L["DialogFixedFont"]
 Gui, 1:Add, Text, x+10 yp vf_lblFontSize, % o_L["DialogFontSize"]
 Gui, 1:Add, Edit, x+5 yp w40 vf_intFontSize gClipboardEditorFontChanged
-Gui, 1:Add, UpDown, Range6-18 vf_intFontUpDown, % o_Settings.SettingsWindow.intFontSize.IniValue
+Gui, 1:Add, UpDown, Range6-36 vf_intFontUpDown, % o_Settings.SettingsWindow.intFontSize.IniValue
 Gui, 1:Add, Checkbox, % "x+20 yp vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopChanged " . (o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue = 1 ? "checked" : ""), % o_L["DialogAlwaysOnTop"]
 Gui, 1:Add, Checkbox, % "x+10 yp vf_blnUseTab gClipboardEditorUseTabChanged " . (o_Settings.SettingsWindow.blnUseTab.IniValue = 1 ? "checked" : ""), % o_L["DialogUseTab"]
+Gui, 1:Add, Checkbox, % "x+10 yp vf_blnSeeInvisible gClipboardEditorSeeInvisibleChanged " . (o_Settings.SettingsWindow.blnSeeInvisible.IniValue = 1 ? "checked" : ""), % o_L["DialogSeeInvisible"]
 
 Gui, 1:Add, Text, y+20 vf_lblBeginEditor ; mark for top of editor
 GuiControlGet, arrControlPos, Pos, f_lblBeginEditor
@@ -908,16 +921,18 @@ g_saGuiControls[1].Y := arrControlPosY
 
 Gui, 1:Font, s10 w400, Arial
 Gui, 1:Add, Edit, x10 y50 w600 vf_strClipboardEditor gClipboardEditorChanged Multi WantReturn +hwndg_strEditorControlHwnd
+
 Gui, 1:Font, s8 w600, Verdana
-Gui, 1:Add, Button, vf_btnGuiSaveEditor Disabled gGuiSaveEditor x200 y400 w140 h35, % o_L["GuiSaveClipboard"]
-Gui, 1:Add, Button, vf_btnGuiCancelEditor Disabled gGuiCancelEditor x350 yp w140 h35, % o_L["GuiCancelEditor"]
+Gui, 1:Add, Button, vf_btnGuiSaveEditor Disabled gGuiSaveEditor x200 y400 w140 h35, % o_L["GuiSave"]
+Gui, 1:Add, Button, vf_btnGuiCancelEditor Disabled gGuiCancelEditor x350 yp w140 h35, % o_L["GuiCancel"]
 Gui, 1:Add, Button, vf_btnGuiClose gGuiClose Default x500 yp w100 h35, % o_L["GuiClose"]
+GuiControl, 1:Focus, f_btnGuiClose
 Gui, 1:Font
 
-g_blnAlwaysOnTop := !o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue
+Gosub, ClipboardEditorFontChanged
 Gosub, ClipboardEditorAlwaysOnTopChanged
-g_blnUseTab := !o_Settings.SettingsWindow.blnUseTab.IniValue
 Gosub, ClipboardEditorUseTabChanged
+Gosub, ClipboardEditorSeeInvisibleChangedInit
 
 Gui, 1:Add, StatusBar
 SB_SetParts(200, 200)
@@ -987,6 +1002,35 @@ LV_ModifyCol()
 
 Gui, 1:ListView, f_lvRulesSelected
 LV_Delete()
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GuiRuleAdd:
+GuiRuleEdit:
+;------------------------------------------------------------
+
+; #####
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GuiRuleRemove:
+;------------------------------------------------------------
+
+Gui, 1:ListView, f_lvRulesAvailable
+
+intPosition := LV_GetNext()
+if !(intPosition)
+{
+	Oops(1, o_L["GuiSelectRuleRemove"])
+	return
+}
+LV_Delete(intPosition)
 
 return
 ;------------------------------------------------------------
@@ -1151,8 +1195,16 @@ ClipboardEditorChanged:
 ;------------------------------------------------------------
 Gui, 1:Submit, NoHide
 
+GuiControlGet, blnInvisibleEnabled, Enabled, f_blnSeeInvisible
+if (blnInvisibleEnabled)
+{
+	GuiControl, , f_blnSeeInvisible, 0
+	Gosub, ClipboardEditorSeeInvisibleChanged
+	GuiControl, Disable, f_blnSeeInvisible
+}
+
 OnClipboardChange("ClipboardContentChanged", 0)
-SB_SetText(o_L["MenuEditor"] . ": " . (StrLen(f_strClipboardEditor) = 1 ? o_L["GuiOneCharacter"] : L(o_L["GuiCharacters"], StrLen(f_strClipboardEditor))), 1)
+SB_SetText(o_L["MenuEditor"] . ": " . (StrLen(f_strClipboardEditor) = 1 ? o_L["GuiOneCharacter"] : L(o_L["GuiCharacters"], StrLen(f_strClipboardEditor))), 1) ; adjust if invisible #####
 SB_SetText(o_L["DialogClipboardDisconnected"], 2)
 Gosub, EnableSaveAndCancel
 
@@ -1164,11 +1216,11 @@ return
 ClipboardEditorAlwaysOnTopChanged:
 ;------------------------------------------------------------
 
-g_blnAlwaysOnTop := !g_blnAlwaysOnTop
-
-WinSet, AlwaysOnTop, % (g_blnAlwaysOnTop ? "On" : "Off"), ahk_id %g_strGui1Hwnd% ; do not use default Toogle for safety
-GuiControl, %g_blnAlwaysOnTop%, f_blnAlwaysOnTop
+WinSet, AlwaysOnTop, % (o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue ? "On" : "Off"), ahk_id %g_strGui1Hwnd% ; do not use default Toogle for safety
+; GuiControl, %g_blnAlwaysOnTop%, f_blnAlwaysOnTop
 ; Menu, menuBarTools, ToggleCheck, % aaMenuToolsL["ControlToolTipAlwaysOnTopOff"]
+
+o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue := !o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue
 
 return
 ;------------------------------------------------------------
@@ -1178,12 +1230,25 @@ return
 ClipboardEditorUseTabChanged:
 ;------------------------------------------------------------
 
-g_blnUseTab := !g_blnUseTab
-
-; GuiControl, % (g_blnUseTab ? "+" : "-") . "WantTab", f_blnUseTab
-GuiControl, % (g_blnUseTab ? "+" : "-") . "WantTab", f_strClipboardEditor
-GuiControl, %g_blnUseTab%, f_blnUseTab
+GuiControl, % (o_Settings.SettingsWindow.blnUseTab.IniValue ? "+" : "-") . "WantTab", f_strClipboardEditor
 ; Menu, menuBarTools, ToggleCheck, % aaMenuToolsL["ControlToolTipAlwaysOnTopOff"]
+
+o_Settings.SettingsWindow.blnUseTab.IniValue := !o_Settings.SettingsWindow.blnUseTab.IniValue
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+ClipboardEditorSeeInvisibleChanged:
+ClipboardEditorSeeInvisibleChangedInit:
+;------------------------------------------------------------
+Gui, 1:Submit, NoHide
+
+if (A_ThisLabel = "ClipboardEditorSeeInvisibleChanged")
+	o_Settings.SettingsWindow.blnSeeInvisible.IniValue := !o_Settings.SettingsWindow.blnSeeInvisible.IniValue
+
+GuiControl, , f_strClipboardEditor, % ConvertInvisible(f_strClipboardEditor)
 
 return
 ;------------------------------------------------------------
@@ -1237,7 +1302,7 @@ Gui, Submit, NoHide
 Gosub, DisableSaveAndCancel
 
 if (A_ThisLabel = "GuiSaveEditor")
-	Clipboard := f_strClipboardEditor
+	Clipboard := f_strClipboardEditor ; ##### adjust if invisible
 else
 	Gosub, UpdateEditorWithClipboard
 
@@ -1426,6 +1491,12 @@ return
 CleanUpBeforeExit:
 ;-----------------------------------------------------------
 
+o_Settings.SettingsWindow.blnFixedFont.WriteIni(, 1)
+o_Settings.SettingsWindow.intFontSize.WriteIni(, 1)
+o_Settings.SettingsWindow.blnAlwaysOnTop.WriteIni(, 1)
+o_Settings.SettingsWindow.blnUseTab.WriteIni(, 1)
+o_Settings.SettingsWindow.blnSeeInvisible.WriteIni(, 1)
+
 ; kill QACrules.exe
 if QACrulesExists()
 {
@@ -1517,8 +1588,11 @@ DisableSaveAndCancel:
 GuiControl, % (A_ThisLabel = "EnableSaveAndCancel" ? "1:Enable" : "1:Disable"), f_btnGuiSaveEditor
 GuiControl, % (A_ThisLabel = "EnableSaveAndCancel" ? "1:Enable" : "1:Disable"), f_btnGuiCancelEditor
 
-Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["GuiSaveClipboard"] . "`tCtrl+S"
-Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % L(o_L["GuiCancelEditor"])
+Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["GuiSave"] . "`tCtrl+S"
+Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % L(o_L["GuiCancel"])
+
+if (A_ThisLabel = "DisableSaveAndCancel")
+	GuiControl, Enable, f_blnSeeInvisible
 
 OnClipboardChange("ClipboardContentChanged", (A_ThisLabel = "DisableSaveAndCancel"))
 SB_SetText((A_ThisLabel = "EnableSaveAndCancel" ? o_L["DialogClipboardDisconnected"] : ""), 2)
@@ -1655,7 +1729,7 @@ else ; Clipboard contains text (g_intClipboardContentType = 1 or StrLen(Clipboar
 	strContent .= (StrLen(Clipboard) = 1 ? o_L["GuiOneCharacter"] : L(o_L["GuiCharacters"], StrLen(Clipboard)))
 
 g_strCliboardBackup := ClipboardAll ; not used...
-GuiControl, , f_strClipboardEditor, %Clipboard%
+GuiControl, , f_strClipboardEditor, % ConvertInvisible(Clipboard)
 SB_SetText(strContent, 1)
 
 strContent := ""
@@ -2540,7 +2614,7 @@ WM_RBUTTONDOWN()
 ;------------------------------------------------------------
 {
     if (A_GuiControl = "f_strClipboardEditor")
-       Return 0
+       return 0
 }
 ;------------------------------------------------------------
 
@@ -2579,6 +2653,55 @@ GetSelectedTextLenght(strHwnd)
 	; EM_GETSEL = 0x00B0 -> msdn.microsoft.com/en-us/library/bb761598(v=vs.85).aspx
 	DllCall("User32.dll\SendMessage", "Ptr", strHwnd, "UInt", 0x00B0, "UIntP", intStart, "UIntP", intEnd, "Ptr")
 	return (intEnd - intStart)
+}
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+ConvertInvisible(str)
+; Invisible chars: https://www.fileformat.info/info/unicode/category/So/list.htm (see U+2400 ...)
+;------------------------------------------------------------
+{
+	g_intInvisibleChars := 0
+	
+	; preserve tabs and new lines
+	strTabReplacement := "¤¢£"
+	str := StrReplace(str, Chr(9), strTabReplacement)
+	strLfReplacement := "²¬¼"
+	str := StrReplace(str, Chr(10), strLfReplacement)
+	
+	intUnicodeBase := 0x2400
+	loop, 31 ; from 1 to 31 (exclude 32 space)
+		if (InStr(str, Chr(A_Index)) or InStr(str, Chr(A_Index + intUnicodeBase)) or A_Index = 9 or A_Index = 10)
+		{
+			if (A_Index = 9) ; TAB
+			{
+				strFrom := strTabReplacement
+				strTo := Chr(0x21E5) . strTabReplacement ; U+21E8 RIGHTWARDS WHITE ARROW / U+21F0 RIGHTWARDS WHITE ARROW FROM WALL / U+21E5 RIGHTWARDS ARROW TO BAR
+				g_intInvisibleChars++
+			}
+			else if (A_Index = 10) ; LF (`n = LF)
+			{
+				strFrom := strLfReplacement
+				strTo := Chr(0x21B2) . strLfReplacement ; U+21E9 DOWNWARDS WHITE ARROW / U+21A9	LEFTWARDS ARROW WITH HOOK / U+21B2 DOWNWARDS ARROW WITH TIP LEFTWARDS
+				g_intInvisibleChars++
+			}
+			else
+			{
+				strFrom := Chr(A_Index)
+				strTo := Chr(A_Index + intUnicodeBase)
+			}
+			if (o_Settings.SettingsWindow.blnSeeInvisible.IniValue)
+				str := StrReplace(str, strFrom, strTo)
+			else
+				str := StrReplace(str, strTo, strFrom)
+		}
+	
+	; restore tabs and new lines
+	str := StrReplace(str, strTabReplacement, Chr(9))
+	str := StrReplace(str, strLfReplacement, Chr(10))
+	
+	return str
 }
 ;------------------------------------------------------------
 

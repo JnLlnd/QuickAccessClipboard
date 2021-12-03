@@ -202,7 +202,7 @@ global g_strGui1Hwnd ; editor window ID
 global g_strEditorControlHwnd ; editor control ID
 global g_strCliboardBackup ; not used...
 global g_intClipboardContentType ; updated by ClipboardContentChanged()
-global g_intInvisibleChars ; nb of characters added to editor to show invisible characters
+; global g_intInvisibleChars ; nb of characters added to editor to show invisible characters
 
 ;---------------------------------
 ; Init language
@@ -544,7 +544,6 @@ if (g_blnIniFileCreation) ; if it exists, it is not first launch
 			RulesTimeoutSecs=60
 			AlwaysOnTop=0
 			UseTab=0
-			SeeInvisible=0
 			[Rules]
 
 ) ; leave the last extra line above
@@ -571,7 +570,7 @@ o_Settings.ReadIniOption("SettingsWindow", "blnFixedFont", "FixedFont", 0, "Sett
 o_Settings.ReadIniOption("SettingsWindow", "intFontSize", "FontSize", 10, "SettingsWindow", "")
 o_Settings.ReadIniOption("SettingsWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "SettingsWindow", "")
 o_Settings.ReadIniOption("SettingsWindow", "blnUseTab", "UseTab", 0, "SettingsWindow", "")
-o_Settings.ReadIniOption("SettingsWindow", "blnSeeInvisible", "SeeInvisible", 0, "SettingsWindow", "")
+; o_Settings.ReadIniOption("SettingsWindow", "blnSeeInvisible", "SeeInvisible", 0, "SettingsWindow", "")
 
 ; Group MenuAdvanced
 o_Settings.ReadIniOption("MenuAdvanced", "intShowMenuBar", "ShowMenuBar", 3, "MenuAdvanced", "") ; default false, if true reload QAP as admin ; g_blnRunAsAdmin
@@ -913,7 +912,7 @@ Gui, 1:Add, Edit, x+5 yp w40 vf_intFontSize gClipboardEditorFontChanged
 Gui, 1:Add, UpDown, Range6-36 vf_intFontUpDown, % o_Settings.SettingsWindow.intFontSize.IniValue
 Gui, 1:Add, Checkbox, % "x+20 yp vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopChanged " . (o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue = 1 ? "checked" : ""), % o_L["DialogAlwaysOnTop"]
 Gui, 1:Add, Checkbox, % "x+10 yp vf_blnUseTab gClipboardEditorUseTabChanged " . (o_Settings.SettingsWindow.blnUseTab.IniValue = 1 ? "checked" : ""), % o_L["DialogUseTab"]
-Gui, 1:Add, Checkbox, % "x+10 yp vf_blnSeeInvisible gClipboardEditorSeeInvisibleChanged " . (o_Settings.SettingsWindow.blnSeeInvisible.IniValue = 1 ? "checked" : ""), % o_L["DialogSeeInvisible"]
+; Gui, 1:Add, Checkbox, % "x+10 yp vf_blnSeeInvisible gClipboardEditorSeeInvisibleChanged " . (o_Settings.SettingsWindow.blnSeeInvisible.IniValue = 1 ? "checked" : ""), % o_L["DialogSeeInvisible"]
 
 Gui, 1:Add, Text, y+20 vf_lblBeginEditor ; mark for top of editor
 GuiControlGet, arrControlPos, Pos, f_lblBeginEditor
@@ -932,7 +931,7 @@ Gui, 1:Font
 Gosub, ClipboardEditorFontChanged
 Gosub, ClipboardEditorAlwaysOnTopChanged
 Gosub, ClipboardEditorUseTabChanged
-Gosub, ClipboardEditorSeeInvisibleChangedInit
+; Gosub, ClipboardEditorSeeInvisibleChangedInit
 
 Gui, 1:Add, StatusBar
 SB_SetParts(200, 200)
@@ -1195,16 +1194,8 @@ ClipboardEditorChanged:
 ;------------------------------------------------------------
 Gui, 1:Submit, NoHide
 
-GuiControlGet, blnInvisibleEnabled, Enabled, f_blnSeeInvisible
-if (blnInvisibleEnabled)
-{
-	GuiControl, , f_blnSeeInvisible, 0
-	Gosub, ClipboardEditorSeeInvisibleChanged
-	GuiControl, Disable, f_blnSeeInvisible
-}
-
 OnClipboardChange("ClipboardContentChanged", 0)
-SB_SetText(o_L["MenuEditor"] . ": " . (StrLen(f_strClipboardEditor) = 1 ? o_L["GuiOneCharacter"] : L(o_L["GuiCharacters"], StrLen(f_strClipboardEditor))), 1) ; adjust if invisible #####
+SB_SetText(o_L["MenuEditor"] . ": " . (StrLen(f_strClipboardEditor) = 1 ? o_L["GuiOneCharacter"] : L(o_L["GuiCharacters"], StrLen(f_strClipboardEditor))), 1)
 SB_SetText(o_L["DialogClipboardDisconnected"], 2)
 Gosub, EnableSaveAndCancel
 
@@ -1239,6 +1230,7 @@ return
 ;------------------------------------------------------------
 
 
+/*
 ;------------------------------------------------------------
 ClipboardEditorSeeInvisibleChanged:
 ClipboardEditorSeeInvisibleChangedInit:
@@ -1248,10 +1240,13 @@ Gui, 1:Submit, NoHide
 if (A_ThisLabel = "ClipboardEditorSeeInvisibleChanged")
 	o_Settings.SettingsWindow.blnSeeInvisible.IniValue := !o_Settings.SettingsWindow.blnSeeInvisible.IniValue
 
+
+GuiControl, % (o_Settings.SettingsWindow.blnSeeInvisible.IniValue ? "+" : "-") . "ReadOnly", f_strClipboardEditor
 GuiControl, , f_strClipboardEditor, % ConvertInvisible(f_strClipboardEditor)
 
 return
 ;------------------------------------------------------------
+*/
 
 
 ;------------------------------------------------------------
@@ -1302,7 +1297,7 @@ Gui, Submit, NoHide
 Gosub, DisableSaveAndCancel
 
 if (A_ThisLabel = "GuiSaveEditor")
-	Clipboard := f_strClipboardEditor ; ##### adjust if invisible
+	Clipboard := f_strClipboardEditor
 else
 	Gosub, UpdateEditorWithClipboard
 
@@ -1495,7 +1490,7 @@ o_Settings.SettingsWindow.blnFixedFont.WriteIni(, 1)
 o_Settings.SettingsWindow.intFontSize.WriteIni(, 1)
 o_Settings.SettingsWindow.blnAlwaysOnTop.WriteIni(, 1)
 o_Settings.SettingsWindow.blnUseTab.WriteIni(, 1)
-o_Settings.SettingsWindow.blnSeeInvisible.WriteIni(, 1)
+; o_Settings.SettingsWindow.blnSeeInvisible.WriteIni(, 1)
 
 ; kill QACrules.exe
 if QACrulesExists()
@@ -1591,8 +1586,8 @@ GuiControl, % (A_ThisLabel = "EnableSaveAndCancel" ? "1:Enable" : "1:Disable"), 
 Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["GuiSave"] . "`tCtrl+S"
 Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % L(o_L["GuiCancel"])
 
-if (A_ThisLabel = "DisableSaveAndCancel")
-	GuiControl, Enable, f_blnSeeInvisible
+; if (A_ThisLabel = "DisableSaveAndCancel")
+	; GuiControl, Enable, f_blnSeeInvisible
 
 OnClipboardChange("ClipboardContentChanged", (A_ThisLabel = "DisableSaveAndCancel"))
 SB_SetText((A_ThisLabel = "EnableSaveAndCancel" ? o_L["DialogClipboardDisconnected"] : ""), 2)
@@ -1729,7 +1724,7 @@ else ; Clipboard contains text (g_intClipboardContentType = 1 or StrLen(Clipboar
 	strContent .= (StrLen(Clipboard) = 1 ? o_L["GuiOneCharacter"] : L(o_L["GuiCharacters"], StrLen(Clipboard)))
 
 g_strCliboardBackup := ClipboardAll ; not used...
-GuiControl, , f_strClipboardEditor, % ConvertInvisible(Clipboard)
+GuiControl, , f_strClipboardEditor, %Clipboard%
 SB_SetText(strContent, 1)
 
 strContent := ""
@@ -2658,7 +2653,7 @@ GetSelectedTextLenght(strHwnd)
 
 
 ;------------------------------------------------------------
-ConvertInvisible(str)
+ConvertInvisible(str) ; NOT USED - KEEP FOR FUTURE?
 ; Invisible chars: https://www.fileformat.info/info/unicode/category/So/list.htm (see U+2400 ...)
 ;------------------------------------------------------------
 {

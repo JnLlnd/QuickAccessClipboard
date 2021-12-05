@@ -202,7 +202,8 @@ global g_strGui1Hwnd ; editor window ID
 global g_strEditorControlHwnd ; editor control ID
 global g_strCliboardBackup ; not used...
 global g_intClipboardContentType ; updated by ClipboardContentChanged()
-global g_saRulesBackupSelected ; backup of selected rules
+global g_saRulesBackupSelectedOrder ; backup of selected rules
+global g_saRulesBackupSelectedByName ; backup of selected rules
 ; global g_intInvisibleChars ; nb of characters added to editor to show invisible characters
 
 ;---------------------------------
@@ -1101,6 +1102,8 @@ GuiApplyRules:
 ;------------------------------------------------------------
 Gui, Submit, NoHide
 
+Gosub, BackupSelectedRules
+
 While QACrulesExists()
 	Process, Close, QACrules.exe
 
@@ -1544,6 +1547,7 @@ GuiCloseCancelFromGuiEscape:
 GuiCloseCancelFromGuiClose:
 GuiCloseCancelAndExitApp:
 ;------------------------------------------------------------
+Gui, Submit, NoHide
 
 if EditorUnsaved() or RulesNotApplied()
 {
@@ -1560,49 +1564,29 @@ if (A_ThisLabel = "GuiCloseCancelAndExitApp")
 	ExitApp
 ; else continue
 
-/* ##### restore rules available and applied
-restaurer f_lvRulesSelected avec g_saRulesBackupSelected
-restaurer f_lvRulesAvailable avec rules dans objet sauf si dans g_saRulesBackupSelected
-
-g_saRulesBackupSelected
-; wait until window is closed to alert user if rules were changed but not applied
-
-strDetectHiddenWindowsBefore := A_DetectHiddenWindows
-DetectHiddenWindows, Off
-WinWaitClose, ahk_id %g_strGui1Hwnd%
-
-; from here, window has been closed
-Gui, Submit, NoHide
-GuiControlGet, blnUpdateRulesButtonChecked, Enabled, f_btnGuiApplyRules
-
-if (blnUpdateRulesButtonChecked) ; rules were changed but not applied
+if RulesNotApplied()
 {
-	Gui, 1:+OwnDialogs
-	MsgBox, 36, % L(o_L["DialogCancelTitle"], g_strAppNameText, g_strAppVersion), % o_L["DialogCancelRulesPrompt"]
-	IfMsgBox, No
-		return
+	Gui, 1:ListView, f_lvRulesSelected
+	LV_Delete() ; delete all rows
+	for intIndex, strName in g_saRulesBackupSelectedOrder
+		LV_Add(, strName)
 	
-	loop, Parse, % "f_lvRulesAvailable|f_lvRulesSelected", |
-	{
-		Gui, 1:ListView, %A_LoopField%
-		LV_Delete() ; delete all rows
-		for intIndex, strName in (A_LoopField = "f_lvRulesAvailable" ? saRulesBackupAvailable : saRulesBackupSelected)
+	Gui, 1:ListView, f_lvRulesAvailable
+	LV_Delete() ; delete all rows
+	for strName, oRule in g_aaRulesByName
+		if !g_saRulesBackupSelectedByName.HasKey(strName)
 			LV_Add(, strName)
-	}
 	
-	saRulesBackupAvailable := ""
-	saRulesBackupSelected := ""
+	g_saRulesBackupSelectedOrder := ""
+	g_saRulesBackupSelectedByName := ""
 	intIndex := ""
 	strName := ""
 }
 
-DetectHiddenWindows, %strDetectHiddenWindowsBefore%
-strDetectHiddenWindowsBefore := ""
-*/
-
 Gosub, DisableSaveAndCancel
+Gosub, DisableApplyRulesAndCancel
 
-Gui, 1:Cancel
+Gui, 1:Cancel ; hide the window
 
 return
 ;------------------------------------------------------------
@@ -1691,14 +1675,7 @@ GuiShow:
 GuiShowFromTray:
 ;------------------------------------------------------------
 
-g_saRulesBackupSelected := Object()
-Gui, 1:ListView, f_lvRulesSelected
-loop, % LV_GetCount()
-{
-	LV_GetText(strName, A_Index, 1)
-	g_saRulesBackupSelected.Push(strName)
-}
-
+Gosub, BackupSelectedRules
 Gosub, UpdateEditorWithClipboardFromGuiShow
 Gosub, DisableSaveAndCancel
 
@@ -1715,6 +1692,25 @@ if (blnExist) ; keep the gui as-is if it is not closed
 
 Gui, Show
 
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+BackupSelectedRules:
+;------------------------------------------------------------
+Gui, 1:Submit, NoHide
+
+g_saRulesBackupSelectedOrder := Object()
+g_saRulesBackupSelectedByName := Object()
+
+Gui, 1:ListView, f_lvRulesSelected
+loop, % LV_GetCount()
+{
+	LV_GetText(strName, A_Index, 1)
+	g_saRulesBackupSelectedOrder.Push(strName)
+	g_saRulesBackupSelectedByName[strName] := "foo"
+}
 return
 ;------------------------------------------------------------
 

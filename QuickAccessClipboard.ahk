@@ -61,7 +61,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.2
+;@Ahk2Exe-SetVersion 0.0.3
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -127,7 +127,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.2" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.3" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -202,6 +202,7 @@ global g_strGui1Hwnd ; editor window ID
 global g_strEditorControlHwnd ; editor control ID
 global g_strCliboardBackup ; not used...
 global g_intClipboardContentType ; updated by ClipboardContentChanged()
+global g_saRulesBackupSelected ; backup of selected rules
 ; global g_intInvisibleChars ; nb of characters added to editor to show invisible characters
 
 ;---------------------------------
@@ -312,6 +313,8 @@ Hotkey, If, WinActive(QACSettingsString()) ; main Gui title
 
 Hotkey, If
 
+Gosub, GuiShow ; #####
+
 return
 
 ;========================================================================================================================
@@ -359,14 +362,12 @@ EditorCtrlX: ; Cut
 ;-----------------------------------------------------------
 
 if (A_ThisLabel = "EditorCtrlS")
-{
+	
 	Gosub, GuiSaveEditor
-}
 
 else if (A_ThisLabel = "EditorEsc")
-{
-	Gosub, GuiClose
-}
+
+	Gosub, GuiCloseCancel
 
 else if (A_ThisLabel = "EditorCtrlC") or (A_ThisLabel = "EditorCtrlX")
 {
@@ -660,7 +661,7 @@ if (o_Settings.MenuAdvanced.intShowMenuBar.IniValue > 1) ; 1 Customize menu bar,
 Menu, Tray, Add
 Menu, Tray, Add, % o_L["MenuSuspendHotkeys"], ToggleSuspendHotkeys
 Menu, Tray, Add, % o_L["MenuRunAtStartup"], ToggleRunAtStartup ; function ToggleRunAtStartup replaces RunAtStartup
-Menu, Tray, Add, % L(o_L["MenuExitApp"], g_strAppNameText), GuiCloseAndExitApp
+Menu, Tray, Add, % L(o_L["MenuExitApp"], g_strAppNameText), GuiCloseCancelAndExitApp
 ;@Ahk2Exe-IgnoreBegin
 ; Start of code for developement phase only - won't be compiled
 Menu, Tray, Add
@@ -773,11 +774,10 @@ BuildGuiMenuBar:
 ; see https://docs.microsoft.com/fr-fr/windows/desktop/uxguide/cmd-menus
 ;------------------------------------------------------------
 
-Menu, menuBarFile, Add, % o_L["GuiSave"] . "`tCtrl+S", EditorCtrlS
-Menu, menuBarFile, Add, % o_L["GuiCancel"], GuiCancelEditor
-Menu, menuBarFile, Add, % o_L["GuiClose"] . "`tEsc", GuiClose
+Menu, menuBarFile, Add, % o_L["GuiSaveEditor"] . "`tCtrl+S", EditorCtrlS
+Menu, menuBarFile, Add, % o_L["GuiClose"] . "`tEsc", GuiCloseCancel
 Menu, menuBarFile, Add
-Menu, menuBarFile, Add, % L(o_L["MenuExitApp"], g_strAppNameText), GuiCloseAndExitApp
+Menu, menuBarFile, Add, % L(o_L["MenuExitApp"], g_strAppNameText), GuiCloseCancelAndExitApp
 Menu, menuBarMain, Add, % o_L["MenuFile"], :menuBarFile
 
 return
@@ -822,16 +822,13 @@ return
 
 ;------------------------------------------------------------
 InitGuiControls:
-; Order of controls important to avoid drawgins gliches when resizing
+; Order of controls important to avoid drawings gliches when resizing
 ;------------------------------------------------------------
 
 ; InsertGuiControlPos(strControlName, intX, intY, blnCenter := false, blnDraw := false)
-
-InsertGuiControlPos("f_strClipboardEditor",				 20,   130) ; must be first g_saGuiControls[1]
-
+InsertGuiControlPos("f_strClipboardEditor",			20, 130) ; must be first g_saGuiControls[1]
 InsertGuiControlPos("f_btnGuiSaveEditor",			0,  -65, , true)
-InsertGuiControlPos("f_btnGuiCancelEditor",			0,  -65, , true)
-InsertGuiControlPos("f_btnGuiClose",				0,  -65, , true)
+InsertGuiControlPos("f_btnGuiCloseCancel",			0,  -65, , true)
 
 return
 ;------------------------------------------------------------
@@ -861,8 +858,8 @@ Gui, 1:New, +Hwndg_strGui1Hwnd +Resize -MinimizeBox +MinSize%g_intGuiDefaultWidt
 if (o_Settings.MenuAdvanced.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar, 2 System menu, 3 both
 	Gui, Menu, menuBarMain
 
-Gui, 1:Font, s8 w600
-Gui, 1:Add, Text, x20 y10, % o_L["GuiRulesAvailable"]
+Gui, 1:Font, s8 w600, Verdana
+Gui, 1:Add, Text, x40 y10, % o_L["GuiRulesAvailable"]
 Gui, 1:Add, Text, x564 y10, % o_L["GuiRulesSelected"]
 Gui, 1:Font, s8 w400
 
@@ -898,12 +895,12 @@ o_LvRowsHandle.SetHwnd(Hwndg_strRulesSelectedHwnd)
 
 Gui, 1:Font, s8 w600, Verdana
 Gui, 1:Add, Button, x10 y+10 vf_btnGuiApplyRules gGuiApplyRules h25 Disabled, % o_L["GuiApplyRules"]
+GuiCenterButtons(g_strGui1Hwnd, , , , 565, 20, "f_btnGuiApplyRules")
 Gui, 1:Font ; reset default font
-GuiCenterButtons(g_strGui1Hwnd, , , , "f_btnGuiApplyRules")
 
-Gui, 1:Font, s8 w600
+Gui, 1:Font, s8 w600, Verdana
 Gui, 1:Add, Text, x20 y+5, % o_L["MenuEditor"]
-Gui, 1:Font, s8 w400
+Gui, 1:Font
 
 Gui, 1:Add, Text, x10
 Gui, 1:Add, Checkbox, % "x+1 yp vf_blnFixedFont gClipboardEditorFontChanged " . (o_Settings.SettingsWindow.blnFixedFont.IniValue = 1 ? "checked" : ""), % o_L["DialogFixedFont"]
@@ -913,25 +910,25 @@ Gui, 1:Add, UpDown, Range6-36 vf_intFontUpDown, % o_Settings.SettingsWindow.intF
 Gui, 1:Add, Checkbox, % "x+20 yp vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopChanged " . (o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue = 1 ? "checked" : ""), % o_L["DialogAlwaysOnTop"]
 Gui, 1:Add, Checkbox, % "x+10 yp vf_blnUseTab gClipboardEditorUseTabChanged " . (o_Settings.SettingsWindow.blnUseTab.IniValue = 1 ? "checked" : ""), % o_L["DialogUseTab"]
 ; Gui, 1:Add, Checkbox, % "x+10 yp vf_blnSeeInvisible gClipboardEditorSeeInvisibleChanged " . (o_Settings.SettingsWindow.blnSeeInvisible.IniValue = 1 ? "checked" : ""), % o_L["DialogSeeInvisible"]
-
-Gui, 1:Add, Text, y+20 vf_lblBeginEditor ; mark for top of editor
-GuiControlGet, arrControlPos, Pos, f_lblBeginEditor
-g_saGuiControls[1].Y := arrControlPosY
-
-Gui, 1:Font, s10 w400, Arial
-Gui, 1:Add, Edit, x10 y50 w600 vf_strClipboardEditor gClipboardEditorChanged Multi WantReturn +hwndg_strEditorControlHwnd
-
-Gui, 1:Font, s8 w600, Verdana
-Gui, 1:Add, Button, vf_btnGuiSaveEditor Disabled gGuiSaveEditor x200 y400 w140 h35, % o_L["GuiSave"]
-Gui, 1:Add, Button, vf_btnGuiCancelEditor Disabled gGuiCancelEditor x350 yp w140 h35, % o_L["GuiCancel"]
-Gui, 1:Add, Button, vf_btnGuiClose gGuiClose Default x500 yp w100 h35, % o_L["GuiClose"]
-GuiControl, 1:Focus, f_btnGuiClose
-Gui, 1:Font
+; enable f_blnSeeInvisible only if f_strClipboardEditor contains Clipboard
 
 Gosub, ClipboardEditorFontChanged
 Gosub, ClipboardEditorAlwaysOnTopChanged
 Gosub, ClipboardEditorUseTabChanged
 ; Gosub, ClipboardEditorSeeInvisibleChangedInit
+
+Gui, 1:Add, Text, y+20 vf_lblBeginEditor ; mark for top of editor
+GuiControlGet, arrControlPos, Pos, f_lblBeginEditor
+g_saGuiControls[1].Y := arrControlPosY
+
+Gui, 1:Font, s10 w400
+Gui, 1:Add, Edit, x10 y50 w600 vf_strClipboardEditor gClipboardEditorChanged Multi WantReturn +hwndg_strEditorControlHwnd
+
+Gui, 1:Font, s8 w600, Verdana
+Gui, 1:Add, Button, vf_btnGuiSaveEditor Disabled gGuiSaveEditor x200 y400 w140 h35, % o_L["GuiSaveEditor"]
+Gui, 1:Add, Button, vf_btnGuiCloseCancel gGuiCloseCancel Default x500 yp w100 h35, % o_L["GuiClose"]
+GuiControl, 1:Focus, f_btnGuiCloseCancel
+Gui, 1:Font
 
 Gui, 1:Add, StatusBar
 SB_SetParts(200, 200)
@@ -1041,7 +1038,7 @@ GuiRuleDeselect:
 GuiRuleDeselectAll:
 ;------------------------------------------------------------
 
-GuiControl, Enable, f_btnGuiApplyRules
+Gosub, EnableApplyRulesAndCancel
 
 if (A_ThisLabel = "GuiRuleDeselectAll")
 {
@@ -1092,7 +1089,7 @@ else if (A_ThisLabel = "GuiRulesSelectedEvents" and A_GuiEvent == "D") ; case se
 	; A_EventInfo ; original position, not used
     intNewItemPos := o_LvRowsHandle.Drag("D", true, 80, 2, "3F51B5") ; returns the new item position, 3F51B5 is the color of the up/down buttons
 	; intNewItemPos not used
-	GuiControl, Enable, f_btnGuiApplyRules
+	Gosub, EnableApplyRulesAndCancel
 }
 
 return
@@ -1176,11 +1173,11 @@ FileAppend, %strSource%, %strRulesPathNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : ""
 ; run the AHK runtime QACrules.exe that will call the script having the same name QACrules.ahk
 Run, %strRulesPathNoExt%.exe
 
+Gosub, DisableApplyRulesAndCancel
+
 ToolTip, % L(o_L["RulesUpdated"], g_strAppNameText)
 Sleep, 1000
 ToolTip
-
-GuiControl, Disable, f_btnGuiApplyRules
 
 strRulesPathNoExt := ""
 strSource := ""
@@ -1206,12 +1203,9 @@ return
 ;------------------------------------------------------------
 ClipboardEditorAlwaysOnTopChanged:
 ;------------------------------------------------------------
+Gui, 1:Submit, NoHide
 
-WinSet, AlwaysOnTop, % (o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue ? "On" : "Off"), ahk_id %g_strGui1Hwnd% ; do not use default Toogle for safety
-; GuiControl, %g_blnAlwaysOnTop%, f_blnAlwaysOnTop
-; Menu, menuBarTools, ToggleCheck, % aaMenuToolsL["ControlToolTipAlwaysOnTopOff"]
-
-o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue := !o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue
+WinSet, AlwaysOnTop, % (f_blnAlwaysOnTop ? "On" : "Off"), ahk_id %g_strGui1Hwnd% ; do not use default Toogle for safety
 
 return
 ;------------------------------------------------------------
@@ -1220,11 +1214,9 @@ return
 ;------------------------------------------------------------
 ClipboardEditorUseTabChanged:
 ;------------------------------------------------------------
+Gui, 1:Submit, NoHide
 
-GuiControl, % (o_Settings.SettingsWindow.blnUseTab.IniValue ? "+" : "-") . "WantTab", f_strClipboardEditor
-; Menu, menuBarTools, ToggleCheck, % aaMenuToolsL["ControlToolTipAlwaysOnTopOff"]
-
-o_Settings.SettingsWindow.blnUseTab.IniValue := !o_Settings.SettingsWindow.blnUseTab.IniValue
+GuiControl, % (f_blnUseTab ? "+" : "-") . "WantTab", f_strClipboardEditor
 
 return
 ;------------------------------------------------------------
@@ -1233,16 +1225,11 @@ return
 /*
 ;------------------------------------------------------------
 ClipboardEditorSeeInvisibleChanged:
-ClipboardEditorSeeInvisibleChangedInit:
 ;------------------------------------------------------------
 Gui, 1:Submit, NoHide
 
-if (A_ThisLabel = "ClipboardEditorSeeInvisibleChanged")
-	o_Settings.SettingsWindow.blnSeeInvisible.IniValue := !o_Settings.SettingsWindow.blnSeeInvisible.IniValue
-
-
-GuiControl, % (o_Settings.SettingsWindow.blnSeeInvisible.IniValue ? "+" : "-") . "ReadOnly", f_strClipboardEditor
-GuiControl, , f_strClipboardEditor, % ConvertInvisible(f_strClipboardEditor)
+GuiControl, % (f_blnSeeInvisible ? "+" : "-") . "ReadOnly", f_strClipboardEditor
+GuiControl, , f_strClipboardEditor, % (f_blnSeeInvisible ? ConvertInvisible(f_strClipboardEditor) : Clipboard)
 
 return
 ;------------------------------------------------------------
@@ -1274,13 +1261,10 @@ ClipboardEditorFontChanged:
 ;------------------------------------------------------------
 Gui, 1:Submit, NoHide
 
-o_Settings.SettingsWindow.blnFixedFont.IniValue := f_blnFixedFont
-o_Settings.SettingsWindow.intFontSize.IniValue := f_intFontSize
-
-if (o_Settings.SettingsWindow.blnFixedFont.IniValue)
-	Gui, 1:Font, % "s" . o_Settings.SettingsWindow.intFontSize.IniValue, Courier New
+if (f_blnFixedFont)
+	Gui, 1:Font, % "s" . f_intFontSize, Courier New
 else
-	Gui, 1:Font, % "s" . o_Settings.SettingsWindow.intFontSize.IniValue
+	Gui, 1:Font, % "s" . f_intFontSize
 GuiControl, Font, f_strClipboardEditor
 Gui, 1:Font
 
@@ -1290,7 +1274,6 @@ return
 
 ;------------------------------------------------------------
 GuiSaveEditor:
-GuiCancelEditor:
 ;------------------------------------------------------------
 Gui, Submit, NoHide
 
@@ -1316,8 +1299,8 @@ intEditorH := A_GuiHeight - (g_saGuiControls[1].Y + 80)
 g_intEditorW := A_GuiWidth - 40
 
 ; space before, between and after save/reload/close buttons
-; = (A_GuiWidth - left margin - right margin - (3 buttons width)) // 4 (left, between x 2, right)
-intButtonSpacing := (A_GuiWidth - 120 - 120 - (140 + 100 + 100)) // 4
+; = (A_GuiWidth - left margin - right margin - (2 buttons width)) // 3 (left, between 2 buttons, right)
+intButtonSpacing := (A_GuiWidth - 120 - 120 - (140 + 100)) // 3
 
 for intIndex, aaGuiControl in g_saGuiControls
 {
@@ -1337,13 +1320,10 @@ for intIndex, aaGuiControl in g_saGuiControls
 
 	if (aaGuiControl.Name = "f_btnGuiSaveEditor")
 		intX := 80 + intButtonSpacing
-	else if (aaGuiControl.Name = "f_btnGuiCancelEditor")
+	else if (aaGuiControl.Name = "f_btnGuiCloseCancel")
 		intX := 80 + (2 * intButtonSpacing) + 140 ; 140 for 1st button
-	else if (aaGuiControl.Name = "f_btnGuiClose")
-		intX := 80 + (3 * intButtonSpacing) + 140 + 140 ; 140 for 1st button, 100 for 2nd button
-		
-	GuiControl, % "1:Move" . (aaGuiControl.Draw ? "Draw" : ""), % aaGuiControl.Name, % "x" . intX	.  " y" . intY
-		
+
+	GuiControl, % "1:Move" . (aaGuiControl.Draw ? "Draw" : ""), % aaGuiControl.Name, % "x" . intX .  " y" . intY
 }
 
 GuiControl, 1:Move, f_strClipboardEditor, w%g_intEditorW% h%intEditorH%
@@ -1390,7 +1370,7 @@ Gui, Update:Font
 Gui, Update:Add, Button, y+20 x10 vf_btnCheck4UpdateDialogChangeLog gButtonCheck4UpdateDialogChangeLog, % o_L["UpdateButtonChangeLog"]
 Gui, Update:Add, Button, yp x+20 vf_btnCheck4UpdateDialogVisit gButtonCheck4UpdateDialogVisit, % o_L["UpdateButtonVisit"]
 
-GuiCenterButtons(g_strGui3Hwnd, 10, 5, 20, "f_btnCheck4UpdateDialogChangeLog", "f_btnCheck4UpdateDialogVisit")
+GuiCenterButtons(g_strGui3Hwnd, 10, 5, 20, , , "f_btnCheck4UpdateDialogChangeLog", "f_btnCheck4UpdateDialogVisit")
 
 if (g_strUpdateProdOrBeta = "prod")
 {
@@ -1399,14 +1379,14 @@ if (g_strUpdateProdOrBeta = "prod")
 	else
 		Gui, Update:Add, Button, y+20 x10 vf_btnCheck4UpdateDialogDownload gButtonCheck4UpdateDialogDownloadSetup, % o_L["UpdateButtonDownloadSetup"]
 
-	GuiCenterButtons(g_strGui3Hwnd, 10, 5, 20, "f_btnCheck4UpdateDialogDownload")
+	GuiCenterButtons(g_strGui3Hwnd, 10, 5, 20, , , "f_btnCheck4UpdateDialogDownload")
 }
 
 Gui, Update:Add, Button, y+20 x10 vf_btnCheck4UpdateDialogSkipVersion gButtonCheck4UpdateDialogSkipVersion, % o_L["UpdateButtonSkipVersion"]
 Gui, Update:Add, Button, yp x+20 vf_btnCheck4UpdateDialogRemind gButtonCheck4UpdateDialogRemind, % o_L["UpdateButtonRemind"]
 Gui, Update:Add, Text
 
-GuiCenterButtons(g_strGui3Hwnd, 10, 5, 20, "f_btnCheck4UpdateDialogSkipVersion", "f_btnCheck4UpdateDialogRemind")
+GuiCenterButtons(g_strGui3Hwnd, 10, 5, 20, , , "f_btnCheck4UpdateDialogSkipVersion", "f_btnCheck4UpdateDialogRemind")
 
 GuiControl, Update:Focus, f_btnCheck4UpdateDialogRemind
 CalculateTopGuiPosition(g_strGui3Hwnd, g_strGui1Hwnd, intX, intY)
@@ -1485,12 +1465,12 @@ return
 ;-----------------------------------------------------------
 CleanUpBeforeExit:
 ;-----------------------------------------------------------
+Gui, 1:Submit, NoHide
 
-o_Settings.SettingsWindow.blnFixedFont.WriteIni(, 1)
-o_Settings.SettingsWindow.intFontSize.WriteIni(, 1)
-o_Settings.SettingsWindow.blnAlwaysOnTop.WriteIni(, 1)
-o_Settings.SettingsWindow.blnUseTab.WriteIni(, 1)
-; o_Settings.SettingsWindow.blnSeeInvisible.WriteIni(, 1)
+o_Settings.SettingsWindow.blnFixedFont.WriteIni(f_blnFixedFont)
+o_Settings.SettingsWindow.intFontSize.WriteIni(f_intFontSize)
+o_Settings.SettingsWindow.blnAlwaysOnTop.WriteIni(f_blnAlwaysOnTop)
+o_Settings.SettingsWindow.blnUseTab.WriteIni(f_blnUseTab)
 
 ; kill QACrules.exe
 if QACrulesExists()
@@ -1542,7 +1522,7 @@ QACrulesExists()
 GuiEscape:
 ;------------------------------------------------------------
 
-GoSub, GuiCloseFromEscape
+GoSub, GuiCloseCancelFromGuiEscape
 
 return
 ;------------------------------------------------------------
@@ -1550,21 +1530,75 @@ return
 
 ;------------------------------------------------------------
 GuiClose:
-GuiCloseFromEscape:
-GuiCloseAndExitApp:
 ;------------------------------------------------------------
 
-if EditorUnsaved()
+GoSub, GuiCloseCancelFromGuiClose
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GuiCloseCancel:
+GuiCloseCancelFromGuiEscape:
+GuiCloseCancelFromGuiClose:
+GuiCloseCancelAndExitApp:
+;------------------------------------------------------------
+
+if EditorUnsaved() or RulesNotApplied()
 {
 	Gui, 1:+OwnDialogs
-	MsgBox, 36, % L(o_L["DialogCancelTitle"], g_strAppNameText, g_strAppVersion), % o_L["DialogCancelClipboardPrompt"]
+	MsgBox, 36, % L(o_L["DialogCancelTitle"], g_strAppNameText, g_strAppVersion)
+		, % (EditorUnsaved() ? o_L["DialogCancelPromptClipboard"] : "")
+		. (EditorUnsaved() and RulesNotApplied() ? "`n" : "")
+		. (RulesNotApplied() ?  o_L["DialogCancelPromptRules"] : "")
 	IfMsgBox, No
 		return
 }
 
-if (A_ThisLabel = "GuiCloseAndExitApp")
+if (A_ThisLabel = "GuiCloseCancelAndExitApp")
 	ExitApp
 ; else continue
+
+/* ##### restore rules available and applied
+restaurer f_lvRulesSelected avec g_saRulesBackupSelected
+restaurer f_lvRulesAvailable avec rules dans objet sauf si dans g_saRulesBackupSelected
+
+g_saRulesBackupSelected
+; wait until window is closed to alert user if rules were changed but not applied
+
+strDetectHiddenWindowsBefore := A_DetectHiddenWindows
+DetectHiddenWindows, Off
+WinWaitClose, ahk_id %g_strGui1Hwnd%
+
+; from here, window has been closed
+Gui, Submit, NoHide
+GuiControlGet, blnUpdateRulesButtonChecked, Enabled, f_btnGuiApplyRules
+
+if (blnUpdateRulesButtonChecked) ; rules were changed but not applied
+{
+	Gui, 1:+OwnDialogs
+	MsgBox, 36, % L(o_L["DialogCancelTitle"], g_strAppNameText, g_strAppVersion), % o_L["DialogCancelRulesPrompt"]
+	IfMsgBox, No
+		return
+	
+	loop, Parse, % "f_lvRulesAvailable|f_lvRulesSelected", |
+	{
+		Gui, 1:ListView, %A_LoopField%
+		LV_Delete() ; delete all rows
+		for intIndex, strName in (A_LoopField = "f_lvRulesAvailable" ? saRulesBackupAvailable : saRulesBackupSelected)
+			LV_Add(, strName)
+	}
+	
+	saRulesBackupAvailable := ""
+	saRulesBackupSelected := ""
+	intIndex := ""
+	strName := ""
+}
+
+DetectHiddenWindows, %strDetectHiddenWindowsBefore%
+strDetectHiddenWindowsBefore := ""
+*/
 
 Gosub, DisableSaveAndCancel
 
@@ -1579,18 +1613,25 @@ EnableSaveAndCancel:
 DisableSaveAndCancel:
 ;------------------------------------------------------------
 
-; enable/disable editor's gui buttons
 GuiControl, % (A_ThisLabel = "EnableSaveAndCancel" ? "1:Enable" : "1:Disable"), f_btnGuiSaveEditor
-GuiControl, % (A_ThisLabel = "EnableSaveAndCancel" ? "1:Enable" : "1:Disable"), f_btnGuiCancelEditor
+GuiControl, 1:, f_btnGuiCloseCancel, % (A_ThisLabel = "EnableSaveAndCancel" ? o_L["GuiCancel"] : o_L["GuiClose"])
 
-Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["GuiSave"] . "`tCtrl+S"
-Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % L(o_L["GuiCancel"])
-
-; if (A_ThisLabel = "DisableSaveAndCancel")
-	; GuiControl, Enable, f_blnSeeInvisible
+Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["GuiSaveEditor"] . "`tCtrl+S"
 
 OnClipboardChange("ClipboardContentChanged", (A_ThisLabel = "DisableSaveAndCancel"))
 SB_SetText((A_ThisLabel = "EnableSaveAndCancel" ? o_L["DialogClipboardDisconnected"] : ""), 2)
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+EnableApplyRulesAndCancel:
+DisableApplyRulesAndCancel:
+;------------------------------------------------------------
+
+GuiControl, % (A_ThisLabel = "EnableApplyRulesAndCancel" ? "1:Enable" : "1:Disable"), f_btnGuiApplyRules
+GuiControl, 1:, f_btnGuiCloseCancel, % (A_ThisLabel = "EnableApplyRulesAndCancel" ? o_L["GuiCancel"] : o_L["GuiClose"])
 
 return
 ;------------------------------------------------------------
@@ -1650,59 +1691,29 @@ GuiShow:
 GuiShowFromTray:
 ;------------------------------------------------------------
 
-saRulesBackupSelected := Object()
-saRulesBackupAvailable := Object()
-loop, Parse, % "f_lvRulesAvailable|f_lvRulesSelected", |
+g_saRulesBackupSelected := Object()
+Gui, 1:ListView, f_lvRulesSelected
+loop, % LV_GetCount()
 {
-	Gui, 1:ListView, %A_LoopField%
-	loop, % LV_GetCount()
-	{
-		LV_GetText(strName, A_Index, 1)
-		if (A_LoopField = "f_lvRulesAvailable")
-			saRulesBackupAvailable.Push(strName)
-		else
-			saRulesBackupSelected.Push(strName)
-	}
+	LV_GetText(strName, A_Index, 1)
+	g_saRulesBackupSelected.Push(strName)
 }
 
 Gosub, UpdateEditorWithClipboardFromGuiShow
 Gosub, DisableSaveAndCancel
 
-Gui, Show
-
-; wait until window is closed to alert user if rules were changed but not applied
-
-strDetectHiddenWindowsBefore := A_DetectHiddenWindows
-DetectHiddenWindows, Off
-WinWaitClose, ahk_id %g_strGui1Hwnd%
-
-; from here, window has been closed
-Gui, Submit, NoHide
-GuiControlGet, blnUpdateRulesButtonChecked, Enabled, f_btnGuiApplyRules
-
-if (blnUpdateRulesButtonChecked) ; rules were changed but not applied
+; if gui already visible, just activate the window
+DetectHiddenWindows, Off ; to detect the gui window only if it is visible (not hidden)
+blnExist := WinExist("ahk_id " . g_strGui1Hwnd)
+DetectHiddenWindows, On ; revert to app default
+if (blnExist) ; keep the gui as-is if it is not closed
 {
-	Gui, 1:+OwnDialogs
-	MsgBox, 36, % L(o_L["DialogCancelTitle"], g_strAppNameText, g_strAppVersion), % o_L["DialogCancelRulesPrompt"]
-	IfMsgBox, No
-		return
-	
-	loop, Parse, % "f_lvRulesAvailable|f_lvRulesSelected", |
-	{
-		Gui, 1:ListView, %A_LoopField%
-		LV_Delete() ; delete all rows
-		for intIndex, strName in (A_LoopField = "f_lvRulesAvailable" ? saRulesBackupAvailable : saRulesBackupSelected)
-			LV_Add(, strName)
-	}
-	
-	saRulesBackupAvailable := ""
-	saRulesBackupSelected := ""
-	intIndex := ""
-	strName := ""
+	WinActivate, ahk_id %g_strGui1Hwnd%
+	return
 }
+; else continue
 
-DetectHiddenWindows, %strDetectHiddenWindowsBefore%
-strDetectHiddenWindowsBefore := ""
+Gui, Show
 
 return
 ;------------------------------------------------------------
@@ -2531,7 +2542,7 @@ GetOSVersionInfo()
 
 
 ;------------------------------------------------------------
-GuiCenterButtons(strWindowHandle, intInsideHorizontalMargin := 10, intInsideVerticalMargin := 0, intDistanceBetweenButtons := 20, arrControls*)
+GuiCenterButtons(strWindowHandle, intInsideHorizontalMargin := 10, intInsideVerticalMargin := 0, intDistanceBetweenButtons := 20, intLeftOffset := 0, intRightOffset := 0, arrControls*)
 ; This is a variadic function. See: http://ahkscript.org/docs/Functions.htm#Variadic
 ;------------------------------------------------------------
 {
@@ -2539,6 +2550,7 @@ GuiCenterButtons(strWindowHandle, intInsideHorizontalMargin := 10, intInsideVert
 	Gui, Show, Hide ; hides the window and activates the one beneath it, allows a hidden window to be moved, resized, or given a new title without showing it
 	WinGetPos, , , intWidth, , ahk_id %strWindowHandle%
 	intWidth := intWidth // (A_ScreenDPI / 96)
+	intWidth -= (intLeftOffset + intRightOffset)
 
 	; find largest control height and width
 	intMaxControlWidth := 0
@@ -2558,6 +2570,7 @@ GuiCenterButtons(strWindowHandle, intInsideHorizontalMargin := 10, intInsideVert
 	intMaxControlWidth := intMaxControlWidth + intInsideHorizontalMargin
 	intButtonsWidth := (intNbControls * intMaxControlWidth) + ((intNbControls  - 1) * intDistanceBetweenButtons)
 	intLeftMargin := (intWidth - intButtonsWidth) // 2
+	intLeftMargin += intLeftOffset
 
 	for intIndex, strControl in arrControls
 		if StrLen(strControl) ; avoid emtpy control names
@@ -2587,9 +2600,22 @@ EditorUnsaved()
 {
 	global
 
-	GuiControlGet, blnCancelEnabled, 1:Enabled, f_btnGuiCancelEditor 
+	GuiControlGet, blnSaveEditorEnabled, 1:Enabled, f_btnGuiSaveEditor
 
-	return blnCancelEnabled
+	return blnSaveEditorEnabled
+}
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+RulesNotApplied()
+;------------------------------------------------------------
+{
+	global
+
+	GuiControlGet, blnApplyRulesEnabled, 1:Enabled, f_btnGuiApplyRules
+
+	return blnApplyRulesEnabled
 }
 ;------------------------------------------------------------
 
@@ -2623,7 +2649,7 @@ WM_RBUTTONUP()
 	{
 		GuiControl, Focus, f_strClipboardEditor ; give focus to control for EditorContextMenuActions
 		
-		GuiControlGet, blnEnable, Enabled, f_btnGuiCancelEditor ; enable Undo item if Cancel button is enabled
+		GuiControlGet, blnEnable, Enabled, f_btnGuiCancelEditor ; enable Undo item if Cancel button is enabled ##### f_btnGuiCancelEditor out
 		Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogUndo"]
 		
 		blnEnable := GetSelectedTextLenght(g_strEditorControlHwnd) ; enable Cut, Copy, Delete if text is selected in the control

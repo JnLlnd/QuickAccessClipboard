@@ -2797,7 +2797,7 @@ RECEIVE_QACRULES(wParam, lParam)
 		{
 			Gosub, GuiRuleDeselectAll
 			; disable because rules were already removed by QACrules
-			GuiControl, Disable, f_btnGuiApplyRules ; do not Gosub, DisableApplyRulesAndCancel tio keave Save and Close unchanged
+			GuiControl, Disable, f_btnGuiApplyRules ; do not Gosub, DisableApplyRulesAndCancel to leave Save and Close unchanged
 		}
 		return 1 ; success
 	}

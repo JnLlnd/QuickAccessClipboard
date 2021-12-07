@@ -206,6 +206,8 @@ global g_strCliboardBackup ; not used...
 global g_intClipboardContentType ; updated by ClipboardContentChanged()
 global g_saRulesBackupSelectedOrder ; backup of selected rules
 global g_saRulesBackupSelectedByName ; backup of selected rules
+global g_strEscapePipe := "Ð¡þ€" ; used to escape pipe in ini file
+
 ; global g_intInvisibleChars ; nb of characters added to editor to show invisible characters
 
 ;---------------------------------
@@ -251,6 +253,11 @@ global o_PopupHotkeyOpenHotkeyKeyboard := o_PopupHotkeys.SA[2]
 ;---------------------------------
 ; Init class for UTC time conversion
 global o_Utc2LocalTime := new Utc2LocalTime
+
+;---------------------------------
+; Init rule types
+
+Gosub, InitRuleTypes
 
 ;---------------------------------
 ; Load Settings file
@@ -532,6 +539,31 @@ return
 
 
 ;-----------------------------------------------------------
+InitRuleTypes:
+; ChangeCase -> use RegExReplace to change case -> strFind, strReplace
+; Replace -> use StrReplace (see options???) -> strFind, strReplace
+; AutoHotkey -> execute script -> strCode
+; SubStr -> use SubStr -> intStartingPosition (negative to start from end), intLength
+;-----------------------------------------------------------
+
+global g_aaRuleTypes = Object()
+global g_saRuleTypesOrder = Object()
+
+saRuleTypes := StrSplit("ChangeCase|Replace|AutoHotkey|SubStr", "|")
+saRuleTypesLabels := StrSplit(o_L["TypeChangeCase"] . "|" . o_L["TypeReplace"] . "|" . o_L["TypeAutoHotkey"] . "|" . o_L["TypeSubStr"], "|")
+saRuleTypesHelp := StrSplit(o_L["TypeChangeCaseHelp"] . "|" . o_L["TypeReplaceHelp"] . "|" . o_L["TypeAutoHotkeyHelp"] . "|" . o_L["TypeSubStrHelp"], "|")
+
+Loop, % saRuleTypes.Length()
+	new RuleType(saRuleTypes[A_Index], saRuleTypesLabels[A_Index], saRuleTypesHelp[A_Index])
+
+saRuleTypes := ""
+saRuleTypesLabels := ""
+
+return
+;-----------------------------------------------------------
+
+
+;-----------------------------------------------------------
 LoadIniFile:
 ; load options, load rules to menu object
 ;-----------------------------------------------------------
@@ -785,42 +817,6 @@ Menu, menuBarFile, Add, % o_L["GuiClose"] . "`tEsc", GuiCloseCancel
 Menu, menuBarFile, Add
 Menu, menuBarFile, Add, % L(o_L["MenuExitApp"], g_strAppNameText), GuiCloseCancelAndExitApp
 Menu, menuBarMain, Add, % o_L["MenuFile"], :menuBarFile
-
-return
-;------------------------------------------------------------
-
-
-;------------------------------------------------------------
-LoadRulesFromIni:
-;------------------------------------------------------------
-
-if !FileExist(o_Settings.strIniFile)
-{
-	Oops(0, o_L["OopsWriteProtectedError"], g_strAppNameText)
-	OnExit ; disable exit subroutine
-	ExitApp
-}
-else
-{
-	; harcoded until coding ini save/load
-	
-	;Types:
-	; ChangeCase -> use RegExReplace to change case -> strFind, strReplace
-	; Replace -> use StrReplace (see options) -> strFind, strReplace
-	; AutoHotkey -> execute script -> strCode
-	
-	new Rule("Lower case", "ChangeCase", "Example", ".*", "$L0") ;  RegExReplace(Clipboard, ".*", "$L0"))
-	new Rule("Upper case", "ChangeCase", "Example", ".*", "$U0") ;  RegExReplace(Clipboard, ".*", "$U0")
-	new Rule("Title case", "ChangeCase", "Example", ".*", "$T0") ;  RegExReplace(Clipboard, ".*", "$T0")
-	new Rule("Underscore to Space", "Replace", "Example", "_", " ") ; StrReplace(Clipboard, "_", " ")
-	new Rule("MsgBox", "AutoHotkey", "Example", "MsgBox, %Clipboard%")
-
-	new Rule("Dumas-Trim 2", "TrimFromStart", "Example", 2)
-	new Rule("Dumas-Begin", "Replace", "Example", "-Dumas_", "")
-	new Rule("Dumas-End", "Replace", "Example", " (Live 2021)", "")
-
-	; load
-}
 
 return
 ;------------------------------------------------------------
@@ -1557,6 +1553,56 @@ QACrulesExists()
 	Process, Exist, QACrules.exe
 	return ErrorLevel
 }
+;-----------------------------------------------------------
+
+
+;========================================================================================================================
+; END OF EXIT
+;========================================================================================================================
+
+
+
+;========================================================================================================================
+!_040_LOAD_SAVE_RULES:
+;========================================================================================================================
+
+;------------------------------------------------------------
+LoadRulesFromIni:
+;------------------------------------------------------------
+
+if !FileExist(o_Settings.strIniFile)
+{
+	Oops(0, o_L["OopsWriteProtectedError"], g_strAppNameText)
+	OnExit ; disable exit subroutine
+	ExitApp
+}
+else
+{
+	; Name=Type|Category|Notes|param1|param2|...
+	; example:
+	; Lower case=ChangeCase|Example|RegExReplace(Clipboard, ".*", "$L0"))|.*|$L0
+	
+	strRules := o_Settings.ReadIniSection("Rules")
+	Loop, Parse, strRules, `n
+	{
+		intEqualSign := InStr(A_LoopField, "=")
+		strRuleName := SubStr(A_LoopField, 1, intEqualSign - 1)
+		saRule := StrSplit(SubStr(A_LoopField, intEqualSign + 1), "|")
+		new Rule(strRuleName, saRule)
+	}
+	
+	strRules := ""
+}
+
+return
+;------------------------------------------------------------
+
+
+;-----------------------------------------------------------
+SaveRule:
+;-----------------------------------------------------------
+
+return
 ;-----------------------------------------------------------
 
 
@@ -3100,6 +3146,15 @@ TODO
 	;---------------------------------------------------------
 
 	;---------------------------------------------------------
+	ReadIniSection(strSection, strIniFile := "")
+	;---------------------------------------------------------
+	{
+		IniRead, strOutValue, % (StrLen(strIniFile) ? strIniFile : this.strIniFile), %strSection%
+		return strOutValue
+	}
+	;---------------------------------------------------------
+
+	;---------------------------------------------------------
 	BackupIniFile(strIniFile, blnReplaceSpecialFolderLocationBackup := false)
 	; call as base class function Settings.BackupIniFile() only, not as an instance method
 	; (because various ini files are not instances of this class - could be done later)
@@ -3668,33 +3723,58 @@ class Language
 ;-------------------------------------------------------------
 
 ;-------------------------------------------------------------
+class RuleType
+;-------------------------------------------------------------
+{
+	;---------------------------------------------------------
+	__New(strName, strLabel, strHelp)
+	;---------------------------------------------------------
+	{
+		this.strName := strName
+		this.strLabel := strLabel
+		this.strHelp := strHelp
+		
+		g_aaRuleTypes[strLabel] := this
+		this.intID := g_saRuleTypesOrder.Push(this)
+	}
+	;---------------------------------------------------------
+	
+}
+;-------------------------------------------------------------
+
+;-------------------------------------------------------------
 class Rule
 ;-------------------------------------------------------------
 {
 	;---------------------------------------------------------
-	__New(strName, strType, strCategory, strVar*)
+	__New(strName, saRuleValues) ; Type, strCategory, strVar*)
 	; ChangeCase -> use RegExReplace to change case -> strFind, strReplace
-	; Replace -> use StrReplace (see options) -> strFind, strReplace
+	; Replace -> use StrReplace (see options???) -> strFind, strReplace
 	; AutoHotkey -> execute script -> strCode
-	; TrimFromStart -> Trim n characters from start -> intLength
+	; SubStr -> use SubStr -> intStartingPosition (negative to start from end), intLength
 	;---------------------------------------------------------
 	{
 		this.strName := strName
-		this.strType := strType
-		this.strCategory := strCategory
+		this.strType := StrReplace(saRuleValues.RemoveAt(1), g_strEscapePipe, "|")
+		this.strCategory := StrReplace(saRuleValues.RemoveAt(1), g_strEscapePipe, "|")
+		this.strNotes := StrReplace(saRuleValues.RemoveAt(1), g_strEscapePipe, "|")
+		
 		if (this.strType = "ChangeCase" or this.strType = "Replace")
 		{
-			this.strFind := strVar[1]
-			this.strReplace := strVar[2]
+			this.strFind := saRuleValues[1]
+			this.strReplace := saRuleValues[2]
 		}
-		if (this.strType = "AutoHotkey")
-			this.strCode := strVar[1]
-		
-		if (this.strType = "TrimFromStart")
-			this.intLength := strVar[1]
+		else if (this.strType = "AutoHotkey")
+			this.strCode := saRuleValues[1]
+		else if (this.strType = "SubStr")
+		{
+			this.intStartingPosition := saRuleValues[1]
+			this.intLength := saRuleValues[2]
+		}
 		
 		g_aaRulesByName[strName] := this
 		this.intID := g_saRulesOrder.Push(this)
+		; ###_O("this", this)
 	}
 	;---------------------------------------------------------
 	
@@ -3724,36 +3804,6 @@ class Rule
 		
 		; ###_V("", strCode)
 		return strCode
-	}
-	;---------------------------------------------------------
-	
-	;---------------------------------------------------------
-	Method()
-	; Each method has a hidden parameter named this, which typically contains a reference to an object derived from the class.
-	; Inside a method, the pseudo-keyword base can be used to access the super-class versions of methods or properties which are overridden in a derived class.
-	;---------------------------------------------------------
-	{
-		
-	}
-	;---------------------------------------------------------
-	
-	;---------------------------------------------------------
-	Property[]
-	; obj.Property would call get while obj.Property := value would call set. Within get or set, this refers to the object being invoked. Within set, value contains the value being assigned.
-	; https://autohotkey.com/docs/Objects.htm#Custom_Classes_property
-	; Lexikos: "The "property" doesn't have a value - a "property" is a set of methods which are called when you get or set the property. Not all properties will store a value - some will compute it,
-	; such as from a different property. For instance, a Colour object might have R, G, B and RBG properties, but the first three would be derived from the last one.
-	; https://www.autohotkey.com/boards/viewtopic.php?t=9792#p54480
-	;---------------------------------------------------------
-	{
-		get
-		{
-			return this._propertyname ; Lexikos: "One common convention is to use a single underscore for internal members, as in _propertyname. But it's just a convention."
-		}
-		set
-		{
-			return this._propertyname := value
-		}
 	}
 	;---------------------------------------------------------
 }

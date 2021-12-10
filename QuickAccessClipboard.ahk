@@ -68,6 +68,10 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ;@Ahk2Exe-SetCopyright (c) Jean Lalonde since 2021
 ;@Ahk2Exe-SetCompanyName Jean Lalonde
 
+;========================================================================================================================
+; END !_010_COMPILER_DIRECTIVES
+;========================================================================================================================
+
 
 ;========================================================================================================================
 !_011_INITIALIZATION:
@@ -318,7 +322,7 @@ OnMessage(0x4a, "RECEIVE_QACRULES")
 ;---------------------------------
 ; Setting window hotkey conditional assignment
 
-Hotkey, If, WinActive(QACSettingsString()) ; main Gui title
+Hotkey, If, WinActive(QACGuiTitle()) ; main Gui title
 
 	Hotkey, ^c, EditorCtrlC, On UseErrorLevel
 	Hotkey, ^x, EditorCtrlX, On UseErrorLevel
@@ -332,7 +336,7 @@ Gosub, GuiShow ; #####
 return
 
 ;========================================================================================================================
-; END OF INITIALISATION
+; END !_011_INITIALIZATION:
 ;========================================================================================================================
 
 
@@ -352,13 +356,12 @@ return
 
 ;------------------------------------------------------------
 ;------------------------------------------------------------
-#If, WinActive(QACSettingsString()) ; main Gui title
+#If, WinActive(QACGuiTitle()) ; main Gui title
 ; empty - act as a handle for the "Hotkey, If, Expression" condition in PopupHotkey.__New() (and elsewhere)
 ; ("Expression must be an expression which has been used with the #If directive elsewhere in the script.")
 #If
 ;------------------------------------------------------------
 ;------------------------------------------------------------
-
 
 
 ;========================================================================================================================
@@ -396,16 +399,14 @@ return
 
 ; End of Gui Hotkeys
 
-
 ;========================================================================================================================
-; END OF GUI HOTKEYS
+; END !_012_GUI_HOTKEYS:
 ;========================================================================================================================
 
 
 ;========================================================================================================================
 !_015_INITIALIZATION_SUBROUTINES:
 ;========================================================================================================================
-
 
 ;-----------------------------------------------------------
 SetQACWorkingDirectory:
@@ -544,20 +545,30 @@ InitRuleTypes:
 ; Replace -> use StrReplace (see options???) -> strFind, strReplace
 ; AutoHotkey -> execute script -> strCode
 ; SubStr -> use SubStr -> intStartingPosition (negative to start from end), intLength
+; Prefix -> concatenate -> strPrefix
+; Suffix -> concatenate -> strSuffix
+
 ;-----------------------------------------------------------
 
 global g_aaRuleTypes = Object()
 global g_saRuleTypesOrder = Object()
 
-saRuleTypes := StrSplit("ChangeCase|Replace|AutoHotkey|SubStr", "|")
-saRuleTypesLabels := StrSplit(o_L["TypeChangeCase"] . "|" . o_L["TypeReplace"] . "|" . o_L["TypeAutoHotkey"] . "|" . o_L["TypeSubStr"], "|")
-saRuleTypesHelp := StrSplit(o_L["TypeChangeCaseHelp"] . "|" . o_L["TypeReplaceHelp"] . "|" . o_L["TypeAutoHotkeyHelp"] . "|" . o_L["TypeSubStrHelp"], "|")
+saRuleTypes := StrSplit("ChangeCase|Replace|AutoHotkey|SubStr|Prefix|Suffix", "|")
+for intIndex, strType in saRuleTypes
+{
+	strLabels .= o_L["Type" . strType] . "|" ; "TypeChangeCase", etc.
+	strHelp .= o_L["Type" . strType . "Help"] . "|" ; "TypeChangeCaseHelp", etc.
+}
+saRuleTypesLabels := StrSplit(SubStr(strLabels, 1, -1), "|")
+saRuleTypesHelp := StrSplit(SubStr(strHelp, 1, -1), "|")
 
 Loop, % saRuleTypes.Length()
 	new RuleType(saRuleTypes[A_Index], saRuleTypesLabels[A_Index], saRuleTypesHelp[A_Index])
 
 saRuleTypes := ""
 saRuleTypesLabels := ""
+strLabels := ""
+strHelp := ""
 
 return
 ;-----------------------------------------------------------
@@ -802,9 +813,13 @@ return
 ;------------------------------------------------------------
 
 
+;========================================================================================================================
+; END !_015_INITIALIZATION_SUBROUTINES:
+;========================================================================================================================
+
 
 ;========================================================================================================================
-!_032_GUI:
+!_020_GUI:
 ;========================================================================================================================
 
 ;------------------------------------------------------------
@@ -856,7 +871,7 @@ InsertGuiControlPos(strControlName, intX, intY, blnCenter := false, blnDraw := f
 BuildGui:
 ;------------------------------------------------------------
 
-Gui, 1:New, +Hwndg_strGui1Hwnd +Resize -MinimizeBox +MinSize%g_intGuiDefaultWidth%x%g_intGuiDefaultHeight%, % QACSettingsString()
+Gui, 1:New, +Hwndg_strGui1Hwnd +Resize -MinimizeBox +MinSize%g_intGuiDefaultWidth%x%g_intGuiDefaultHeight%, % QACGuiTitle()
 if (o_Settings.MenuAdvanced.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar, 2 System menu, 3 both
 	Gui, Menu, menuBarMain
 
@@ -869,9 +884,10 @@ Gui, 1:Add, Text, x10 y+10 Section
 
 Gui, Font, s9, Arial
 ; Unicode chars: https://www.fileformat.info/info/unicode/category/So/list.htm
-Gui, 1:Add, Button, ys x10 ys+30 w24 vf_btnRuleAdd gGuiRuleAdd, % chr(0x2795) ; or chr(0x271B)
+Gui, 1:Add, Button, ys x10 ys+30 w24 vf_btnRuleAdd gGuiAddRuleSelectType, % chr(0x2795) ; or chr(0x271B)
 Gui, 1:Add, Button, ys+60 x10 w24 vf_btnRuleEdit gGuiRuleEdit, % chr(0x2328)
 Gui, 1:Add, Button, ys+90 x10 w24 vf_btnRuleRemove gGuiRuleRemove, % chr(0x2796)
+Gui, 1:Add, Button, ys+120 x10 w24 vf_btnRuleCopy gGuiRuleCopy, % chr(0x1F5D7) ; or 0x2750
 Gui, Font
 
 Gui, 1:Add, ListView
@@ -1006,35 +1022,6 @@ return
 
 
 ;------------------------------------------------------------
-GuiRuleAdd:
-GuiRuleEdit:
-;------------------------------------------------------------
-
-; #####
-
-return
-;------------------------------------------------------------
-
-
-;------------------------------------------------------------
-GuiRuleRemove:
-;------------------------------------------------------------
-
-Gui, 1:ListView, f_lvRulesAvailable
-
-intPosition := LV_GetNext()
-if !(intPosition)
-{
-	Oops(1, o_L["GuiSelectRuleRemove"])
-	return
-}
-LV_Delete(intPosition)
-
-return
-;------------------------------------------------------------
-
-
-;------------------------------------------------------------
 GuiRuleSelect:
 GuiRuleDeselect:
 GuiRuleDeselectAll:
@@ -1051,18 +1038,15 @@ if (A_ThisLabel = "GuiRuleDeselectAll")
 
 Gui, 1:ListView, % (A_ThisLabel = "GuiRuleSelect" ? "f_lvRulesAvailable" : "f_lvRulesSelected")
 
-intPosition := LV_GetNext()
-if !(intPosition)
-{
-	Oops(1, (A_ThisLabel = "GuiRuleSelect" ? o_L["GuiSelectRuleSelect"] : o_L["GuiSelectRuleDeselect"]))
+if !GetLVPosition(intPosition, (A_ThisLabel = "GuiRuleSelect" ? o_L["GuiSelectRuleSelect"] : o_L["GuiSelectRuleDeselect"]))
 	return
-}
+
 LV_GetText(strName, intPosition, 1)
 LV_Delete(intPosition)
 
 Gui, 1:ListView, % (A_ThisLabel = "GuiRuleDeselect" ? "f_lvRulesAvailable" : "f_lvRulesSelected")
 if (A_ThisLabel = "GuiRuleDeselect")
-	LV_Insert(1, "Select", strName)
+	LV_Add("Select", strName, g_aaRulesByName[strName].strType, g_aaRulesByName[strName].strCategory)
 else
 	LV_Add("Select", strName)
 
@@ -1112,7 +1096,7 @@ FileDelete, %g_strRulesPathNameNoExt%.ahk
 
 ; variable used in non-expression script header below
 intTimeoutMs := o_Settings.Launch.intRulesTimeoutSecs.IniValue * 1000
-strGuiTitle := QACSettingsString() 
+strGuiTitle := QACGuiTitle() 
 
 ; script header
 strTop =
@@ -1389,6 +1373,188 @@ return
 
 
 ;------------------------------------------------------------
+LoadRulesFromIni:
+;------------------------------------------------------------
+
+if !FileExist(o_Settings.strIniFile)
+{
+	Oops(0, o_L["OopsWriteProtectedError"], g_strAppNameText)
+	OnExit ; disable exit subroutine
+	ExitApp
+}
+else
+{
+	; Name=Type|Category|Notes|param1|param2|...
+	; example:
+	; Lower case=ChangeCase|Example|RegExReplace(Clipboard, ".*", "$L0"))|.*|$L0
+	
+	strRules := o_Settings.ReadIniSection("Rules")
+	Loop, Parse, strRules, `n
+	{
+		intEqualSign := InStr(A_LoopField, "=")
+		strRuleName := SubStr(A_LoopField, 1, intEqualSign - 1)
+		saRule := StrSplit(SubStr(A_LoopField, intEqualSign + 1), "|")
+		new Rule(strRuleName, saRule)
+	}
+	
+	strRules := ""
+}
+
+return
+;------------------------------------------------------------
+
+
+;========================================================================================================================
+; END !_020_GUI:
+;========================================================================================================================
+
+
+;========================================================================================================================
+!_030_ADD_EDIT_REMOVE_RULE:
+;========================================================================================================================
+
+;------------------------------------------------------------
+GuiAddRuleSelectType:
+;------------------------------------------------------------
+
+Gui, 2:New, +Hwndg_strGui2Hwnd, % L(o_L["DialogAddRuleSelectTitle"], g_strAppNameText)
+Gui, 2:+Owner1
+Gui, 2:+OwnDialogs
+
+Gui, 2:Add, Text, x10 y+20, % o_L["DialogAddRuleSelectPrompt"] . ":"
+
+for intOrder, aaRuleType in g_saRuleTypesOrder
+	Gui, 2:Add, Radio, % (A_Index = 1 ? "y+20 section" : "y+10") . " x10 w120 vf_intRadioRuleType" . A_Index . " gGuiAddRuleSelectTypeRadioButtonChanged", % aaRuleType.strName
+
+Gui, 2:Add, Button, x20 y+20 vf_btnAddRuleSelectTypeContinue gGuiAddRuleSelectTypeContinue default, % o_L["DialogContinue"]
+Gui, 2:Add, Button, yp vf_btnAddRuleSelectTypeCancel gGuiAddRuleCancel, % o_L["GuiCancel"]
+Gui, Add, Text
+Gui, 2:Add, Text, x140 ys vf_lblAddRuleTypeHelp w260 h140, % L(o_L["DialogRuleSelectType"], o_L["DialogContinue"])
+
+GuiCenterButtons(g_strGui2Hwnd, 10, 5, 20, , , "f_btnAddRuleSelectTypeContinue", "f_btnAddRuleSelectTypeCancel")
+
+Gosub, ShowGui2AndDisableGui1
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GuiAddRuleCancel:
+;------------------------------------------------------------
+
+Gosub, 2GuiClose
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GuiAddRuleSelectTypeRadioButtonChanged:
+;------------------------------------------------------------
+Gui, 2:Submit, NoHide
+
+g_intAddRuleType := StrReplace(A_GuiControl, "f_intRadioRuleType")
+GuiControl, , f_lblAddRuleTypeHelp, % g_saRuleTypesOrder[g_intAddRuleType].strHelp
+
+if (A_GuiEvent = "DoubleClick")
+	Gosub, GuiAddRuleSelectTypeContinue
+
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GuiAddRuleSelectTypeContinue:
+;------------------------------------------------------------
+Gui, 2:Submit, NoHide
+
+if !(g_intAddRuleType)
+{
+	Oops(2, o_L["DialogRuleSelectType"], o_L["DialogContinue"])
+	return
+}
+
+Gosub, GuiRuleAdd
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GuiRuleAdd:
+GuiRuleEdit:
+GuiRuleCopy:
+;------------------------------------------------------------
+Gui, 1:Submit, NoHide
+
+if (strGuiFavoriteLabel = "GuiRuleAdd")
+	Gosub, 2GuiClose ; to avoid flashing Gui 1:
+
+Gui, 1:ListView, f_lvRulesAvailable
+if !GetLVPosition(intPosition, (A_ThisLabel <> "GuiRuleAdd" ? o_L["GuiSelectRuleEdit"] : "")) ; no error message if adding
+	and (A_ThisLabel = "GuiRuleEdit")
+	return
+else
+	LV_GetText(strName, intPosition, 1)
+
+; set aaEditedRule
+if (A_ThisLabel = "GuiRuleAdd")
+{
+	aaEditedRule := new Rule()
+	aaEditedRule.strType := g_intAddRuleType
+}
+else if (A_ThisLabel = "GuiRuleEdit")
+	aaEditedRule := g_aaRulesByName[strName]
+else ; GuiRuleCopy
+	aaEditedRule := g_aaRulesByName[strName].CopyRule()
+
+strGuiTitle := L(o_L["DialogAddEditRuleTitle"]
+	, (InStr(A_ThisLabel, "GuiRuleEdit") ? o_L["DialogEdit"] : (A_ThisLabel = "GuiRuleCopy" ? o_L["DialogCopy"] : o_L["DialogAdd"]))
+	, g_strAppNameText, g_strAppVersion, g_aaRuleTypes[aaEditedRule.strType].strLabel)
+; Gui, 2:New, +Resize -MaximizeBox +MinSize570x555 +MaxSizex555 +Hwndg_strGui2Hwnd, %strGuiTitle%
+Gui, 2:New, +Resize -MaximizeBox +Hwndg_strGui2Hwnd, %strGuiTitle%
+Gui, 2:+Owner1
+Gui, 2:+OwnDialogs
+
+; #####
+Gui, 2:Add, Text, , !!!
+
+Gosub, ShowGui2AndDisableGui1
+
+intPosition := ""
+strName := ""
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GuiRuleRemove:
+;------------------------------------------------------------
+
+Gui, 1:ListView, f_lvRulesAvailable
+
+if !GetLVPosition(intPosition, o_L["GuiSelectRuleRemove"])
+	return
+
+LV_Delete(intPosition)
+
+return
+;------------------------------------------------------------
+
+
+;========================================================================================================================
+; END !_030_ADD_EDIT_REMOVE_RULE:
+;========================================================================================================================
+
+
+;========================================================================================================================
+!_035_CHECK_UPDATE:
+;========================================================================================================================
+
+;------------------------------------------------------------
 GuiCheck4Update:
 ;------------------------------------------------------------
 ; !! adapt
@@ -1502,12 +1668,12 @@ return
 
 
 ;========================================================================================================================
-; END OF INITIALIZATION
+; END !_035_CHECK_UPDATE:
 ;========================================================================================================================
 
 
 ;========================================================================================================================
-!_017_EXIT:
+!_040_EXIT:
 ;========================================================================================================================
 
 ;-----------------------------------------------------------
@@ -1557,59 +1723,8 @@ QACrulesExists()
 
 
 ;========================================================================================================================
-; END OF EXIT
+; END !_040_EXIT:
 ;========================================================================================================================
-
-
-
-;========================================================================================================================
-!_040_LOAD_SAVE_RULES:
-;========================================================================================================================
-
-;------------------------------------------------------------
-LoadRulesFromIni:
-;------------------------------------------------------------
-
-if !FileExist(o_Settings.strIniFile)
-{
-	Oops(0, o_L["OopsWriteProtectedError"], g_strAppNameText)
-	OnExit ; disable exit subroutine
-	ExitApp
-}
-else
-{
-	; Name=Type|Category|Notes|param1|param2|...
-	; example:
-	; Lower case=ChangeCase|Example|RegExReplace(Clipboard, ".*", "$L0"))|.*|$L0
-	
-	strRules := o_Settings.ReadIniSection("Rules")
-	Loop, Parse, strRules, `n
-	{
-		intEqualSign := InStr(A_LoopField, "=")
-		strRuleName := SubStr(A_LoopField, 1, intEqualSign - 1)
-		saRule := StrSplit(SubStr(A_LoopField, intEqualSign + 1), "|")
-		new Rule(strRuleName, saRule)
-	}
-	
-	strRules := ""
-}
-
-return
-;------------------------------------------------------------
-
-
-;-----------------------------------------------------------
-SaveRule:
-;-----------------------------------------------------------
-
-return
-;-----------------------------------------------------------
-
-
-;========================================================================================================================
-; END OF EXIT
-;========================================================================================================================
-
 
 
 ;========================================================================================================================
@@ -1714,6 +1829,29 @@ GuiControl, 1:, f_btnGuiCloseCancel, % (A_ThisLabel = "EnableApplyRulesAndCancel
 
 return
 ;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+2GuiClose:
+2GuiEscape:
+;------------------------------------------------------------
+Gui, 2:Submit, NoHide
+
+Gui, 1:-Disabled
+Gui, 2:Destroy
+if (WinExist("A") <> g_strGui1Hwnd)
+	WinActivate, ahk_id %g_strGui1Hwnd%
+
+if (f_blnAlwaysOnTop)
+	WinSet, AlwaysOnTop, On, % QACGuiTitle()
+
+return
+;------------------------------------------------------------
+
+
+;========================================================================================================================
+; END !_050_GUI_CLOSE-CANCEL-BK_OBJECTS:
+;========================================================================================================================
 
 
 ;========================================================================================================================
@@ -1835,9 +1973,13 @@ return
 ;------------------------------------------------------------
 
 
+;========================================================================================================================
+; END !_060_POPUP:
+;========================================================================================================================
+
 
 ;========================================================================================================================
-!_076_TRAY_MENU_ACTIONS:
+!_070_TRAY_MENU_ACTIONS:
 ;========================================================================================================================
 
 ;------------------------------------------------------------
@@ -1852,12 +1994,12 @@ return
 
 
 ;========================================================================================================================
-; END OF TRAY MENU ACTIONS
+; END !_070_TRAY_MENU_ACTIONS:
 ;========================================================================================================================
 
 
 ;========================================================================================================================
-!_090_VARIOUS_COMMANDS:
+!_080_VARIOUS_COMMANDS:
 return
 ;========================================================================================================================
 
@@ -2083,14 +2225,13 @@ return
 ;------------------------------------------------------------
 
 
+;========================================================================================================================
+; END !_080_VARIOUS_COMMANDS:
+;========================================================================================================================
+
 
 ;========================================================================================================================
-; END OF VARIOUS COMMANDS
-;========================================================================================================================
-
-
-;========================================================================================================================
-!_095_VARIOUS_FUNCTIONS:
+!_090_VARIOUS_FUNCTIONS:
 return
 ;========================================================================================================================
 
@@ -2297,9 +2438,7 @@ CalculateTopGuiPosition(g_strTopHwnd, g_strRefHwnd, ByRef intTopGuiX, ByRef intT
 	intTopGuiX := intRefGuiCenterX - (intTopGuiW // 2) + 5 ; + 5 correction from trial/error
 	intTopGuiY := intRefGuiCenterY - (intTopGuiH // 2)
 	
-	WinGetPos, intWindowX, intWindowY, intWindowWidth, intWindowHeight, ahk_id %g_strRefHwnd%
-	WinGetTitle, v, ahk_id %g_strRefHwnd%
-	SysGet, arrCurrentMonitor, Monitor, % GetActiveMonitorForPosition(intWindowX, intWindowY, intNbMonitors)
+	SysGet, arrCurrentMonitor, Monitor, % GetActiveMonitorForPosition(intRefGuiX, intRefGuiY, intNbMonitors)
 
 	; ###_V(A_ThisFunc, v, g_strRefHwnd, intWindowX, intWindowY, GetActiveMonitorForPosition(intWindowX, intWindowY, intNbMonitors))
 	intTopGuiX := (intTopGuiX < arrCurrentMonitorLeft ? arrCurrentMonitorLeft : intTopGuiX)
@@ -2712,7 +2851,7 @@ RulesNotApplied()
 
 
 ;------------------------------------------------------------
-QACSettingsString()
+QACGuiTitle()
 ;------------------------------------------------------------
 {
 	return L(o_L["GuiTitle"], g_strAppNameText, g_strAppVersion)
@@ -2818,13 +2957,25 @@ ConvertInvisible(str) ; NOT USED - KEEP FOR FUTURE?
 ;------------------------------------------------------------
 
 
+;------------------------------------------------------------
+GetLVPosition(ByRef intPosition, strMessage)
+;------------------------------------------------------------
+{
+	intPosition := LV_GetNext()
+	if !(intPosition) and StrLen(strMessage)
+		Oops(1, strMessage)
+	return intPosition
+}
+;------------------------------------------------------------
+
+
 ;========================================================================================================================
-; END OF VARIOUS_FUNCTIONS
+; END !_090_VARIOUS_FUNCTIONS:
 ;========================================================================================================================
 
 
 ;========================================================================================================================
-!_098_ONMESSAGE_FUNCTIONS:
+!_095_ONMESSAGE_FUNCTIONS:
 return
 ;========================================================================================================================
 
@@ -2854,14 +3005,14 @@ RECEIVE_QACRULES(wParam, lParam)
 
 
 ;========================================================================================================================
-; END OF ONMESSAGE_FUNCTIONS
+; END !_095_ONMESSAGE_FUNCTIONS:
 ;========================================================================================================================
 
 
 
 
 ;========================================================================================================================
-!_700_CLASSES:
+!_100_CLASSES:
 return
 ;========================================================================================================================
 
@@ -3724,6 +3875,10 @@ class Language
 
 ;-------------------------------------------------------------
 class RuleType
+; ChangeCase -> use RegExReplace to change case -> strFind, strReplace
+; Replace -> use StrReplace (see options???) -> strFind, strReplace
+; AutoHotkey -> execute script -> strCode
+; SubStr -> use SubStr -> intStartingPosition (negative to start from end), intLength
 ;-------------------------------------------------------------
 {
 	;---------------------------------------------------------
@@ -3734,7 +3889,7 @@ class RuleType
 		this.strLabel := strLabel
 		this.strHelp := strHelp
 		
-		g_aaRuleTypes[strLabel] := this
+		g_aaRuleTypes[strName] := this
 		this.intID := g_saRuleTypesOrder.Push(this)
 	}
 	;---------------------------------------------------------
@@ -3747,11 +3902,8 @@ class Rule
 ;-------------------------------------------------------------
 {
 	;---------------------------------------------------------
-	__New(strName, saRuleValues) ; Type, strCategory, strVar*)
-	; ChangeCase -> use RegExReplace to change case -> strFind, strReplace
-	; Replace -> use StrReplace (see options???) -> strFind, strReplace
-	; AutoHotkey -> execute script -> strCode
-	; SubStr -> use SubStr -> intStartingPosition (negative to start from end), intLength
+	__New(strName := "", saRuleValues := "")
+	; saRuleValues: 1) Type, 2) Category 3) Notes 4+) rules parameters
 	;---------------------------------------------------------
 	{
 		this.strName := strName
@@ -3775,6 +3927,17 @@ class Rule
 		g_aaRulesByName[strName] := this
 		this.intID := g_saRulesOrder.Push(this)
 		; ###_O("this", this)
+	}
+	;---------------------------------------------------------
+	
+	;---------------------------------------------------------
+	CopyRule()
+	;---------------------------------------------------------
+	{
+		aaCopiedRule := Object()
+		for strProperty, varValue in this
+			aaCopiedRule[strProperty] := varValue
+		aaCopiedRule.strName .= " (" . o_L["DialogCopy"] . ")"
 	}
 	;---------------------------------------------------------
 	

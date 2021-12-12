@@ -1424,7 +1424,7 @@ Gui, 2:+OwnDialogs
 Gui, 2:Add, Text, x10 y+20, % o_L["DialogAddRuleSelectPrompt"] . ":"
 
 for intOrder, aaRuleType in g_saRuleTypesOrder
-	Gui, 2:Add, Radio, % (A_Index = 1 ? "y+20 section" : "y+10") . " x10 w120 vf_intRadioRuleType" . A_Index . " gGuiAddRuleSelectTypeRadioButtonChanged", % aaRuleType.strName
+	Gui, 2:Add, Radio, % (A_Index = 1 ? "y+20 section" : "y+10") . " x10 w120 vf_intRadioRuleType" . A_Index . " gGuiAddRuleSelectTypeRadioButtonChanged", % aaRuleType.strLabel
 
 Gui, 2:Add, Button, x20 y+20 vf_btnAddRuleSelectTypeContinue gGuiAddRuleSelectTypeContinue default, % o_L["DialogContinue"]
 Gui, 2:Add, Button, yp vf_btnAddRuleSelectTypeCancel gGuiAddRuleCancel, % o_L["GuiCancel"]
@@ -1489,42 +1489,128 @@ GuiRuleCopy:
 ;------------------------------------------------------------
 Gui, 1:Submit, NoHide
 
-if (strGuiFavoriteLabel = "GuiRuleAdd")
+strAction := StrReplace(A_ThisLabel, "GuiRule")
+
+if (strAction = "Add")
 	Gosub, 2GuiClose ; to avoid flashing Gui 1:
 
 Gui, 1:ListView, f_lvRulesAvailable
-if !GetLVPosition(intPosition, (A_ThisLabel <> "GuiRuleAdd" ? o_L["GuiSelectRuleEdit"] : "")) ; no error message if adding
-	and (A_ThisLabel = "GuiRuleEdit")
+if !GetLVPosition(intPosition, (strAction <> "Add" ? o_L["GuiSelectRuleEdit"] : "")) ; no error message if adding
+	and (strAction = "Edit")
 	return
 else
 	LV_GetText(strName, intPosition, 1)
 
 ; set aaEditedRule
-if (A_ThisLabel = "GuiRuleAdd")
+if (strAction = "Add")
 {
 	aaEditedRule := new Rule()
-	aaEditedRule.strType := g_intAddRuleType
+	aaEditedRule.strType := g_saRuleTypesOrder[g_intAddRuleType].strTypeCode ; type
 }
-else if (A_ThisLabel = "GuiRuleEdit")
+else if (strAction = "Edit")
 	aaEditedRule := g_aaRulesByName[strName]
-else ; GuiRuleCopy
+else ; Copy
 	aaEditedRule := g_aaRulesByName[strName].CopyRule()
 
 strGuiTitle := L(o_L["DialogAddEditRuleTitle"]
-	, (InStr(A_ThisLabel, "GuiRuleEdit") ? o_L["DialogEdit"] : (A_ThisLabel = "GuiRuleCopy" ? o_L["DialogCopy"] : o_L["DialogAdd"]))
+	, (strAction = "Add" ? o_L["DialogEdit"] : (strAction = "Copy" ? o_L["DialogCopy"] : o_L["DialogAdd"]))
 	, g_strAppNameText, g_strAppVersion, g_aaRuleTypes[aaEditedRule.strType].strLabel)
 ; Gui, 2:New, +Resize -MaximizeBox +MinSize570x555 +MaxSizex555 +Hwndg_strGui2Hwnd, %strGuiTitle%
 Gui, 2:New, +Resize -MaximizeBox +Hwndg_strGui2Hwnd, %strGuiTitle%
 Gui, 2:+Owner1
 Gui, 2:+OwnDialogs
 
-; #####
-Gui, 2:Add, Text, , !!!
+Gui, 2:Add, Text, w300, % o_L["DialogRuleName"]
+Gui, 2:Add, Edit, w300 vf_strName, % aaEditedRule.strName
+Gui, 2:Add, Text, w300, % o_L["DialogRuleCategory"]
+Gui, 2:Add, Edit, w300 vf_strCategory, % aaEditedRule.strCategory
+Gui, 2:Add, Text, w300, % o_L["DialogRuleNotes"]
+Gui, 2:Add, Edit, w300 vf_strNotes, % aaEditedRule.strNotes
+
+if (aaEditedRule.strType = "ChangeCase")
+{
+	Gui, 2:Add, Text, w300, % o_L["DialogCaseType"]
+	loop, 3
+		Gui, 2:Add, Radio, % "w300 vf_intCaseType" . A_Index . (aaEditedRule.varValue1 ? " checked" : ""), % o_L["DialogCaseType" . A_Index]
+}
+else if (aaEditedRule.strType = "Replace")
+{
+	Gui, 2:Add, Text, w300, % o_L["DialogFind"]
+	Gui, 2:Add, Edit, w300 vf_varValue1, % aaEditedRule.varValue1
+	Gui, 2:Add, Text, w300, % o_L["DialogReplaceWith"]
+	Gui, 2:Add, Edit, w300 vf_varValue2, % aaEditedRule.varValue2
+}
+else if (aaEditedRule.strType = "AutoHotkey")
+{
+	Gui, 2:Add, Text, w300, % o_L["DialogAutohotkeyCode"]
+	Gui, 2:Add, Edit, w300 vf_varValue1, % aaEditedRule.varValue1
+}
+else if (aaEditedRule.strType = "SubStr")
+{
+	Gui, 2:Add, Text, w300, % o_L["DialogStartingPosition"]
+	Gui, 2:Add, Edit, w300 Number vf_varValue1, % aaEditedRule.varValue1
+	Gui, 2:Add, Text, w300, % o_L["DialogLength"]
+	Gui, 2:Add, Edit, w300 Number vf_varValue2, % aaEditedRule.varValue2
+}
+
+Gui, 2:Add, Button, y+15 vf_btnSave gGuiRuleSave, % o_L["GuiSave"]
+Gui, 2:Add, Button, yp vf_btnCancel g2GuiClose, % o_L["GuiCancel"]
+GuiCenterButtons(g_strGui2Hwnd, , , , , , "f_btnSave", "f_btnCancel")
 
 Gosub, ShowGui2AndDisableGui1
 
 intPosition := ""
 strName := ""
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GuiRuleSave:
+;------------------------------------------------------------
+Gui, 2:Submit, NoHide
+
+if (strAction <> "Edit" and g_aaRulesByName.HasKey(f_strName)) ; when adding or copying
+{
+	Oops(2, o_L["OopsNameExists"])
+	return
+}
+
+strOriginalName := aaEditedRule.strName
+
+aaEditedRule.strName := f_strName
+aaEditedRule.strCategory := f_strCategory
+aaEditedRule.strNotes := f_strNotes
+
+saValues := Object()
+Loop, 9
+	if StrLen(f_varValue%A_Index%)
+		saValues.Push(f_varValue%A_Index%)
+
+aaEditedRule.SaveRuleToIni(saValues)
+
+if (strAction = "Edit" and strOriginalName <> aaEditedRule.strName)
+	aaEditedRule.RenameRule(strOriginalName)
+
+Gui, 1:ListView, f_lvRulesAvailable
+loop, % LV_GetCount()
+{
+	LV_GetText(strName, A_Index, 1)
+	if (strAction = "Edit" and strName = strOriginalName)
+		or (strAction <> "Edit" and strName = aaEditedRule.strName)
+	{
+		LV_Delete(A_Index)
+		break
+	}
+}
+LV_Add(, aaEditedRule.strName, aaEditedRule.strType, aaEditedRule.strCategory)
+
+Gosub, 2GuiClose
+
+strOriginalName := ""
+saValues := ""
+strAction := ""
 
 return
 ;------------------------------------------------------------
@@ -1539,7 +1625,11 @@ Gui, 1:ListView, f_lvRulesAvailable
 if !GetLVPosition(intPosition, o_L["GuiSelectRuleRemove"])
 	return
 
+LV_GetText(strName, intPosition, 1)
+g_aaRulesByName[strName].DeleteRule()
 LV_Delete(intPosition)
+
+strName := ""
 
 return
 ;------------------------------------------------------------
@@ -1642,6 +1732,7 @@ ButtonCheck4UpdateDialogRemind:
 UpdateGuiClose:
 UpdateGuiEscape:
 ;------------------------------------------------------------
+; !! adapt
 
 strUrlChangeLog := AddUtm2Url("https://www.quickaccesspopup.com/change-log" . (g_strUpdateProdOrBeta <> "prod" ? "-" . g_strUpdateProdOrBeta . "-version" : "") . "/", A_ThisLabel, "Check4Update")
 strUrlDownloadSetup := AddUtm2Url("https://www.quickaccesspopup.com/latest/check4update-download-setup-redirect.html", A_ThisLabel, "Check4Update") ; prod only
@@ -1721,7 +1812,6 @@ if FileExist(o_Settings.strIniFile) ; in case user deleted the ini file to creat
 {
 	SaveWindowPosition("SettingsPosition", "ahk_id " . g_strGui1Hwnd)
 	IniWrite, % GetScreenConfiguration(), % o_Settings.strIniFile, Global, LastScreenConfiguration
-	IniDelete, % o_Settings.strIniFile, Global, ExternalErrorMessageExclusions ; delete value created to avoid (in this session only) repetitive error messages for unfound external menus
 }
 DllCall("LockWindowUpdate", Uint, 0)  ; 0 to unlock the window
 
@@ -3901,14 +3991,14 @@ class RuleType
 ;-------------------------------------------------------------
 {
 	;---------------------------------------------------------
-	__New(strName, strLabel, strHelp)
+	__New(strTypeCode, strLabel, strHelp)
 	;---------------------------------------------------------
 	{
-		this.strName := strName
+		this.strTypeCode := strTypeCode
 		this.strLabel := strLabel
 		this.strHelp := strHelp
 		
-		g_aaRuleTypes[strName] := this
+		g_aaRuleTypes[strTypeCode] := this
 		this.intID := g_saRuleTypesOrder.Push(this)
 	}
 	;---------------------------------------------------------
@@ -3926,26 +4016,70 @@ class Rule
 	;---------------------------------------------------------
 	{
 		this.strName := strName
-		this.strType := StrReplace(saRuleValues.RemoveAt(1), g_strEscapePipe, "|")
-		this.strCategory := StrReplace(saRuleValues.RemoveAt(1), g_strEscapePipe, "|")
-		this.strNotes := StrReplace(saRuleValues.RemoveAt(1), g_strEscapePipe, "|")
+		this.strType := StrReplace(saRuleValues[1], g_strEscapePipe, "|")
+		this.strCategory := StrReplace(saRuleValues[2], g_strEscapePipe, "|")
+		this.strNotes := StrReplace(saRuleValues[3], g_strEscapePipe, "|")
 		
-		if (this.strType = "ChangeCase" or this.strType = "Replace")
+		if (this.strType = "ChangeCase")
 		{
-			this.strFind := saRuleValues[1]
-			this.strReplace := saRuleValues[2]
+			this.intCaseType := saRuleValues[4]
+			this.strFind := ".*"
+			this.strReplace := StrSplit("$L0|$U0|$T0", "|")[this.intCaseType]
+		}
+		if (this.strType = "Replace")
+		{
+			this.strFind := StrReplace(saRuleValues[4], g_strEscapePipe, "|")
+			this.strReplace := StrReplace(saRuleValues[5], g_strEscapePipe, "|")
 		}
 		else if (this.strType = "AutoHotkey")
-			this.strCode := saRuleValues[1]
+			this.strCode := StrReplace(saRuleValues[4], g_strEscapePipe, "|")
 		else if (this.strType = "SubStr")
 		{
-			this.intStartingPosition := saRuleValues[1]
-			this.intLength := saRuleValues[2]
+			this.intStartingPosition := saRuleValues[4]
+			this.intLength := saRuleValues[5]
 		}
 		
 		g_aaRulesByName[strName] := this
 		this.intID := g_saRulesOrder.Push(this)
 		; ###_O("this", this)
+	}
+	;---------------------------------------------------------
+	
+	;---------------------------------------------------------
+	SaveRuleToIni(saValues)
+	;---------------------------------------------------------
+	{
+		; example: Lower case=ChangeCase|Example|Notes|.*|$L0
+		strIniLine := this.strType . "|" ; 1
+		strIniLine .= StrReplace(this.strCategory, "|", g_strEscapePipe) . "|" ; 2
+		strIniLine .= StrReplace(this.strNotes, "|", g_strEscapePipe) . "|" ; 3
+		Loop, 9
+			if StrLen(saValues[A_Index])
+				strIniLine .= StrReplace(saValues[A_Index], "|", g_strEscapePipe) . "|" ; 4+
+		strIniLine := SubStr(strIniLine, 1, -1)
+		
+		IniWrite, %strIniLine%, % o_Settings.strIniFile, Rules, % this.strName
+	}
+	;---------------------------------------------------------
+	
+	;---------------------------------------------------------
+	RenameRule(strOriginalName)
+	;---------------------------------------------------------
+	{
+		IniDelete, % o_Settings.strIniFile, Rules, %strOriginalName%
+		g_aaRulesByName.Delete(this.strName)
+		g_aaRulesByName[this.strName] := this
+		g_saRulesOrder.RemoveAt(this.intID)
+	}
+	;---------------------------------------------------------
+	
+	;---------------------------------------------------------
+	DeleteRule()
+	;---------------------------------------------------------
+	{
+		IniDelete, % o_Settings.strIniFile, Rules, % this.strName
+		g_aaRulesByName.Delete(this.strName)
+		g_saRulesOrder.RemoveAt(this.intID)
 	}
 	;---------------------------------------------------------
 	
@@ -3965,7 +4099,7 @@ class Rule
 	;---------------------------------------------------------
 	{
 		; begin rule
-		strCode := "Rule" . this.intID . "(strType) `; " . this.strType . " > " . this.strName . "`n{`nif (strType = 1)`n{`n"
+		strCode := "Rule" . this.intID . "(strType) `; " . this.strType . " > " . this.strName . "`n{`nif (strType = 1) ; text`n{`n"
 		
 		strCode .= "`; strBefore := Clipboard`n"
 		if (this.strType = "Replace")

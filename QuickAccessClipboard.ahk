@@ -1010,12 +1010,15 @@ GuiLoadRulesAvailable:
 
 Gui, 1:ListView, f_lvRulesAvailable
 LV_Delete()
-for intOrder, aaRule in g_saRulesOrder
-	LV_Add(, aaRule.strName, aaRule.strType, aaRule.strCategory)
+for strName, aaRule in g_aaRulesByName
+	LV_Add(, strName, aaRule.strType, aaRule.strCategory)
 LV_ModifyCol()
 
 Gui, 1:ListView, f_lvRulesSelected
 LV_Delete()
+
+strName := ""
+aaRule := ""
 
 return
 ;------------------------------------------------------------
@@ -1488,7 +1491,6 @@ GuiRuleEdit:
 GuiRuleCopy:
 ;------------------------------------------------------------
 Gui, 1:Submit, NoHide
-
 strAction := StrReplace(A_ThisLabel, "GuiRule")
 
 if (strAction = "Add")
@@ -1531,7 +1533,7 @@ if (aaEditedRule.strType = "ChangeCase")
 {
 	Gui, 2:Add, Text, w300, % o_L["DialogCaseType"]
 	loop, 3
-		Gui, 2:Add, Radio, % "w300 vf_intCaseType" . A_Index . (aaEditedRule.varValue1 ? " checked" : ""), % o_L["DialogCaseType" . A_Index]
+		Gui, 2:Add, Radio, % (A_Index = 1 ? "vf_varValue1 " : "") . "w300 " . (aaEditedRule.varValue1 = A_Index ? " checked" : ""), % o_L["DialogCaseType" . A_Index]
 }
 else if (aaEditedRule.strType = "Replace")
 {
@@ -1573,7 +1575,7 @@ Gui, 2:Submit, NoHide
 
 if (strAction <> "Edit" and g_aaRulesByName.HasKey(f_strName)) ; when adding or copying
 {
-	Oops(2, o_L["OopsNameExists"])
+	Oops(2, o_L["OopsNameExists"], f_strName)
 	return
 }
 
@@ -1593,6 +1595,15 @@ aaEditedRule.SaveRuleToIni(saValues)
 if (strAction = "Edit" and strOriginalName <> aaEditedRule.strName)
 	aaEditedRule.RenameRule(strOriginalName)
 
+if (strAction <> "Edit") ; this is a new rule
+{
+	aaEditedRule.intID := g_saRulesOrder.Push(aaEditedRule)
+	g_aaRulesByName[aaEditedRule.strName] := aaEditedRule
+}
+
+Gosub, 2GuiClose
+
+Gui, 1:Default
 Gui, 1:ListView, f_lvRulesAvailable
 loop, % LV_GetCount()
 {
@@ -1606,7 +1617,6 @@ loop, % LV_GetCount()
 }
 LV_Add(, aaEditedRule.strName, aaEditedRule.strType, aaEditedRule.strCategory)
 
-Gosub, 2GuiClose
 
 strOriginalName := ""
 saValues := ""
@@ -4069,7 +4079,6 @@ class Rule
 		IniDelete, % o_Settings.strIniFile, Rules, %strOriginalName%
 		g_aaRulesByName.Delete(this.strName)
 		g_aaRulesByName[this.strName] := this
-		g_saRulesOrder.RemoveAt(this.intID)
 	}
 	;---------------------------------------------------------
 	
@@ -4079,7 +4088,7 @@ class Rule
 	{
 		IniDelete, % o_Settings.strIniFile, Rules, % this.strName
 		g_aaRulesByName.Delete(this.strName)
-		g_saRulesOrder.RemoveAt(this.intID)
+		g_saRulesOrder.Delete(this.intID)
 	}
 	;---------------------------------------------------------
 	
@@ -4099,7 +4108,7 @@ class Rule
 	;---------------------------------------------------------
 	{
 		; begin rule
-		strCode := "Rule" . this.intID . "(strType) `; " . this.strType . " > " . this.strName . "`n{`nif (strType = 1) ; text`n{`n"
+		strCode := "Rule" . this.intID . "(strType) `; " . this.strType . " > " . this.strName . "`n{`nif (strType = 1) `; text`n{`n"
 		
 		strCode .= "`; strBefore := Clipboard`n"
 		if (this.strType = "Replace")

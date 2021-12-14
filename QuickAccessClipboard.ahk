@@ -11,6 +11,44 @@ Copyright 2021-2021 Jean Lalonde
 HISTORY
 =======
 
+Version ALPHA: 0.0.3 (2021-12-14)
+ 
+- Status bar
+  - display Clipboard connection status only if disconnected
+  - show if content length is from Clipboard or Editor
+  - show content lenght if text, else show if binary or empty
+ 
+Object model
+- develop RuleTypes class
+- develop Rule class with properties name (index key), category, notes, ID (index key) and values; methods GetCode(), CopyRule()
+ 
+Gui
+- enable rules using 2 listviews instead of checkboxes, with arrows to select/deselect/deselect all rules
+- align Appy rules button to Selected rules listview
+- make available rules larger with columns for type and category
+- when showing gui or applying rules, backup selected rules to restore them if rules changes are not applied
+- sort available rules by name unless user change sorting using the header
+- double click to select a rule
+- buttons to add, edit, copy or remove rules
+- dialog box to select type of added rule
+- dialog box to add/edit/copy rule
+- allow editor font up to size 36
+- remove Cancel button and merge it with Close button
+ 
+Settings file
+- save options to ini file on exit
+- encode pipes in values saved to ini file
+- load whole Rules section from ini file and parse lines
+- save addes/edited/copied rule
+- remove rule
+- reload rules after saving edited or added rule
+- encode values when saving to ini and decode when loading 
+keep ending | separator when saving to ini file to protect values ending with space
+ 
+Rules execution
+- in QACrules.ahk only include selected rules
+- get code for rule types prefix and suffix;
+
 Version ALPHA: 0.0.2 (2021-11-26)
  
 Buttons
@@ -331,7 +369,7 @@ Hotkey, If, WinActive(QACGuiTitle()) ; main Gui title
 
 Hotkey, If
 
-Gosub, GuiShow ; #####
+; Gosub, GuiShow ; #####
 
 return
 

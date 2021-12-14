@@ -541,13 +541,6 @@ return
 
 ;-----------------------------------------------------------
 InitRuleTypes:
-; ChangeCase -> use RegExReplace to change case -> strFind, strReplace
-; Replace -> use StrReplace (see options???) -> strFind, strReplace
-; AutoHotkey -> execute script -> strCode
-; SubStr -> use SubStr -> intStartingPosition (negative to start from end), intLength
-; Prefix -> concatenate -> strPrefix
-; Suffix -> concatenate -> strSuffix
-
 ;-----------------------------------------------------------
 
 global g_aaRuleTypes = Object()
@@ -1173,15 +1166,12 @@ strTop =
 ) ; leave the 2 last extra lines above
 
 ; OnClipboardChange functions
-strRules := ""
-loop, Parse, % "f_lvRulesAvailable|f_lvRulesSelected", |
+strOnClipboardChange := ""
+Gui, 1:ListView, f_lvRulesSelected
+loop, % LV_GetCount()
 {
-	Gui, 1:ListView, %A_LoopField%
-	loop, % LV_GetCount()
-	{
-		LV_GetText(strName, A_Index, 1)
-		strRules .= "OnClipboardChange(""Rule" . g_aaRulesByName[strName].intID . """, " . (A_LoopField = "f_lvRulesSelected")  . ")`n"
-	}
+	LV_GetText(strName, A_Index, 1)
+	strOnClipboardChange .= "OnClipboardChange(""Rule" . g_aaRulesByName[strName].intID . """, 1)`n"
 }
 
 strBottom =
@@ -1191,17 +1181,22 @@ strBottom =
 
 
 ) ; leave the 2 last extra lines above
-strSource := StrReplace(strTop, "~1~", L(o_L["RulesDisabled"], g_strAppNameText, o_Settings.Launch.intRulesTimeoutSecs.IniValue)) . strRules . strBottom
 
-; rules code
-for intOrder, aaRule in g_saRulesOrder
-	strSource .= aaRule.GetCode()
+strSource := StrReplace(strTop, "~1~", L(o_L["RulesDisabled"], g_strAppNameText, o_Settings.Launch.intRulesTimeoutSecs.IniValue)) . strOnClipboardChange . strBottom
+
+; add rules code
+Gui, 1:ListView, f_lvRulesSelected
+loop, % LV_GetCount()
+{
+	LV_GetText(strName, A_Index, 1)
+	strSource .= g_aaRulesByName[strName].GetCode()
+}
 
 ; save AHK script file QACrules.ahk
-FileAppend, %strSource%, %g_strRulesPathNameNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
+FileAppend, %strSource%, %g_strOnClipboardChangePathNameNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
 
 ; run the AHK runtime QACrules.exe that will call the script having the same name QACrules.ahk
-Run, %g_strRulesPathNameNoExt%.exe
+Run, %g_strOnClipboardChangePathNameNoExt%.exe
 
 Gosub, DisableApplyRulesAndCancel
 
@@ -1210,12 +1205,11 @@ Sleep, 1000
 ToolTip
 
 strTop := ""
-strRules := ""
+strOnClipboardChange := ""
 strSource := ""
 strGuiTitle := ""
 intTimeoutMs := ""
-intOrder := ""
-aaRule := ""
+strName := ""
 
 return
 ;------------------------------------------------------------
@@ -1391,12 +1385,16 @@ else
 	; example:
 	; Lower case=ChangeCase|Example|RegExReplace(Clipboard, ".*", "$L0"))|.*|$L0
 	
+	g_aaRulesByName := Object() ; reset list of rules by name
+	
 	strRules := o_Settings.ReadIniSection("Rules")
 	Loop, Parse, strRules, `n
 	{
 		intEqualSign := InStr(A_LoopField, "=")
 		strRuleName := SubStr(A_LoopField, 1, intEqualSign - 1)
 		saRule := StrSplit(SubStr(A_LoopField, intEqualSign + 1), "|")
+		loop, % saRule.Length()
+			saRule[A_Index] := DecodeSnippet(saRule[A_Index])
 		new Rule(strRuleName, saRule)
 	}
 	
@@ -1533,26 +1531,33 @@ if (aaEditedRule.strType = "ChangeCase")
 {
 	Gui, 2:Add, Text, w300, % o_L["DialogCaseType"]
 	loop, 3
-		Gui, 2:Add, Radio, % (A_Index = 1 ? "vf_varValue1 " : "") . "w300 " . (aaEditedRule.varValue1 = A_Index ? " checked" : ""), % o_L["DialogCaseType" . A_Index]
+		Gui, 2:Add, Radio, % (A_Index = 1 ? "vf_varValue4 " : "") . "w300 " . (aaEditedRule.intCaseType = A_Index ? " checked" : ""), % o_L["DialogCaseType" . A_Index]
 }
 else if (aaEditedRule.strType = "Replace")
 {
 	Gui, 2:Add, Text, w300, % o_L["DialogFind"]
-	Gui, 2:Add, Edit, w300 vf_varValue1, % aaEditedRule.varValue1
+	Gui, 2:Add, Edit, w300 vf_varValue4, % DecodeSnippet(aaEditedRule.strFind) ; aaEditedRule.saVarValues[4]
 	Gui, 2:Add, Text, w300, % o_L["DialogReplaceWith"]
-	Gui, 2:Add, Edit, w300 vf_varValue2, % aaEditedRule.varValue2
+	Gui, 2:Add, Edit, w300 vf_varValue5, % DecodeSnippet(aaEditedRule.strReplace) ; aaEditedRule.saVarValues[5]
 }
 else if (aaEditedRule.strType = "AutoHotkey")
 {
 	Gui, 2:Add, Text, w300, % o_L["DialogAutohotkeyCode"]
-	Gui, 2:Add, Edit, w300 vf_varValue1, % aaEditedRule.varValue1
+	Gui, 2:Font, s12, Courier New
+	Gui, 2:Add, Edit, w300 r12 Multi vf_varValue4, % StrReplace(DecodeSnippet(aaEditedRule.strCode), "`r") ; aaEditedRule.saVarValues[4]
+	Gui, 2:Font
 }
 else if (aaEditedRule.strType = "SubStr")
 {
 	Gui, 2:Add, Text, w300, % o_L["DialogStartingPosition"]
-	Gui, 2:Add, Edit, w300 Number vf_varValue1, % aaEditedRule.varValue1
+	Gui, 2:Add, Edit, w300 Number vf_varValue4, % aaEditedRule.intStartingPosition ; aaEditedRule.saVarValues[4]
 	Gui, 2:Add, Text, w300, % o_L["DialogLength"]
-	Gui, 2:Add, Edit, w300 Number vf_varValue2, % aaEditedRule.varValue2
+	Gui, 2:Add, Edit, w300 Number vf_varValue5, % aaEditedRule.intLength ; aaEditedRule.saVarValues[5]
+}
+else if InStr("Prefix Suffix", aaEditedRule.strType)
+{
+	Gui, 2:Add, Text, w300, % (aaEditedRule.strType = "Prefix" ? o_L["DialogPrefixAdd"] : o_L["DialogSuffixAdd"])
+	Gui, 2:Add, Edit, w300 vf_varValue4, % aaEditedRule.saVarValues[4] ; aaEditedRule.strPrefix or aaEditedRule.strSuffix
 }
 
 Gui, 2:Add, Button, y+15 vf_btnSave gGuiRuleSave, % o_L["GuiSave"]
@@ -1588,35 +1593,18 @@ aaEditedRule.strNotes := f_strNotes
 saValues := Object()
 Loop, 9
 	if StrLen(f_varValue%A_Index%)
-		saValues.Push(f_varValue%A_Index%)
+		saValues.Push(EncodeSnippet(f_varValue%A_Index%))
 
 aaEditedRule.SaveRuleToIni(saValues)
 
 if (strAction = "Edit" and strOriginalName <> aaEditedRule.strName)
-	aaEditedRule.RenameRule(strOriginalName)
-
-if (strAction <> "Edit") ; this is a new rule
-{
-	aaEditedRule.intID := g_saRulesOrder.Push(aaEditedRule)
-	g_aaRulesByName[aaEditedRule.strName] := aaEditedRule
-}
+	IniDelete, % o_Settings.strIniFile, Rules, %strOriginalName%
 
 Gosub, 2GuiClose
 
 Gui, 1:Default
-Gui, 1:ListView, f_lvRulesAvailable
-loop, % LV_GetCount()
-{
-	LV_GetText(strName, A_Index, 1)
-	if (strAction = "Edit" and strName = strOriginalName)
-		or (strAction <> "Edit" and strName = aaEditedRule.strName)
-	{
-		LV_Delete(A_Index)
-		break
-	}
-}
-LV_Add(, aaEditedRule.strName, aaEditedRule.strType, aaEditedRule.strCategory)
-
+Gosub, LoadRulesFromIni
+Gosub, GuiLoadRulesAvailable
 
 strOriginalName := ""
 saValues := ""
@@ -3088,6 +3076,61 @@ GetLVPosition(ByRef intPosition, strMessage)
 ;------------------------------------------------------------
 
 
+;------------------------------------------------------------
+EncodeSnippet(strSnippet)
+; convert from display format (when f_blnProcessEOLTab is true) to raw content, ready for saving to in file
+;------------------------------------------------------------
+/*
+https://rosettacode.org/wiki/Special_characters#AutoHotkey
+The escape character defaults to accent/backtick (`).
+
+`, = , (literal comma). Note: Commas that appear within the last parameter of a command do not need to be escaped because the program knows to treat them literally. The same is true for all parameters of MsgBox because it has smart comma handling.
+`% = % (literal percent)
+`` = ` (literal accent; i.e. two consecutive escape characters result in a single literal character)
+`; = ; (literal semicolon). Note: This is necessary only if a semicolon has a space or tab to its left. If it does not, it will be recognized correctly without being escaped.
+`n = newline (linefeed/LF)
+`r = carriage return (CR)
+`b = backspace
+`t = tab (the more typical horizontal variety)
+`v = vertical tab -- corresponds to Ascii value 11. It can also be manifest in some applications by typing Control+K.
+`a = alert (bell) -- corresponds to Ascii value 7. It can also be manifest in some applications by typing Control+G.
+`f = formfeed -- corresponds to Ascii value 12. It can also be manifest in some applications by typing Control+L.
+Send = When the Send command or Hotstrings are used in their default (non-raw) mode, characters such as {}^!+# have special meaning. Therefore, to use them literally in these cases, enclose them in braces. For example: Send {^}{!}{{}
+"" = Within an expression, two consecutive quotes enclosed inside a literal string resolve to a single literal quote. For example: Var := "The color ""red"" was found."
+
+Process only:
+`n = newline (linefeed/LF)
+`t = tab (the more typical horizontal variety)
+
+No need to process:
+- | (pipe) used as separator in favorites lines in ini file are already replaced with the escape sequence "Ð¡þ€"
+*/
+{
+	strSnippet := StrReplace(strSnippet, "``", "````") ;  replace backticks with double-backticks
+	strSnippet := StrReplace(strSnippet, "`n", "``n")  ; encode end-of-lines
+	strSnippet := StrReplace(strSnippet, "`t", "``t")  ; encode tabs
+	
+	return strSnippet
+}
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+DecodeSnippet(strSnippet, blnWithCarriageReturn := false)
+; convert from raw content (as from ini file) to display format (when f_blnProcessEOLTab is true) or to paste format
+;------------------------------------------------------------
+{
+	strSnippet := StrReplace(strSnippet, "````", "!r4nd0mt3xt!")	; preserve double-backticks
+	strSnippet := StrReplace(strSnippet
+		, "``n", (blnWithCarriageReturn ? "`r" : "") . "`n")		; decode end-of-lines (with `r only when sending as Snippet)
+	strSnippet := StrReplace(strSnippet, "``t", "`t")				; decode tabs
+	strSnippet := StrReplace(strSnippet, "!r4nd0mt3xt!", "``")		; restore double-backticks
+	
+	return strSnippet
+}
+;------------------------------------------------------------
+
+
 ;========================================================================================================================
 ; END !_090_VARIOUS_FUNCTIONS:
 ;========================================================================================================================
@@ -3998,6 +4041,8 @@ class RuleType
 ; Replace -> use StrReplace (see options???) -> strFind, strReplace
 ; AutoHotkey -> execute script -> strCode
 ; SubStr -> use SubStr -> intStartingPosition (negative to start from end), intLength
+; Prefix -> concatenate -> strPrefix
+; Suffix -> concatenate -> strSuffix
 ;-------------------------------------------------------------
 {
 	;---------------------------------------------------------
@@ -4029,6 +4074,7 @@ class Rule
 		this.strType := StrReplace(saRuleValues[1], g_strEscapePipe, "|")
 		this.strCategory := StrReplace(saRuleValues[2], g_strEscapePipe, "|")
 		this.strNotes := StrReplace(saRuleValues[3], g_strEscapePipe, "|")
+		this.saVarValues := saRuleValues
 		
 		if (this.strType = "ChangeCase")
 		{
@@ -4048,6 +4094,10 @@ class Rule
 			this.intStartingPosition := saRuleValues[4]
 			this.intLength := saRuleValues[5]
 		}
+		else if (this.strType = "Prefix")
+			this.strPrefix := StrReplace(saRuleValues[4], g_strEscapePipe, "|")
+		else if (this.strType = "Suffix")
+			this.strSuffix := StrReplace(saRuleValues[4], g_strEscapePipe, "|")
 		
 		g_aaRulesByName[strName] := this
 		this.intID := g_saRulesOrder.Push(this)
@@ -4066,19 +4116,9 @@ class Rule
 		Loop, 9
 			if StrLen(saValues[A_Index])
 				strIniLine .= StrReplace(saValues[A_Index], "|", g_strEscapePipe) . "|" ; 4+
-		strIniLine := SubStr(strIniLine, 1, -1)
+		;  do not remove last | to save space as last val.ue in ini file
 		
 		IniWrite, %strIniLine%, % o_Settings.strIniFile, Rules, % this.strName
-	}
-	;---------------------------------------------------------
-	
-	;---------------------------------------------------------
-	RenameRule(strOriginalName)
-	;---------------------------------------------------------
-	{
-		IniDelete, % o_Settings.strIniFile, Rules, %strOriginalName%
-		g_aaRulesByName.Delete(this.strName)
-		g_aaRulesByName[this.strName] := this
 	}
 	;---------------------------------------------------------
 	
@@ -4111,14 +4151,18 @@ class Rule
 		strCode := "Rule" . this.intID . "(strType) `; " . this.strType . " > " . this.strName . "`n{`nif (strType = 1) `; text`n{`n"
 		
 		strCode .= "`; strBefore := Clipboard`n"
-		if (this.strType = "Replace")
-			strCode .= "Clipboard := StrReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
-		else if (this.strType = "ChangeCase")
+		if (this.strType = "ChangeCase")
 			strCode .= "Clipboard := RegExReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
+		else if (this.strType = "Replace")
+			strCode .= "Clipboard := StrReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
 		else if (this.strType = "AutoHotkey")
-			strCode .= "`n" . this.strCode
-		else if (this.strType = "TrimFromStart")
-			strCode .= "Clipboard := SubStr(Clipboard, " . this.intLength + 1 . ")"
+			strCode .= this.strCode
+		else if (this.strType = "SubStr")
+			strCode .= "Clipboard := SubStr(Clipboard, " . this.intStartingPosition . (StrLen(this.intLength) ? "," . this.intLength : "") . ")"
+		else if (this.strType = "Prefix")
+			strCode .= "Clipboard := """ . this.strPrefix . """ . Clipboard"
+		else if (this.strType = "Suffix")
+			strCode .= "Clipboard .= """ . this.strSuffix . """"
 		strCode .= "`n"
 		strCode .= "Sleep, 20`n"
 		strCode .= "`; strAfter := Clipboard`n"
@@ -4127,7 +4171,6 @@ class Rule
 		; end rule
 		strCode .= "`n}`n}`n`n"
 		
-		; ###_V("", strCode)
 		return strCode
 	}
 	;---------------------------------------------------------

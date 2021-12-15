@@ -11,6 +11,9 @@ Copyright 2021-2021 Jean Lalonde
 HISTORY
 =======
 
+Version ALPHA: 0.0.3.1 (2021-12-14)
+- fix bug in rules file name
+
 Version ALPHA: 0.0.3 (2021-12-14)
  
 - Status bar
@@ -99,7 +102,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.3
+;@Ahk2Exe-SetVersion 0.0.3.1
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -169,7 +172,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.3" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.3.1" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -344,6 +347,14 @@ if (o_Settings.Launch.blnDisplayTrayTip.IniValue)
 	Sleep, 20 ; tip from Lexikos for Windows 10 "Just sleep for any amount of time after each call to TrayTip" (http://ahkscript.org/boards/viewtopic.php?p=50389&sid=29b33964c05f6a937794f88b6ac924c0#p50389)
 }
 
+if (g_blnPortableMode)
+	blnStartup := StrLen(FileExist(A_Startup . "\" . g_strAppNameFile . ".lnk")) ; convert file attribute to numeric (boolean) value
+else
+	blnStartup := RegistryExist("HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", g_strAppNameText)
+
+if (blnStartup) ; both setup and portable
+	Menu, Tray, Check, % o_L["MenuRunAtStartup"]
+
 ; Enabling Clipboard change in editor
 OnClipboardChange("ClipboardContentChanged", 1)
 SB_SetText("", 2)
@@ -369,7 +380,7 @@ Hotkey, If, WinActive(QACGuiTitle()) ; main Gui title
 
 Hotkey, If
 
-; Gosub, GuiShow ; #####
+ Gosub, GuiShow ; #####
 
 return
 
@@ -861,6 +872,8 @@ BuildGuiMenuBar:
 Menu, menuBarFile, Add, % o_L["GuiSaveEditor"] . "`tCtrl+S", EditorCtrlS
 Menu, menuBarFile, Add, % o_L["GuiClose"] . "`tEsc", GuiCloseCancel
 Menu, menuBarFile, Add
+Menu, menuBarFile, Add, QACrules.ahk, OpenQacRulesFile
+Menu, menuBarFile, Add
 Menu, menuBarFile, Add, % L(o_L["MenuExitApp"], g_strAppNameText), GuiCloseCancelAndExitApp
 Menu, menuBarMain, Add, % o_L["MenuFile"], :menuBarFile
 
@@ -1231,10 +1244,10 @@ loop, % LV_GetCount()
 }
 
 ; save AHK script file QACrules.ahk
-FileAppend, %strSource%, %g_strOnClipboardChangePathNameNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
+FileAppend, %strSource%, %g_strRulesPathNameNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
 
 ; run the AHK runtime QACrules.exe that will call the script having the same name QACrules.ahk
-Run, %g_strOnClipboardChangePathNameNoExt%.exe
+Run, %g_strRulesPathNameNoExt%.exe
 
 Gosub, DisableApplyRulesAndCancel
 
@@ -2315,8 +2328,8 @@ ToggleRunAtStartup(blnForce := -1)
 ;------------------------------------------------------------
 {
 	if (blnForce = o_L["MenuRunAtStartup"]) ; toggle from Tray menu
-		; function assigneds to Tray menu puts the menu name in first parameter (https://hotkeyit.github.io/v2/docs/commands/Menu.htm#Add_or_Change_Items_in_a_Menu)
-		; when called from Tray menu, art blnForce to toggle
+		; function assigned to Tray menu puts the menu name in first parameter (https://hotkeyit.github.io/v2/docs/commands/Menu.htm#Add_or_Change_Items_in_a_Menu)
+		; when called from Tray menu, toggle blnForce
 		blnForce := -1
 	
 	if (g_blnPortableMode)
@@ -2365,6 +2378,19 @@ Suspend, % (A_IsSuspended ? "Off" : "On")
 
 Menu, menuBarTools, % (A_IsSuspended ? "Check" : "Uncheck"), % aaMenuToolsL["MenuSuspendHotkeys"]
 Menu, Tray, % (A_IsSuspended ? "Check" : "Uncheck"), % o_L["MenuSuspendHotkeys"]
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+OpenQacRulesFile:
+;------------------------------------------------------------
+
+if FileExist(g_strRulesPathNameNoExt . ".ahk")
+	Run, Notepad %g_strRulesPathNameNoExt%.ahk
+else
+	Oops(0, "File not found. Rules not enabled.")
 
 return
 ;------------------------------------------------------------

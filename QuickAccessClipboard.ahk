@@ -253,8 +253,6 @@ global g_saRulesBackupSelectedOrder ; backup of selected rules
 global g_saRulesBackupSelectedByName ; backup of selected rules
 global g_strEscapePipe := "Ð¡þ€" ; used to escape pipe in ini file
 
-; global g_intInvisibleChars ; nb of characters added to editor to show invisible characters
-
 ;---------------------------------
 ; Init language
 
@@ -355,9 +353,7 @@ else
 if (blnStartup) ; both setup and portable
 	Menu, Tray, Check, % o_L["MenuRunAtStartup"]
 
-; Enabling Clipboard change in editor
-OnClipboardChange("ClipboardContentChanged", 1)
-SB_SetText("", 2)
+Gosub, EnableClipboardChangesInEditor
 
 ; startups count and trace
 IniWrite, % (intStartups + 1), % o_Settings.strIniFile, Global, Startups
@@ -437,10 +433,9 @@ else if (A_ThisLabel = "EditorEsc")
 
 else if (A_ThisLabel = "EditorCtrlC") or (A_ThisLabel = "EditorCtrlX")
 {
-	; Disable Clipboard change in editor
-	OnClipboardChange("ClipboardContentChanged", 0)
-	SB_SetText(o_L["DialogClipboardDisconnected"], 2)
+	Gosub, DisableClipboardChangesInEditor
 	Send, % (A_ThisLabel = "EditorCtrlC" ? "^c" : "^x")
+	Gosub, EnableSaveAndCancel
 }
 
 return
@@ -662,7 +657,6 @@ o_Settings.ReadIniOption("SettingsWindow", "blnFixedFont", "FixedFont", 0, "Sett
 o_Settings.ReadIniOption("SettingsWindow", "intFontSize", "FontSize", 10, "SettingsWindow", "")
 o_Settings.ReadIniOption("SettingsWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "SettingsWindow", "")
 o_Settings.ReadIniOption("SettingsWindow", "blnUseTab", "UseTab", 0, "SettingsWindow", "")
-; o_Settings.ReadIniOption("SettingsWindow", "blnSeeInvisible", "SeeInvisible", 0, "SettingsWindow", "")
 
 ; Group MenuAdvanced
 o_Settings.ReadIniOption("MenuAdvanced", "intShowMenuBar", "ShowMenuBar", 3, "MenuAdvanced", "") ; default false, if true reload QAP as admin ; g_blnRunAsAdmin
@@ -794,12 +788,8 @@ return
 EditorContextMenuActions:
 ;------------------------------------------------------------
 
-if (A_ThisMenuItem = "DialogCut" or A_ThisMenuItem = "DialogCopy")
-; disconnect before changing the Clipboard content
-{
-	OnClipboardChange("ClipboardContentChanged", 0)
-	SB_SetText(o_L["DialogClipboardDisconnected"], 2)
-}
+if (A_ThisMenuItem = "DialogCut" or A_ThisMenuItem = "DialogCopy") ; disconnect before changing the Clipboard content
+	Gosub, DisableClipboardChangesInEditor
 
 if (A_ThisMenuItem = o_L["DialogUndo"])
 	Send, ^z
@@ -971,13 +961,11 @@ Gui, 1:Add, Edit, x+5 yp w40 vf_intFontSize gClipboardEditorFontChanged
 Gui, 1:Add, UpDown, Range6-36 vf_intFontUpDown, % o_Settings.SettingsWindow.intFontSize.IniValue
 Gui, 1:Add, Checkbox, % "x+20 yp vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopChanged " . (o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue = 1 ? "checked" : ""), % o_L["DialogAlwaysOnTop"]
 Gui, 1:Add, Checkbox, % "x+10 yp vf_blnUseTab gClipboardEditorUseTabChanged " . (o_Settings.SettingsWindow.blnUseTab.IniValue = 1 ? "checked" : ""), % o_L["DialogUseTab"]
-; Gui, 1:Add, Checkbox, % "x+10 yp vf_blnSeeInvisible gClipboardEditorSeeInvisibleChanged " . (o_Settings.SettingsWindow.blnSeeInvisible.IniValue = 1 ? "checked" : ""), % o_L["DialogSeeInvisible"]
-; enable f_blnSeeInvisible only if f_strClipboardEditor contains Clipboard
+Gui, 1:Add, Checkbox, x+10 yp vf_blnSeeInvisible gClipboardEditorSeeInvisibleChanged disabled, % o_L["DialogSeeInvisible"] ; enable only if f_strClipboardEditor contains Clipboard
 
 Gosub, ClipboardEditorFontChanged
 Gosub, ClipboardEditorAlwaysOnTopChanged
 Gosub, ClipboardEditorUseTabChanged
-; Gosub, ClipboardEditorSeeInvisibleChangedInit
 
 Gui, 1:Add, Text, y+20 vf_lblBeginEditor ; mark for top of editor
 GuiControlGet, arrControlPos, Pos, f_lblBeginEditor
@@ -1271,9 +1259,8 @@ ClipboardEditorChanged:
 ;------------------------------------------------------------
 Gui, 1:Submit, NoHide
 
-OnClipboardChange("ClipboardContentChanged", 0)
+Gosub, DisableClipboardChangesInEditor
 SB_SetText(o_L["MenuEditor"] . ": " . (StrLen(f_strClipboardEditor) = 1 ? o_L["GuiOneCharacter"] : L(o_L["GuiCharacters"], StrLen(f_strClipboardEditor))), 1)
-SB_SetText(o_L["DialogClipboardDisconnected"], 2)
 Gosub, EnableSaveAndCancel
 
 return
@@ -1302,7 +1289,6 @@ return
 ;------------------------------------------------------------
 
 
-/*
 ;------------------------------------------------------------
 ClipboardEditorSeeInvisibleChanged:
 ;------------------------------------------------------------
@@ -1313,7 +1299,6 @@ GuiControl, , f_strClipboardEditor, % (f_blnSeeInvisible ? ConvertInvisible(f_st
 
 return
 ;------------------------------------------------------------
-*/
 
 
 ;------------------------------------------------------------
@@ -1970,8 +1955,10 @@ GuiControl, 1:, f_btnGuiCloseCancel, % (A_ThisLabel = "EnableSaveAndCancel" ? o_
 
 Menu, menuBarFile, % (A_ThisLabel = "EnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["GuiSaveEditor"] . "`tCtrl+S"
 
-OnClipboardChange("ClipboardContentChanged", (A_ThisLabel = "DisableSaveAndCancel"))
-SB_SetText((A_ThisLabel = "EnableSaveAndCancel" ? o_L["DialogClipboardDisconnected"] : ""), 2)
+if (A_ThisLabel = "DisableSaveAndCancel")
+	Gosub, EnableClipboardChangesInEditor
+else
+	Gosub, DisableClipboardChangesInEditor
 
 return
 ;------------------------------------------------------------
@@ -2391,6 +2378,19 @@ if FileExist(g_strRulesPathNameNoExt . ".ahk")
 	Run, Notepad %g_strRulesPathNameNoExt%.ahk
 else
 	Oops(0, "File not found. Rules not enabled.")
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+EnableClipboardChangesInEditor:
+DisableClipboardChangesInEditor:
+;------------------------------------------------------------
+
+OnClipboardChange("ClipboardContentChanged", (A_ThisLabel = "EnableClipboardChangesInEditor"))
+SB_SetText((A_ThisLabel = "DisableClipboardChangesInEditor" ? o_L["DialogClipboardDisconnected"] : ""), 2)
+GuiControl, % (A_ThisLabel = "EnableClipboardChangesInEditor" ? "Enable" : "Disable"), f_blnSeeInvisible
 
 return
 ;------------------------------------------------------------
@@ -3080,12 +3080,10 @@ GetSelectedTextLenght(strHwnd)
 
 
 ;------------------------------------------------------------
-ConvertInvisible(str) ; NOT USED - KEEP FOR FUTURE?
+ConvertInvisible(str)
 ; Invisible chars: https://www.fileformat.info/info/unicode/category/So/list.htm (see U+2400 ...)
 ;------------------------------------------------------------
 {
-	g_intInvisibleChars := 0
-	
 	; preserve tabs and new lines
 	strTabReplacement := "¤¢£"
 	str := StrReplace(str, Chr(9), strTabReplacement)
@@ -3113,10 +3111,7 @@ ConvertInvisible(str) ; NOT USED - KEEP FOR FUTURE?
 				strFrom := Chr(A_Index)
 				strTo := Chr(A_Index + intUnicodeBase)
 			}
-			if (o_Settings.SettingsWindow.blnSeeInvisible.IniValue)
-				str := StrReplace(str, strFrom, strTo)
-			else
-				str := StrReplace(str, strTo, strFrom)
+			str := StrReplace(str, strFrom, strTo)
 		}
 	
 	; restore tabs and new lines

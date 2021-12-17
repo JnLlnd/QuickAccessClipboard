@@ -1435,6 +1435,9 @@ else
 	}
 	
 	strRules := ""
+	saRule := ""
+	intEqualSign := ""
+	strRuleName := ""
 }
 
 return
@@ -1563,36 +1566,54 @@ Gui, 2:Add, Edit, w300 vf_strCategory, % aaEditedRule.strCategory
 Gui, 2:Add, Text, w300, % o_L["DialogRuleNotes"]
 Gui, 2:Add, Edit, w300 vf_strNotes, % aaEditedRule.strNotes
 
+Gui, 2:Font, w600
+Gui, 2:Add, Text, y+10 w300, % g_aaRuleTypes[aaEditedRule.strType].strLabel
+Gui, 2:Font
+
 if (aaEditedRule.strType = "ChangeCase")
-{
-	Gui, 2:Add, Text, w300, % o_L["DialogCaseType"]
+	
 	loop, 3
 		Gui, 2:Add, Radio, % (A_Index = 1 ? "vf_varValue4 " : "") . "w300 " . (aaEditedRule.intCaseType = A_Index ? " checked" : ""), % o_L["DialogCaseType" . A_Index]
-}
+	
 else if (aaEditedRule.strType = "Replace")
 {
-	Gui, 2:Add, Text, w300, % o_L["DialogFind"]
+	Gui, 2:Add, Text, y+5 w300, % o_L["DialogFind"]
 	Gui, 2:Add, Edit, w300 vf_varValue4, % DecodeSnippet(aaEditedRule.strFind) ; aaEditedRule.saVarValues[4]
 	Gui, 2:Add, Text, w300, % o_L["DialogReplaceWith"]
 	Gui, 2:Add, Edit, w300 vf_varValue5, % DecodeSnippet(aaEditedRule.strReplace) ; aaEditedRule.saVarValues[5]
 }
 else if (aaEditedRule.strType = "AutoHotkey")
 {
-	Gui, 2:Add, Text, w300, % o_L["DialogAutohotkeyCode"]
 	Gui, 2:Font, s12, Courier New
 	Gui, 2:Add, Edit, w300 r12 Multi vf_varValue4, % StrReplace(DecodeSnippet(aaEditedRule.strCode), "`r") ; aaEditedRule.saVarValues[4]
 	Gui, 2:Font
 }
 else if (aaEditedRule.strType = "SubStr")
 {
-	Gui, 2:Add, Text, w300, % o_L["DialogStartingPosition"]
-	Gui, 2:Add, Edit, w300 Number vf_varValue4, % aaEditedRule.intStartingPosition ; aaEditedRule.saVarValues[4]
-	Gui, 2:Add, Text, w300, % o_L["DialogLength"]
-	Gui, 2:Add, Edit, w300 Number vf_varValue5, % aaEditedRule.intLength ; aaEditedRule.saVarValues[5]
+	Gui, 2:Add, Radio, % "vf_blnRadioSubStrFromStart gGuiEditRuleSubStrTypeChanged"
+		. (!aaEditedRule.saVarValues[4] ? " Checked" : ""), % o_L["DialogSubStrFromStart"] ; aaEditedRule.saVarValues[4]
+	Gui, 2:Add, Radio, % "vf_blnRadioSubStrFromPosition gGuiEditRuleSubStrTypeChanged"
+		. (aaEditedRule.saVarValues[4] ? " Checked" : ""), % o_L["DialogSubStrFromPosition"] ; aaEditedRule.saVarValues[4]
+	Gui, 2:Add, Edit, yp x+1 w40 Number Center vf_intRadioSubStrFromPosition disabled, % aaEditedRule.intStartingPosition ; aaEditedRule.saVarValues[5]
+	Gui, 2:Add, Text, yp x+5 vf_lblRadioSubStrFromPosition disabled, % o_L["DialogSubStrCharacters"]
+	
+	Gui, 2:Add, Radio, % "x10 w140 vf_blnRadioSubStrToEnd gGuiEditRuleSubStrTypeChanged"
+		. (aaEditedRule.saVarValues[6] = 0 ? " Checked" : ""), % o_L["DialogSubStrToEnd"] ; aaEditedRule.saVarValues[6]
+	Gui, 2:Add, Radio, % "Section vf_blnRadioSubStrLength gGuiEditRuleSubStrTypeChanged"
+		. (aaEditedRule.saVarValues[6] = 1 ? " Checked" : ""), % o_L["DialogSubStrLength"] ; aaEditedRule.saVarValues[6]
+	Gui, 2:Add, Radio, % "vf_blnRadioSubStrToBeforeEnd gGuiEditRuleSubStrTypeChanged"
+		. (aaEditedRule.saVarValues[6] = -1 ? " Checked" : ""), % o_L["DialogSubStrToBeforeEnd"] ; aaEditedRule.saVarValues[6]
+	GuiControlGet, arrWidth1, Pos, f_blnRadioSubStrLength
+	GuiControlGet, arrWidth2, Pos, f_blnRadioSubStrToBeforeEnd
+	Gui, 2:Add, Edit, % "x" . (arrWidth1w > arrWidth2w ? arrWidth1w : arrWidth2w) + 15 . " ys+5 w40 Number Center vf_intSubStrCharacters disabled"
+		, % aaEditedRule.saVarValues[7] ; do not use aaEditedRule.intLength that can be negative
+	Gui, 2:Add, Text, yp x+5 vf_lblSubStrCharacters disabled, % o_L["DialogSubStrCharacters"]
+	
+	Gosub, GuiEditRuleSubStrTypeChanged
 }
 else if InStr("Prefix Suffix", aaEditedRule.strType)
 {
-	Gui, 2:Add, Text, w300, % (aaEditedRule.strType = "Prefix" ? o_L["DialogPrefixAdd"] : o_L["DialogSuffixAdd"])
+	Gui, 2:Add, Text, y+5 w300, % o_L["DialogTextToAdd"]
 	Gui, 2:Add, Edit, w300 vf_varValue4, % aaEditedRule.saVarValues[4] ; aaEditedRule.strPrefix or aaEditedRule.strSuffix
 }
 
@@ -1604,6 +1625,22 @@ Gosub, ShowGui2AndDisableGui1
 
 intPosition := ""
 strName := ""
+arrWidth1 := ""
+arrWidth2 := ""
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GuiEditRuleSubStrTypeChanged:
+;------------------------------------------------------------
+Gui, 2:Submit, NoHide
+
+GuiControl, % (f_blnRadioSubStrFromPosition ? "Enable" : "Disable"), f_intRadioSubStrFromPosition
+GuiControl, % (f_blnRadioSubStrFromPosition ? "Enable" : "Disable"), f_lblRadioSubStrFromPosition
+GuiControl, % (f_blnRadioSubStrLength or f_blnRadioSubStrToBeforeEnd ?  "Enable" : "Disable"), f_intSubStrCharacters
+GuiControl, % (f_blnRadioSubStrLength or f_blnRadioSubStrToBeforeEnd ?  "Enable" : "Disable"), f_lblSubStrCharacters
 
 return
 ;------------------------------------------------------------
@@ -1614,12 +1651,6 @@ GuiRuleSave:
 ;------------------------------------------------------------
 Gui, 2:Submit, NoHide
 
-if (strAction <> "Edit" and g_aaRulesByName.HasKey(f_strName)) ; when adding or copying
-{
-	Oops(2, o_L["OopsNameExists"], f_strName)
-	return
-}
-
 strOriginalName := aaEditedRule.strName
 
 aaEditedRule.strName := f_strName
@@ -1627,9 +1658,35 @@ aaEditedRule.strCategory := f_strCategory
 aaEditedRule.strNotes := f_strNotes
 
 saValues := Object()
-Loop, 9
-	if StrLen(f_varValue%A_Index%)
-		saValues.Push(EncodeSnippet(f_varValue%A_Index%))
+if (aaEditedRule.strType = "Substr")
+{
+	if (f_blnRadioSubStrFromPosition and !StrLen(f_intRadioSubStrFromPosition))
+		or ((f_blnRadioSubStrLength or f_blnRadioSubStrToBeforeEnd) and !StrLen(f_intSubStrCharacters))
+	{
+		Oops(2, o_L["OopsValueMissing"])
+		return
+	}
+	saValues[1] := f_blnRadioSubStrFromPosition ; bln value, 1 from position, 0 from start
+	saValues[2] := f_intRadioSubStrFromPosition ; int value, if from f_blnRadioSubStrFromPosition is true
+	saValues[3] := (f_blnRadioSubStrToEnd ? 0 : (f_blnRadioSubStrLength ? 1 : -1)) ; bln value, 1 length, 0 to end, -1 length before end
+	saValues[4] := (f_blnRadioSubStrToEnd ? "" : f_intSubStrCharacters) ; int value, if f_blnRadioSubStrLength or f_blnRadioSubStrToBeforeEnd, else empty
+}
+else
+	if !StrLen(f_strName) or (InStr("Replace AutoHotkey Prefix Suffix", aaEditedRule.strType) and !StrLen(f_varValue4))
+	{
+		Oops(2, o_L["OopsValueMissing"])
+		return
+	}
+	else
+		Loop, 9
+			if StrLen(f_varValue%A_Index%)
+				saValues.Push(EncodeSnippet(f_varValue%A_Index%))
+
+if (strAction <> "Edit" and g_aaRulesByName.HasKey(f_strName)) ; when adding or copying
+{
+	Oops(2, o_L["OopsNameExists"], f_strName)
+	return
+}
 
 aaEditedRule.SaveRuleToIni(saValues)
 
@@ -4150,8 +4207,8 @@ class Rule
 			this.strCode := StrReplace(saRuleValues[4], g_strEscapePipe, "|")
 		else if (this.strType = "SubStr")
 		{
-			this.intStartingPosition := saRuleValues[4]
-			this.intLength := saRuleValues[5]
+			this.intStartingPosition := (saRuleValues[4] ? saRuleValues[5] : 1)
+			this.intLength := (saRuleValues[6] ? saRuleValues[6] * saRuleValues[7] : "") ; saRuleValues[6] is -1 if from end
 		}
 		else if (this.strType = "Prefix")
 			this.strPrefix := StrReplace(saRuleValues[4], g_strEscapePipe, "|")
@@ -4173,9 +4230,8 @@ class Rule
 		strIniLine .= StrReplace(this.strCategory, "|", g_strEscapePipe) . "|" ; 2
 		strIniLine .= StrReplace(this.strNotes, "|", g_strEscapePipe) . "|" ; 3
 		Loop, 9
-			if StrLen(saValues[A_Index])
-				strIniLine .= StrReplace(saValues[A_Index], "|", g_strEscapePipe) . "|" ; 4+
-		;  do not remove last | to save space as last val.ue in ini file
+			strIniLine .= StrReplace(saValues[A_Index], "|", g_strEscapePipe) . "|" ; 4+
+			; do not remove last | in case we have a space as last character
 		
 		IniWrite, %strIniLine%, % o_Settings.strIniFile, Rules, % this.strName
 	}
@@ -4223,7 +4279,7 @@ class Rule
 		else if (this.strType = "Suffix")
 			strCode .= "Clipboard .= """ . this.strSuffix . """"
 		strCode .= "`n"
-		strCode .= "Sleep, 20`n"
+		strCode .= "Sleep, 50`n"
 		strCode .= "`; strAfter := Clipboard`n"
 		strCode .= "`; MsgBox, %strBefore%``n%strAfter%"
 		

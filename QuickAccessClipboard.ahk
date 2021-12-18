@@ -11,15 +11,23 @@ Copyright 2021-2021 Jean Lalonde
 HISTORY
 =======
 
+Version ALPHA: 0.0.4 (2021-12-17)
+- reafactor edit dialog box for substring type using radio buttons
+- validate required values in edit dialog box
+- add checkbox to inivisible characters only when Clipboard is unchanged in the editor
+- disable the editor when the See invisible characters option is enabled
+- disable the See invisible characters checkbox when content of editor is changed
+- increase sleep time after rule execution
+
 Version ALPHA: 0.0.3.1 (2021-12-14)
 - fix bug in rules file name
 
 Version ALPHA: 0.0.3 (2021-12-14)
  
-- Status bar
-  - display Clipboard connection status only if disconnected
-  - show if content length is from Clipboard or Editor
-  - show content lenght if text, else show if binary or empty
+Status bar
+- display Clipboard connection status only if disconnected
+- show if content length is from Clipboard or Editor
+- show content lenght if text, else show if binary or empty
  
 Object model
 - develop RuleTypes class
@@ -102,7 +110,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.3.1
+;@Ahk2Exe-SetVersion 0.0.4
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -172,7 +180,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.3.1" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.4" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"

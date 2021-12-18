@@ -229,6 +229,15 @@ FileCreateDir, %g_strTempDir%
 
 global g_strRulesPathNameNoExt := g_strTempDir . "\QACrules" ; QACrules .exe and .ahk files path and file name no ext
 
+; Force g_strRulesPathNameNoExt to be in A_WorkingDir if uncompiled (development environment)
+;@Ahk2Exe-IgnoreBegin
+; Start of code for development environment only - won't be compiled
+; see http://fincs.ahk4.net/Ahk2ExeDirectives.htm
+global g_strRulesPathNameNoExt := A_WorkingDir . "\QACrules"
+; to test user data directory: SetWorkingDir, %A_AppData%\Quick Access Clipboard
+; / End of code for developement environment only - won't be compiled
+;@Ahk2Exe-IgnoreEnd
+
 ; remove temporary folders older than 7 days
 SetTimer, RemoveOldTemporaryFolders, -10000, -100 ; run once in 10 seconds, low priority -100
 
@@ -371,6 +380,7 @@ IniWrite, % (g_blnPortableMode ? "Portable" : "Easy Setup"), % o_Settings.strIni
 ;---------------------------------
 ; Respond to SendMessage sent by QACrules
 OnMessage(0x4a, "RECEIVE_QACRULES")
+Gosub, GuiApplyRules ; launch QACrules
 
 ;---------------------------------
 ; Setting window hotkey conditional assignment
@@ -662,7 +672,7 @@ o_Settings.ReadIniOption("SettingsWindow", "blnRememberSettingsPosition", "Remem
 o_Settings.ReadIniOption("SettingsWindow", "blnOpenSettingsOnActiveMonitor", "OpenSettingsOnActiveMonitor", 1, "SettingsWindow", "f_blnOpenSettingsOnActiveMonitor") ; g_blnOpenSettingsOnActiveMonitor
 o_Settings.ReadIniOption("SettingsWindow", "blnDarkModeCustomize", "DarkModeCustomize", 0, "SettingsWindow", "f_blnDarkModeCustomize")
 o_Settings.ReadIniOption("SettingsWindow", "blnFixedFont", "FixedFont", 0, "SettingsWindow", "")
-o_Settings.ReadIniOption("SettingsWindow", "intFontSize", "FontSize", 10, "SettingsWindow", "")
+o_Settings.ReadIniOption("SettingsWindow", "intFontSize", "FontSize", 12, "SettingsWindow", "")
 o_Settings.ReadIniOption("SettingsWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "SettingsWindow", "")
 o_Settings.ReadIniOption("SettingsWindow", "blnUseTab", "UseTab", 0, "SettingsWindow", "")
 
@@ -778,12 +788,17 @@ BuildEditorContextMenu:
 OnMessage(0x204, "WM_RBUTTONDOWN")
 OnMessage(0x205, "WM_RBUTTONUP")
 
+for strRuleName, oRule in g_aaRulesByName
+	Menu, menuRules, Add, %strRuleName%, ExecuteRule
+
 Menu, menuEditorContextMenu, Add, % o_L["DialogUndo"], EditorContextMenuActions
 Menu, menuEditorContextMenu, Add
 Menu, menuEditorContextMenu, Add, % o_L["DialogCut"], EditorContextMenuActions
 Menu, menuEditorContextMenu, Add, % o_L["DialogCopy"], EditorContextMenuActions
 Menu, menuEditorContextMenu, Add, % o_L["DialogPaste"], EditorContextMenuActions
 Menu, menuEditorContextMenu, Add, % o_L["DialogDelete"], EditorContextMenuActions
+Menu, menuEditorContextMenu, Add
+Menu, menuEditorContextMenu, Add, % o_L["MenuExecuteRule"], :menuRules
 Menu, menuEditorContextMenu, Add
 Menu, menuEditorContextMenu, Add, % o_L["DialogSelectAll"], EditorContextMenuActions
 
@@ -1155,6 +1170,9 @@ strTop =
 	Gosub, OnClipboardChangeInit
 	SetTimer, CheckTimeOut, 2000
 	
+	; Respond to SendMessage sent by QAC requesting execution of a rule
+	OnMessage(0x4a, "RECEIVE_QACMAIN")
+
 	return
 	
 	; end of header
@@ -1205,6 +1223,26 @@ strTop =
 	}
 	;-----------------------------------------------------------
 	
+	;------------------------------------------------------------
+	RECEIVE_QACMAIN(wParam, lParam) 
+	; Adapted from AHK documentation (https://autohotkey.com/docs/commands/OnMessage.htm)
+	;------------------------------------------------------------
+	{
+		intStringAddress := NumGet(lParam + 2*A_PtrSize) ; Retrieves the CopyDataStruct's lpData member.
+		strCopyOfData := StrGet(intStringAddress) ; Copy the string out of the structure.
+		saData := StrSplit(strCopyOfData, "|")
+		
+		if (saData[1] = "exec")
+		{
+			strRule := "Rule" . saData[2]
+			`%strRule`%(1)
+			return 1 ; success
+		}
+		else
+			return 0 ; error
+	}
+	;------------------------------------------------------------
+
 	;-----------------------------------------------------------
 	OnClipboardChangeInit:
 	;-----------------------------------------------------------
@@ -1214,11 +1252,14 @@ strTop =
 
 ; OnClipboardChange functions
 strOnClipboardChange := ""
-Gui, 1:ListView, f_lvRulesSelected
-loop, % LV_GetCount()
+loop, Parse, % "f_lvRulesSelected|f_lvRulesAvailable", |
 {
-	LV_GetText(strName, A_Index, 1)
-	strOnClipboardChange .= "OnClipboardChange(""Rule" . g_aaRulesByName[strName].intID . """, 1)`n"
+	Gui, 1:ListView, %A_LoopField%
+	loop, % LV_GetCount()
+	{
+		LV_GetText(strName, A_Index, 1)
+		strOnClipboardChange .= "OnClipboardChange(""Rule" . g_aaRulesByName[strName].intID . """, " . (A_LoopField = "f_lvRulesSelected") . ")`n"
+	}
 }
 
 strBottom =
@@ -1232,18 +1273,14 @@ strBottom =
 strSource := StrReplace(strTop, "~1~", L(o_L["RulesDisabled"], g_strAppNameText, o_Settings.Launch.intRulesTimeoutSecs.IniValue)) . strOnClipboardChange . strBottom
 
 ; add rules code
-Gui, 1:ListView, f_lvRulesSelected
-loop, % LV_GetCount()
-{
-	LV_GetText(strName, A_Index, 1)
-	strSource .= g_aaRulesByName[strName].GetCode()
-}
+for strName, aaRule in g_aaRulesByName
+	strSource .= aaRule.GetCode()
 
 ; save AHK script file QACrules.ahk
 FileAppend, %strSource%, %g_strRulesPathNameNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
 
 ; run the AHK runtime QACrules.exe that will call the script having the same name QACrules.ahk
-Run, %g_strRulesPathNameNoExt%.exe
+Run, %g_strRulesPathNameNoExt%.exe, , , strQacRulesPID
 
 Gosub, DisableApplyRulesAndCancel
 
@@ -1658,6 +1695,12 @@ return
 GuiRuleSave:
 ;------------------------------------------------------------
 Gui, 2:Submit, NoHide
+
+if InStr(f_strName, "=")
+{
+	Oops(2, o_L["OopsNoEqualInRuleNames"])
+	return
+}
 
 strOriginalName := aaEditedRule.strName
 
@@ -2456,6 +2499,16 @@ DisableClipboardChangesInEditor:
 OnClipboardChange("ClipboardContentChanged", (A_ThisLabel = "EnableClipboardChangesInEditor"))
 SB_SetText((A_ThisLabel = "DisableClipboardChangesInEditor" ? o_L["DialogClipboardDisconnected"] : ""), 2)
 GuiControl, % (A_ThisLabel = "EnableClipboardChangesInEditor" ? "Enable" : "Disable"), f_blnSeeInvisible
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+ExecuteRule:
+;------------------------------------------------------------
+
+Send_WM_COPYDATA("exec|" . g_aaRulesByName[A_ThisMenuItem].intID, "ahk_pid " . strQacRulesPID)
 
 return
 ;------------------------------------------------------------
@@ -3264,6 +3317,35 @@ DecodeSnippet(strSnippet, blnWithCarriageReturn := false)
 !_095_ONMESSAGE_FUNCTIONS:
 return
 ;========================================================================================================================
+
+;-----------------------------------------------------------
+Send_WM_COPYDATA(ByRef strStringToSend, ByRef strTargetScriptTitle) ; ByRef saves a little memory in this case.
+; Adapted from AHK documentation (https://autohotkey.com/docs/commands/OnMessage.htm)
+; This function sends the specified string to the specified window and returns the reply.
+; The reply is 1 if the target window processed the message, or 0 if it ignored it.
+;-----------------------------------------------------------
+{
+    VarSetCapacity(varCopyDataStruct, 3 * A_PtrSize, 0) ; Set up the structure's memory area.
+	
+    ; First set the structure's cbData member to the size of the string, including its zero terminator:
+    intSizeInBytes := (StrLen(strStringToSend) + 1) * (A_IsUnicode ? 2 : 1)
+    NumPut(intSizeInBytes, varCopyDataStruct, A_PtrSize) ; OS requires that this be done.
+    NumPut(&strStringToSend, varCopyDataStruct, 2 * A_PtrSize) ; Set lpData to point to the string itself.
+
+	strPrevDetectHiddenWindows := A_DetectHiddenWindows
+    intPrevTitleMatchMode := A_TitleMatchMode
+    DetectHiddenWindows On
+    SetTitleMatchMode 2
+	
+    SendMessage, 0x4a, 0, &varCopyDataStruct, , %strTargetScriptTitle% ; 0x4a is WM_COPYDATA. Must use Send not Post.
+	
+    DetectHiddenWindows %strPrevDetectHiddenWindows% ; Restore original setting for the caller.
+    SetTitleMatchMode %intPrevTitleMatchMode% ; Same.
+	
+    return ErrorLevel ; Return SendMessage's reply back to our caller.
+}
+;-----------------------------------------------------------
+
 
 ;------------------------------------------------------------
 RECEIVE_QACRULES(wParam, lParam) 
@@ -4271,7 +4353,9 @@ class Rule
 	;---------------------------------------------------------
 	{
 		; begin rule
-		strCode := "Rule" . this.intID . "(strType) `; " . this.strType . " > " . this.strName . "`n{`nif (strType = 1) `; text`n{`n"
+		strCode := "Rule" . this.intID . "(strType) `; " . this.strType . " > " . this.strName . "`n{`n"
+		strCode .= "`; MsgBox, Execute QACrule: %A_ThisFunc%`n"
+		strCode .= "if (strType = 1) `; text`n{`n"
 		
 		strCode .= "`; strBefore := Clipboard`n"
 		if (this.strType = "ChangeCase")

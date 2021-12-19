@@ -11,6 +11,26 @@ Copyright 2021-2021 Jean Lalonde
 HISTORY
 =======
 
+Version ALPHA: 0.0.5 (2021-12-19)
+ 
+Editor
+- add a submenu to context menu with all rules that can be applied on demand to current Clipboard
+- if text selected in editor, execute rule on demand only on selected text
+- restore cursor caret or selected text after rule execution
+- ad Shift-F10 hotkey to intercept context menu in editor control
+ 
+QACrules
+- in QACrules.ahk, listen to message from QAC main app to receive command exec with rule ID to execute rules on demand
+- always launch QACrules even when no rule are applied
+- include all rules in QACrules.ahk
+- in QACrules, disable Clipboard change when executing rule on demand and enable it after execution
+- removed SetTimer in QACrules preventing call to exec rule on demand (cause not found)
+- when uncomplied, create QACrules.ahk in the working dir
+ 
+Various
+- reject equal sign = in rule names
+- fix bug setting editor's font
+
 Version ALPHA: 0.0.4 (2021-12-17)
 - reafactor edit dialog box for substring type using radio buttons
 - validate required values in edit dialog box
@@ -110,7 +130,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.4
+;@Ahk2Exe-SetVersion 0.0.5
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -180,7 +200,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.4" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.5" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -1015,7 +1035,6 @@ Gui, 1:Add, Checkbox, % "x+20 yp vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopCh
 Gui, 1:Add, Checkbox, % "x+10 yp vf_blnUseTab gClipboardEditorUseTabChanged " . (o_Settings.SettingsWindow.blnUseTab.IniValue = 1 ? "checked" : ""), % o_L["DialogUseTab"]
 Gui, 1:Add, Checkbox, x+10 yp vf_blnSeeInvisible gClipboardEditorSeeInvisibleChanged disabled, % o_L["DialogSeeInvisible"] ; enable only if f_strClipboardEditor contains Clipboard
 
-Gosub, ClipboardEditorFontChanged
 Gosub, ClipboardEditorAlwaysOnTopChanged
 Gosub, ClipboardEditorUseTabChanged
 
@@ -1023,8 +1042,8 @@ Gui, 1:Add, Text, y+20 vf_lblBeginEditor ; mark for top of editor
 GuiControlGet, arrControlPos, Pos, f_lblBeginEditor
 g_saGuiControls[1].Y := arrControlPosY
 
-Gui, 1:Font, s10 w400
 Gui, 1:Add, Edit, x10 y50 w600 vf_strClipboardEditor gClipboardEditorChanged Multi WantReturn +hwndg_strEditorControlHwnd
+Gosub, ClipboardEditorFontChanged ; must be after Add Edit
 
 Gui, 1:Font, s8 w600, Verdana
 Gui, 1:Add, Button, vf_btnGuiSaveEditor Disabled gGuiSaveEditor x200 y400 w140 h35, % o_L["GuiSaveEditor"]

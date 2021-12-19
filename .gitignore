@@ -1,7 +1,9 @@
 *.ini
 *.bak
 QACrules.ahk
+Build/
 Build-alpha/
+Build-beta/
 Divers/
-FileInstall/QACrules.txt
 BK/
+QuickAccessClipboard-DIAG.txt

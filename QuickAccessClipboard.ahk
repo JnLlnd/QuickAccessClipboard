@@ -11,6 +11,9 @@ Copyright 2021-2021 Jean Lalonde
 HISTORY
 =======
 
+Version ALPHA: 0.0.5.1 (2021-12-19)
+- 
+
 Version ALPHA: 0.0.5 (2021-12-19)
  
 Editor
@@ -130,7 +133,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.5
+;@Ahk2Exe-SetVersion 0.0.5.1
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -200,7 +203,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.5" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.5.1" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -675,6 +678,11 @@ if (g_blnIniFileCreation) ; if it exists, it is not first launch
 			AlwaysOnTop=0
 			UseTab=0
 			[Rules]
+			Upper case=ChangeCase|Demo||2|||||||||
+			Replace this with that=Replace|Demo||this|that||||||||
+			Trim 2 last characters=SubStr|Demo||0|1|-1|2||||||
+			Add Title: at beginning=Prefix|Demo||Title: |||||||||
+			MsgBox Clipboard=AutoHotkey|Demo||MsgBox, Your Cliboard contains`:n%Clipboard%|||||||||
 
 ) ; leave the last extra line above
 			, % o_Settings.strIniFile, % (A_IsUnicode ? "UTF-16" : "")
@@ -813,8 +821,14 @@ BuildEditorContextMenu:
 OnMessage(0x204, "WM_RBUTTONDOWN")
 OnMessage(0x205, "WM_RBUTTONUP")
 
-for strRuleName, oRule in g_aaRulesByName
-	Menu, menuRules, Add, %strRuleName%, ExecuteRule
+if g_aaRulesByName.Count()
+	for strRuleName, oRule in g_aaRulesByName
+		Menu, menuRules, Add, %strRuleName%, ExecuteRule
+else
+{
+	Menu, menuRules, Add, % o_L["MenuNoRule"], DoNothing
+	Menu, menuRules, Disable, % o_L["MenuNoRule"]
+}
 
 Menu, menuEditorContextMenu, Add, % o_L["DialogUndo"], EditorContextMenuActions
 Menu, menuEditorContextMenu, Add
@@ -1512,7 +1526,7 @@ else
 {
 	; Name=Type|Category|Notes|param1|param2|...
 	; example:
-	; Lower case=ChangeCase|Example|RegExReplace(Clipboard, ".*", "$L0"))|.*|$L0
+	; Lower case=ChangeCase|Example|My notes|.*|$L0
 	
 	g_aaRulesByName := Object() ; reset list of rules by name
 	
@@ -1521,10 +1535,10 @@ else
 	{
 		intEqualSign := InStr(A_LoopField, "=")
 		strRuleName := SubStr(A_LoopField, 1, intEqualSign - 1)
-		saRule := StrSplit(SubStr(A_LoopField, intEqualSign + 1), "|")
-		loop, % saRule.Length()
-			saRule[A_Index] := DecodeSnippet(saRule[A_Index])
-		new Rule(strRuleName, saRule)
+		saRuleValues := StrSplit(SubStr(A_LoopField, intEqualSign + 1), "|")
+		loop, % saRuleValues.Length()
+			saRuleValues[A_Index] := DecodeSnippet(saRuleValues[A_Index])
+		new Rule(strRuleName, saRuleValues)
 	}
 	
 	strRules := ""
@@ -1666,40 +1680,40 @@ Gui, 2:Font
 if (aaEditedRule.strType = "ChangeCase")
 	
 	loop, 3
-		Gui, 2:Add, Radio, % (A_Index = 1 ? "vf_varValue4 " : "") . "w300 " . (aaEditedRule.intCaseType = A_Index ? " checked" : ""), % o_L["DialogCaseType" . A_Index]
+		Gui, 2:Add, Radio, % (A_Index = 1 ? "vf_varValue1 " : "") . "w300 " . (aaEditedRule.intCaseType = A_Index ? " checked" : ""), % o_L["DialogCaseType" . A_Index]
 	
 else if (aaEditedRule.strType = "Replace")
 {
 	Gui, 2:Add, Text, y+5 w300, % o_L["DialogFind"]
-	Gui, 2:Add, Edit, w300 vf_varValue4, % DecodeSnippet(aaEditedRule.strFind) ; aaEditedRule.saVarValues[4]
+	Gui, 2:Add, Edit, w300 vf_varValue1, % DecodeSnippet(aaEditedRule.strFind) ; aaEditedRule.saVarValues[4]
 	Gui, 2:Add, Text, w300, % o_L["DialogReplaceWith"]
-	Gui, 2:Add, Edit, w300 vf_varValue5, % DecodeSnippet(aaEditedRule.strReplace) ; aaEditedRule.saVarValues[5]
+	Gui, 2:Add, Edit, w300 vf_varValue2, % DecodeSnippet(aaEditedRule.strReplace) ; aaEditedRule.saVarValues[5]
 }
 else if (aaEditedRule.strType = "AutoHotkey")
 {
 	Gui, 2:Font, s12, Courier New
-	Gui, 2:Add, Edit, w300 r12 Multi vf_varValue4, % StrReplace(DecodeSnippet(aaEditedRule.strCode), "`r") ; aaEditedRule.saVarValues[4]
+	Gui, 2:Add, Edit, w300 r12 Multi vf_varValue1, % StrReplace(DecodeSnippet(aaEditedRule.strCode), "`r") ; aaEditedRule.saVarValues[4]
 	Gui, 2:Font
 }
 else if (aaEditedRule.strType = "SubStr")
 {
 	Gui, 2:Add, Radio, % "vf_blnRadioSubStrFromStart gGuiEditRuleSubStrTypeChanged"
-		. (!aaEditedRule.saVarValues[4] ? " Checked" : ""), % o_L["DialogSubStrFromStart"] ; aaEditedRule.saVarValues[4]
+		. (!aaEditedRule.saVarValues[1] ? " Checked" : ""), % o_L["DialogSubStrFromStart"] ; aaEditedRule.saVarValues[4]
 	Gui, 2:Add, Radio, % "vf_blnRadioSubStrFromPosition gGuiEditRuleSubStrTypeChanged"
-		. (aaEditedRule.saVarValues[4] ? " Checked" : ""), % o_L["DialogSubStrFromPosition"] ; aaEditedRule.saVarValues[4]
+		. (aaEditedRule.saVarValues[1] ? " Checked" : ""), % o_L["DialogSubStrFromPosition"] ; aaEditedRule.saVarValues[4]
 	Gui, 2:Add, Edit, yp x+1 w40 Number Center vf_intRadioSubStrFromPosition disabled, % aaEditedRule.intStartingPosition ; aaEditedRule.saVarValues[5]
 	Gui, 2:Add, Text, yp x+5 vf_lblRadioSubStrFromPosition disabled, % o_L["DialogSubStrCharacters"]
 	
 	Gui, 2:Add, Radio, % "x10 w140 vf_blnRadioSubStrToEnd gGuiEditRuleSubStrTypeChanged"
-		. (aaEditedRule.saVarValues[6] = 0 ? " Checked" : ""), % o_L["DialogSubStrToEnd"] ; aaEditedRule.saVarValues[6]
+		. (aaEditedRule.saVarValues[3] = 0 ? " Checked" : ""), % o_L["DialogSubStrToEnd"] ; aaEditedRule.saVarValues[6]
 	Gui, 2:Add, Radio, % "Section vf_blnRadioSubStrLength gGuiEditRuleSubStrTypeChanged"
-		. (aaEditedRule.saVarValues[6] = 1 ? " Checked" : ""), % o_L["DialogSubStrLength"] ; aaEditedRule.saVarValues[6]
+		. (aaEditedRule.saVarValues[3] = 1 ? " Checked" : ""), % o_L["DialogSubStrLength"] ; aaEditedRule.saVarValues[6]
 	Gui, 2:Add, Radio, % "vf_blnRadioSubStrToBeforeEnd gGuiEditRuleSubStrTypeChanged"
-		. (aaEditedRule.saVarValues[6] = -1 ? " Checked" : ""), % o_L["DialogSubStrToBeforeEnd"] ; aaEditedRule.saVarValues[6]
+		. (aaEditedRule.saVarValues[3] = -1 ? " Checked" : ""), % o_L["DialogSubStrToBeforeEnd"] ; aaEditedRule.saVarValues[6]
 	GuiControlGet, arrWidth1, Pos, f_blnRadioSubStrLength
 	GuiControlGet, arrWidth2, Pos, f_blnRadioSubStrToBeforeEnd
 	Gui, 2:Add, Edit, % "x" . (arrWidth1w > arrWidth2w ? arrWidth1w : arrWidth2w) + 15 . " ys+5 w40 Number Center vf_intSubStrCharacters disabled"
-		, % aaEditedRule.saVarValues[7] ; do not use aaEditedRule.intLength that can be negative
+		, % aaEditedRule.saVarValues[4] ; do not use aaEditedRule.intLength that can be negative
 	Gui, 2:Add, Text, yp x+5 vf_lblSubStrCharacters disabled, % o_L["DialogSubStrCharacters"]
 	
 	Gosub, GuiEditRuleSubStrTypeChanged
@@ -1707,7 +1721,7 @@ else if (aaEditedRule.strType = "SubStr")
 else if InStr("Prefix Suffix", aaEditedRule.strType)
 {
 	Gui, 2:Add, Text, y+5 w300, % o_L["DialogTextToAdd"]
-	Gui, 2:Add, Edit, w300 vf_varValue4, % aaEditedRule.saVarValues[4] ; aaEditedRule.strPrefix or aaEditedRule.strSuffix
+	Gui, 2:Add, Edit, w300 vf_varValue1, % aaEditedRule.saVarValues[1] ; aaEditedRule.strPrefix or aaEditedRule.strSuffix
 }
 
 Gui, 2:Add, Button, y+15 vf_btnSave gGuiRuleSave, % o_L["GuiSave"]
@@ -1771,15 +1785,14 @@ if (aaEditedRule.strType = "Substr")
 	saValues[4] := (f_blnRadioSubStrToEnd ? "" : f_intSubStrCharacters) ; int value, if f_blnRadioSubStrLength or f_blnRadioSubStrToBeforeEnd, else empty
 }
 else
-	if !StrLen(f_strName) or (InStr("Replace AutoHotkey Prefix Suffix", aaEditedRule.strType) and !StrLen(f_varValue4))
+	if !StrLen(f_strName) or (InStr("Replace AutoHotkey Prefix Suffix", aaEditedRule.strType) and !StrLen(f_varValue1))
 	{
 		Oops(2, o_L["OopsValueMissing"])
 		return
 	}
 	else
 		Loop, 9
-			if StrLen(f_varValue%A_Index%)
-				saValues.Push(EncodeSnippet(f_varValue%A_Index%))
+			saValues.Push(EncodeSnippet(f_varValue%A_Index%))
 
 if (strAction <> "Edit" and g_aaRulesByName.HasKey(f_strName)) ; when adding or copying
 {
@@ -1792,6 +1805,8 @@ aaEditedRule.SaveRuleToIni(saValues)
 if (strAction = "Edit" and strOriginalName <> aaEditedRule.strName)
 	IniDelete, % o_Settings.strIniFile, Rules, %strOriginalName%
 
+loop, 9 ; delete form values because Gui:Destroy does not
+	GuiControl, , f_varValue%A_Index%
 Gosub, 2GuiClose
 
 Gui, 1:Default
@@ -1858,7 +1873,7 @@ GuiCheck4Update:
 ;------------------------------------------------------------
 ; !! adapt
 
-strChangeLog := Url2Var("https://www.quickaccesspopup.com/changelog/changelog" . (g_strUpdateProdOrBeta <> "prod" ? "-" . g_strUpdateProdOrBeta : "") . ".txt")
+strChangeLog := Url2Var("https://www.quickaccesspopup.com/clipboard/changelog/changelog" . (g_strUpdateProdOrBeta <> "prod" ? "-" . g_strUpdateProdOrBeta : "") . ".txt")
 
 if StrLen(strChangeLog)
 {
@@ -1924,10 +1939,10 @@ UpdateGuiEscape:
 ;------------------------------------------------------------
 ; !! adapt
 
-strUrlChangeLog := AddUtm2Url("https://www.quickaccesspopup.com/change-log" . (g_strUpdateProdOrBeta <> "prod" ? "-" . g_strUpdateProdOrBeta . "-version" : "") . "/", A_ThisLabel, "Check4Update")
-strUrlDownloadSetup := AddUtm2Url("https://www.quickaccesspopup.com/latest/check4update-download-setup-redirect.html", A_ThisLabel, "Check4Update") ; prod only
-strUrlDownloadPortable:= AddUtm2Url("https://www.quickaccesspopup.com/latest/check4update-download-portable-redirect.html", A_ThisLabel, "Check4Update") ; prod only
-strUrlAppLandingPageBeta := AddUtm2Url("https://forum.quickaccesspopup.com/forumdisplay.php?fid=11", A_ThisLabel, "Check4Update")
+strUrlChangeLog := AddUtm2Url("https://www.quickaccesspopup.com/clipboard/change-log" . (g_strUpdateProdOrBeta <> "prod" ? "-" . g_strUpdateProdOrBeta . "-version" : "") . "/", A_ThisLabel, "Check4Update")
+strUrlDownloadSetup := AddUtm2Url("https://www.quickaccesspopup.com/clipboard/latest/check4update-download-setup-redirect.html", A_ThisLabel, "Check4Update") ; prod only
+strUrlDownloadPortable:= AddUtm2Url("https://www.quickaccesspopup.com/clipboard/latest/check4update-download-portable-redirect.html", A_ThisLabel, "Check4Update") ; prod only
+strUrlAppLandingPageBeta := AddUtm2Url("https://forum.quickaccesspopup.com/forumdisplay.php?fid=28", A_ThisLabel, "Check4Update")
 
 if InStr(A_ThisLabel, "ButtonCheck4UpdateDialogChangeLog")
 	Run, %strUrlChangeLog%
@@ -2305,6 +2320,14 @@ return
 ;========================================================================================================================
 
 ;------------------------------------------------------------
+DoNothing:
+;------------------------------------------------------------
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
 RemoveOldTemporaryFolders:
 ; remove temporary folders older than 5 days
 ;------------------------------------------------------------
@@ -2330,10 +2353,10 @@ Check4UpdateNow:
 ;------------------------------------------------------------
 
 ; !! implement on website
-strUrlCheck4Update := "https://clipboard.quickaccesspopup.com/latest/latest-version-4.php"
+strUrlCheck4Update := "https://www.quickaccesspopup.com/clipboard/latest/latest-version-1.php"
 
-g_strUrlAppLandingPage := "https://clipboard.quickaccesspopup.com" ; must be here if user select Check for update from tray menu
-strBetaLandingPage := "https://clipboard.quickaccesspopup.com/latest/check4update-beta-redirect.html"
+g_strUrlAppLandingPage := "https://www.quickaccesspopup.com/clipboard" ; must be here if user select Check for update from tray menu
+strBetaLandingPage := "https://www.quickaccesspopup.com/clipboard/latest/check4update-beta-redirect.html"
 
 strLatestSkippedProd := o_Settings.ReadIniValue("LatestVersionSkipped", 0.0)
 strLatestSkippedBeta := o_Settings.ReadIniValue("LatestVersionSkippedBeta", 0.0)
@@ -3696,7 +3719,7 @@ TODO
 		
 		this.saOptionsGroups := ["General", "SettingsWindow", "AdvancedOther"]
 			
-		; at first launch quickaccesspopup.ini does not exist, read language value in quickaccesspopup-setup.ini (if exist) created by Setup
+		; at first launch quickaccessclipboard.ini does not exist, read language value in quickaccessclipboard-setup.ini (if exist) created by Setup
 		this.ReadIniOption("Launch", "strLanguageCode", "LanguageCode", "EN", "General", "", "Global"
 			, (FileExist(this.strIniFile) ? this.strIniFile : A_WorkingDir . "\" . g_strAppNameFile . "-setup.ini"))
 	}
@@ -4357,37 +4380,37 @@ class Rule
 	;---------------------------------------------------------
 	{
 		this.strName := strName
-		this.strType := StrReplace(saRuleValues[1], g_strEscapePipe, "|")
-		this.strCategory := StrReplace(saRuleValues[2], g_strEscapePipe, "|")
-		this.strNotes := StrReplace(saRuleValues[3], g_strEscapePipe, "|")
+		this.strType := StrReplace(saRuleValues.RemoveAt(1), g_strEscapePipe, "|")
+		this.strCategory := StrReplace(saRuleValues.RemoveAt(1), g_strEscapePipe, "|")
+		this.strNotes := StrReplace(saRuleValues.RemoveAt(1), g_strEscapePipe, "|")
+		; saRuleValues is now: 1) first variable value, 2) second variable value, etc.
 		this.saVarValues := saRuleValues
 		
 		if (this.strType = "ChangeCase")
 		{
-			this.intCaseType := saRuleValues[4]
+			this.intCaseType := saRuleValues[1] ; also in this.saVarValues[1]
 			this.strFind := ".*"
 			this.strReplace := StrSplit("$L0|$U0|$T0", "|")[this.intCaseType]
 		}
 		if (this.strType = "Replace")
 		{
-			this.strFind := StrReplace(saRuleValues[4], g_strEscapePipe, "|")
-			this.strReplace := StrReplace(saRuleValues[5], g_strEscapePipe, "|")
+			this.strFind := StrReplace(saRuleValues[1], g_strEscapePipe, "|") ; also in this.saVarValues[1]
+			this.strReplace := StrReplace(saRuleValues[2], g_strEscapePipe, "|") ; also in this.saVarValues[2]
 		}
 		else if (this.strType = "AutoHotkey")
-			this.strCode := StrReplace(saRuleValues[4], g_strEscapePipe, "|")
+			this.strCode := StrReplace(saRuleValues[1], g_strEscapePipe, "|") ; also in this.saVarValues[1]
 		else if (this.strType = "SubStr")
 		{
-			this.intStartingPosition := (saRuleValues[4] ? saRuleValues[5] : 1)
-			this.intLength := (saRuleValues[6] ? saRuleValues[6] * saRuleValues[7] : "") ; saRuleValues[6] is -1 if from end
+			this.intStartingPosition := (saRuleValues[1] ? saRuleValues[2] : 1) ; also in this.saVarValues[1-2]
+			this.intLength := (saRuleValues[3] ? saRuleValues[3] * saRuleValues[4] : "") ; also in this.saVarValues[3-4]; saRuleValues[4] is -1 if from end
 		}
 		else if (this.strType = "Prefix")
-			this.strPrefix := StrReplace(saRuleValues[4], g_strEscapePipe, "|")
+			this.strPrefix := StrReplace(saRuleValues[1], g_strEscapePipe, "|") ; also in this.saVarValues[1]
 		else if (this.strType = "Suffix")
-			this.strSuffix := StrReplace(saRuleValues[4], g_strEscapePipe, "|")
+			this.strSuffix := StrReplace(saRuleValues[1], g_strEscapePipe, "|") ; also in this.saVarValues[1]
 		
 		g_aaRulesByName[strName] := this
 		this.intID := g_saRulesOrder.Push(this)
-		; ###_O("this", this)
 	}
 	;---------------------------------------------------------
 	
@@ -4396,11 +4419,11 @@ class Rule
 	;---------------------------------------------------------
 	{
 		; example: Lower case=ChangeCase|Example|Notes|.*|$L0
-		strIniLine := this.strType . "|" ; 1
-		strIniLine .= StrReplace(this.strCategory, "|", g_strEscapePipe) . "|" ; 2
-		strIniLine .= StrReplace(this.strNotes, "|", g_strEscapePipe) . "|" ; 3
+		strIniLine := this.strType . "|"
+		strIniLine .= StrReplace(this.strCategory, "|", g_strEscapePipe) . "|"
+		strIniLine .= StrReplace(this.strNotes, "|", g_strEscapePipe) . "|"
 		Loop, 9
-			strIniLine .= StrReplace(saValues[A_Index], "|", g_strEscapePipe) . "|" ; 4+
+			strIniLine .= StrReplace(saValues[A_Index], "|", g_strEscapePipe) . "|"
 			; do not remove last | in case we have a space as last character
 		
 		IniWrite, %strIniLine%, % o_Settings.strIniFile, Rules, % this.strName

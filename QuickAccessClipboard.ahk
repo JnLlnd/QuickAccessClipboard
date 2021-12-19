@@ -389,6 +389,7 @@ Hotkey, If, WinActive(QACGuiTitle()) ; main Gui title
 
 	Hotkey, ^c, EditorCtrlC, On UseErrorLevel
 	Hotkey, ^x, EditorCtrlX, On UseErrorLevel
+	Hotkey, +F10, EditorShiftF10, On UseErrorLevel
 
 	; other Hotkeys are created by menu assignement in BuildGuiMenuBar
 
@@ -439,6 +440,7 @@ EditorCtrlS: ; ^S::
 EditorEsc: ; Escape::
 EditorCtrlC: ; Copy
 EditorCtrlX: ; Cut
+EditorShiftF10: ; context menu
 ;-----------------------------------------------------------
 
 if (A_ThisLabel = "EditorCtrlS")
@@ -455,6 +457,9 @@ else if (A_ThisLabel = "EditorCtrlC") or (A_ThisLabel = "EditorCtrlX")
 	Send, % (A_ThisLabel = "EditorCtrlC" ? "^c" : "^x")
 	Gosub, EnableSaveAndCancel
 }
+else if (A_ThisLabel = "EditorShiftF10")
+	
+	Gosub, ShowUpdatedEditorContextMenu
 
 return
 ;-----------------------------------------------------------
@@ -802,6 +807,30 @@ Menu, menuEditorContextMenu, Add, % o_L["MenuExecuteRule"], :menuRules
 Menu, menuEditorContextMenu, Add
 Menu, menuEditorContextMenu, Add, % o_L["DialogSelectAll"], EditorContextMenuActions
 
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+ShowUpdatedEditorContextMenu:
+;------------------------------------------------------------
+
+GuiControlGet, strFocusedControl, Focus
+if (strFocusedControl <> "Edit2") ; show context menu only if editor is active
+	return
+
+GuiControl, Focus, f_strClipboardEditor ; give focus to control for EditorContextMenuActions
+
+GuiControlGet, blnEnable, Enabled, f_btnGuiSaveEditor ; enable Undo item if Save button is enabled
+Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogUndo"]
+
+blnEnable := GetSelectedTextLenght() ; enable Cut, Copy, Delete if text is selected in the control
+Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCut"]
+Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCopy"]
+Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogDelete"]
+
+Menu, menuEditorContextMenu, % (StrLen(Clipboard) ? "Enable" : "Disable"), % o_L["DialogPaste"]
+Menu, menuEditorContextMenu, Show
 
 return
 ;------------------------------------------------------------
@@ -1164,11 +1193,11 @@ strTop =
 	#SingleInstance force
 	#NoTrayIcon
 	
-	global g_intLastTick := A_TickCount ; initial timeout delay after rules are enabled
+	`; (removed - cause bug preventing calling rules on demand) global g_intLastTick := A_TickCount ; initial timeout delay after rules are enabled
 	global g_stTargetAppTitle := `"%strGuiTitle%`"
 	
 	Gosub, OnClipboardChangeInit
-	SetTimer, CheckTimeOut, 2000
+	`; (removed - cause bug preventing calling rules on demand) SetTimer, CheckTimeOut, 2000
 	
 	; Respond to SendMessage sent by QAC requesting execution of a rule
 	OnMessage(0x4a, "RECEIVE_QACMAIN")
@@ -2507,8 +2536,30 @@ return
 ;------------------------------------------------------------
 ExecuteRule:
 ;------------------------------------------------------------
+Gui, Submit, NoHide
 
-Send_WM_COPYDATA("exec|" . g_aaRulesByName[A_ThisMenuItem].intID, "ahk_pid " . strQacRulesPID)
+Gosub, DisableClipboardChangesInEditor
+Clipboard := f_strClipboardEditor ; save current content to editor (rule is executed by QACrules.ahk on the Clipboard, not on the control)
+
+GetSelectedTextPos(intStart, intEnd)
+if (intEnd - intStart) ; if text selected, copy it to Clipboard to apply rule only on it
+{
+	strBefore := SubStr(Clipboard, 1, intStart)
+	strAfter := SubStr(Clipboard, intEnd + 1)
+	Clipboard := SubStr(Clipboard, intStart + 1, intEnd - intStart)
+}
+
+Send_WM_COPYDATA("exec|" . g_aaRulesByName[A_ThisMenuItem].intID, "ahk_pid " . strQacRulesPID) ; apply rule to Clipboard
+
+if (intEnd - intStart) ; rebuild full Clipboard
+	Clipboard := strBefore . Clipboard . strAfter
+
+GuiControl, , %g_strEditorControlHwnd%, %Clipboard% ; copy content to Clipboard
+
+SetSelectedTextPos(intStart, intEnd)
+sleep, 5000
+
+Gosub, DisableSaveAndCancel ; do EnableClipboardChangesInEditor
 
 return
 ;------------------------------------------------------------
@@ -3165,34 +3216,44 @@ WM_RBUTTONUP()
 ;------------------------------------------------------------
 {
     if (A_GuiControl = "f_strClipboardEditor")
-	{
-		GuiControl, Focus, f_strClipboardEditor ; give focus to control for EditorContextMenuActions
-		
-		GuiControlGet, blnEnable, Enabled, f_btnGuiSaveEditor ; enable Undo item if Save button is enabled
-		Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogUndo"]
-		
-		blnEnable := GetSelectedTextLenght(g_strEditorControlHwnd) ; enable Cut, Copy, Delete if text is selected in the control
-		Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCut"]
-		Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCopy"]
-		Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogDelete"]
-		
-		Menu, menuEditorContextMenu, % (StrLen(Clipboard) ? "Enable" : "Disable"), % o_L["DialogPaste"]
-        Menu, menuEditorContextMenu, Show
-	}
+		Gosub, ShowUpdatedEditorContextMenu
 }
 ;------------------------------------------------------------
 
 
 ;------------------------------------------------------------
-GetSelectedTextLenght(strHwnd)
+GetSelectedTextLenght()
+;------------------------------------------------------------
+{
+	GetSelectedTextPos(intStart, intEnd)
+	return (intEnd - intStart)
+}
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GetSelectedTextPos(ByRef intStart, ByRef intEnd)
 ; from just me (https://www.autohotkey.com/boards/viewtopic.php?p=27857#p27857)
+; returns start and end positions of selected text in control
+; if no text is selected, returns caret position in both start and end variables
 ;------------------------------------------------------------
 {
 	intStart := 0
 	intEnd := 0
 	; EM_GETSEL = 0x00B0 -> msdn.microsoft.com/en-us/library/bb761598(v=vs.85).aspx
-	DllCall("User32.dll\SendMessage", "Ptr", strHwnd, "UInt", 0x00B0, "UIntP", intStart, "UIntP", intEnd, "Ptr")
-	return (intEnd - intStart)
+	DllCall("User32.dll\SendMessage", "Ptr", g_strEditorControlHwnd, "UInt", 0x00B0, "UIntP", intStart, "UIntP", intEnd, "Ptr")
+}
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+SetSelectedTextPos(intStart, intEnd)
+; set the selection in edit control to start and end positions
+; if start and end values are equal, set the caret to this position
+;------------------------------------------------------------
+{
+	; EM_SETSEL = 0x00B1 -> https://docs.microsoft.com/fr-fr/windows/win32/controls/em-setsel
+	Postmessage, 0xB1, intStart, intEnd, , % "ahk_id " . g_strEditorControlHwnd ; SendMessage not working
 }
 ;------------------------------------------------------------
 

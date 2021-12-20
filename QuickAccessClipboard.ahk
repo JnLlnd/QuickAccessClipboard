@@ -11,8 +11,13 @@ Copyright 2021-2021 Jean Lalonde
 HISTORY
 =======
 
+Version ALPHA: 0.0.5.2 (2021-12-19)
+
 Version ALPHA: 0.0.5.1 (2021-12-19)
-- 
+- add rules demo in new ini file
+- in rules menu, display disabled item "No rule" if no rule
+- fix bug delete form values when closing the edit rule gui
+- change URLs for check4update
 
 Version ALPHA: 0.0.5 (2021-12-19)
  
@@ -133,7 +138,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.5.1
+;@Ahk2Exe-SetVersion 0.0.5.2
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -203,7 +208,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.5.1" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.5.2" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -280,8 +285,8 @@ global o_L := new Language
 
 global g_strDiagFile := A_WorkingDir . "\" . g_strAppNameFile . "-DIAG.txt"
 
-global g_aaRulesByName := Object()
-global g_saRulesOrder := Object()
+global g_aaRulesByName ; object initialized when loading rules
+global g_saRulesOrder ; object initialized when loading rules
 global g_intGuiDefaultWidth := 784 ; 636
 global g_intGuiDefaultHeight := 546 ; 496 ; was 601
 global g_saGuiControls := Object() ; to build Editor gui
@@ -679,10 +684,12 @@ if (g_blnIniFileCreation) ; if it exists, it is not first launch
 			UseTab=0
 			[Rules]
 			Upper case=ChangeCase|Demo||2|||||||||
+			Lower case=ChangeCase|Demo||1|||||||||
 			Replace this with that=Replace|Demo||this|that||||||||
 			Trim 2 last characters=SubStr|Demo||0|1|-1|2||||||
 			Add Title: at beginning=Prefix|Demo||Title: |||||||||
-			MsgBox Clipboard=AutoHotkey|Demo||MsgBox, Your Cliboard contains`:n%Clipboard%|||||||||
+			MsgBox=AutoHotkey|Demo||MsgBox, Your Clipboard contains: `%Clipboard`%|||||||||
+			; MsgBox2=AutoHotkey|||MsgBox, `% "Your Clipboard contains:````n````n" . SubStr(Clipboard, 1, 100) . (StrLen(Clipboard) > 100 ? "..." : "")|||||||||
 
 ) ; leave the last extra line above
 			, % o_Settings.strIniFile, % (A_IsUnicode ? "UTF-16" : "")
@@ -1529,6 +1536,7 @@ else
 	; Lower case=ChangeCase|Example|My notes|.*|$L0
 	
 	g_aaRulesByName := Object() ; reset list of rules by name
+	g_saRulesOrder := Object()
 	
 	strRules := o_Settings.ReadIniSection("Rules")
 	Loop, Parse, strRules, `n
@@ -1996,11 +2004,6 @@ CleanUpBeforeExit:
 ;-----------------------------------------------------------
 Gui, 1:Submit, NoHide
 
-o_Settings.SettingsWindow.blnFixedFont.WriteIni(f_blnFixedFont)
-o_Settings.SettingsWindow.intFontSize.WriteIni(f_intFontSize)
-o_Settings.SettingsWindow.blnAlwaysOnTop.WriteIni(f_blnAlwaysOnTop)
-o_Settings.SettingsWindow.blnUseTab.WriteIni(f_blnUseTab)
-
 ; kill QACrules.exe
 if QACrulesExists()
 {
@@ -2015,6 +2018,11 @@ if (o_Settings.Launch.blnDiagMode.IniValue)
 DllCall("LockWindowUpdate", Uint, g_strGui1Hwnd) ; lock QAP window while restoring window
 if FileExist(o_Settings.strIniFile) ; in case user deleted the ini file to create a fresh one, this avoids creating an ini file with just this value
 {
+	o_Settings.SettingsWindow.blnFixedFont.WriteIni(f_blnFixedFont)
+	o_Settings.SettingsWindow.intFontSize.WriteIni(f_intFontSize)
+	o_Settings.SettingsWindow.blnAlwaysOnTop.WriteIni(f_blnAlwaysOnTop)
+	o_Settings.SettingsWindow.blnUseTab.WriteIni(f_blnUseTab)
+
 	SaveWindowPosition("SettingsPosition", "ahk_id " . g_strGui1Hwnd)
 	IniWrite, % GetScreenConfiguration(), % o_Settings.strIniFile, Global, LastScreenConfiguration
 }

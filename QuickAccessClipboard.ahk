@@ -350,7 +350,7 @@ Gosub, InitRuleTypes
 ;---------------------------------
 ; Load Settings file
 
-Gosub, LoadIniFile ; load options, load/enable popup hotkeys, load favorites to menu object
+Gosub, LoadIniFile ; load options and rules
 
 ;---------------------------------
 ; Must be after LoadIniFile
@@ -408,7 +408,6 @@ IniWrite, % (g_blnPortableMode ? "Portable" : "Easy Setup"), % o_Settings.strIni
 ;---------------------------------
 ; Respond to SendMessage sent by QACrules
 OnMessage(0x4a, "RECEIVE_QACRULES")
-Gosub, GuiApplyRules ; launch QACrules
 
 ;---------------------------------
 ; Setting window hotkey conditional assignment
@@ -730,7 +729,7 @@ o_Settings.ReadIniOption("SettingsFile", "strBackupFolder", "BackupFolder", A_Wo
 ; ---------------------
 ; Load rules
 
-Gosub, LoadRulesFromIni
+Gosub, LoadRulesFromIni ; load rules
 
 strLanguageCode := ""
 
@@ -828,14 +827,7 @@ BuildEditorContextMenu:
 OnMessage(0x204, "WM_RBUTTONDOWN")
 OnMessage(0x205, "WM_RBUTTONUP")
 
-if g_aaRulesByName.Count()
-	for strRuleName, oRule in g_aaRulesByName
-		Menu, menuRules, Add, %strRuleName%, ExecuteRule
-else
-{
-	Menu, menuRules, Add, % o_L["MenuNoRule"], DoNothing
-	Menu, menuRules, Disable, % o_L["MenuNoRule"]
-}
+Gosub, BuildRulesMenu
 
 Menu, menuEditorContextMenu, Add, % o_L["DialogUndo"], EditorContextMenuActions
 Menu, menuEditorContextMenu, Add
@@ -847,6 +839,27 @@ Menu, menuEditorContextMenu, Add
 Menu, menuEditorContextMenu, Add, % o_L["MenuExecuteRule"], :menuRules
 Menu, menuEditorContextMenu, Add
 Menu, menuEditorContextMenu, Add, % o_L["DialogSelectAll"], EditorContextMenuActions
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+BuildRulesMenu:
+;------------------------------------------------------------
+
+; delete menu before updating it
+Menu, menuRules, Add ; to avoid an error if menu is empty when deleting
+Menu, menuRules, DeleteAll ; required for menu updates
+
+if g_aaRulesByName.Count()
+	for strRuleName, oRule in g_aaRulesByName
+		Menu, menuRules, Add, %strRuleName%, ExecuteRule
+else
+{
+	Menu, menuRules, Add, % o_L["MenuNoRule"], DoNothing
+	Menu, menuRules, Disable, % o_L["MenuNoRule"]
+}
 
 return
 ;------------------------------------------------------------
@@ -1033,6 +1046,7 @@ Gui, 1:Add, ListView
 	, % o_L["DialogRuleName"] ; SysHeader321 / SysListView321
 
 Gosub, GuiLoadRulesAvailable
+Gosub, LaunchQACrules
 
 ; initialize LV_Rows class (https://github.com/Pulover/Class_LV_Rows)
 o_LvRowsHandle := New LV_Rows(Hwndg_strRulesSelectedHwnd)
@@ -1215,6 +1229,16 @@ GuiApplyRules:
 Gui, Submit, NoHide
 
 Gosub, BackupSelectedRules
+Gosub, LaunchQACrules
+Gosub, DisableApplyRulesAndCancel
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+LaunchQACrules:
+;------------------------------------------------------------
 
 While QACrulesExists()
 	Process, Close, QACrules.exe
@@ -1333,6 +1357,7 @@ loop, Parse, % "f_lvRulesSelected|f_lvRulesAvailable", |
 
 strBottom =
 	(LTrim Join`r`n
+	
 	return ; end of OnClipboardChangeInit
 	;-----------------------------------------------------------
 
@@ -1348,14 +1373,10 @@ for strName, aaRule in g_aaRulesByName
 ; save AHK script file QACrules.ahk
 FileAppend, %strSource%, %g_strRulesPathNameNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
 
+ToolTip, % L(o_L["RulesUpdated"], g_strAppNameText)
 ; run the AHK runtime QACrules.exe that will call the script having the same name QACrules.ahk
 Run, %g_strRulesPathNameNoExt%.exe, , , strQacRulesPID
-
-Gosub, DisableApplyRulesAndCancel
-
-ToolTip, % L(o_L["RulesUpdated"], g_strAppNameText)
-Sleep, 1000
-ToolTip
+SetTimer, RemoveToolTip, -2000 ; run once in 2 seconds
 
 strTop := ""
 strOnClipboardChange := ""
@@ -1818,8 +1839,10 @@ loop, 9 ; delete form values because Gui:Destroy does not
 Gosub, 2GuiClose
 
 Gui, 1:Default
-Gosub, LoadRulesFromIni
-Gosub, GuiLoadRulesAvailable
+Gosub, LoadRulesFromIni ; reload rules
+Gosub, BuildRulesMenu ; rebuild rules menu
+Gosub, GuiLoadRulesAvailable ; update Available rules listview
+Gosub, LaunchQACrules ; relaunch QACrules
 
 strOriginalName := ""
 saValues := ""
@@ -2610,6 +2633,16 @@ SetSelectedTextPos(intStart, intEnd)
 sleep, 5000
 
 Gosub, DisableSaveAndCancel ; do EnableClipboardChangesInEditor
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+RemoveToolTip:
+;------------------------------------------------------------
+
+ToolTip
 
 return
 ;------------------------------------------------------------
@@ -4452,10 +4485,12 @@ class Rule
 	CopyRule()
 	;---------------------------------------------------------
 	{
-		aaCopiedRule := Object()
+		aaCopiedRule := new Rule
 		for strProperty, varValue in this
 			aaCopiedRule[strProperty] := varValue
 		aaCopiedRule.strName .= " (" . o_L["DialogCopy"] . ")"
+		
+		return aaCopiedRule
 	}
 	;---------------------------------------------------------
 	

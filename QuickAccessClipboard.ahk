@@ -684,14 +684,13 @@ if (g_blnIniFileCreation) ; if it exists, it is not first launch
 			AlwaysOnTop=0
 			UseTab=0
 			[Rules]
-			Upper case=ChangeCase|Demo||2|||||||||
-			Lower case=ChangeCase|Demo||1|||||||||
-			Replace this with that=Replace|Demo||this|that||||||||
-			Trim 2 last characters=SubStr|Demo||0|1|-1|2||||||
-			Add Title: at beginning=Prefix|Demo||Title: |||||||||
-			MsgBox=AutoHotkey|Single message|Demo||MsgBox, Your Clipboard contains: `%Clipboard`%|||||||||
-			MsgBox2=AutoHotkey|Multiline message||MsgBox, `% "Your Clipboard contains:``n``n" . Clipboard|||||||||
-			MsgBox3=AutoHotkey|Multiline script||if StrLen(Clipboard) > 500%g_strEol%%g_strTab%str := "The 500 first characters of your Clipboard are:``n``n" . SubStr(Clipboard, 1, 500) . "..."%g_strEol%else%g_strEol%%g_strTab%str := "Your Clipboard contains:``n``n" . Clipboard%g_strEol%MsgBox, `%str`%|||||||||
+			Lower case=ChangeCase|Demo|Convert Clipboard to lower case|1|||||||||
+			Upper case=ChangeCase|Demo|Convert Clipboard to upper case|2|||||||||
+			Replace this with that=Replace|Demo|Text substitution example|this|that||||||||
+			Trim 2 last characters=SubStr|Demo|String manipulation example|0|1|-1|2||||||
+			Prefix with Title=Prefix|Demo|Append text example|Title: |||||||||
+			MsgBox=AutoHotkey|Demo|Simple AutoHotkey line of code|MsgBox, Your Clipboard contains: `%Clipboard`%|||||||||
+			MsgBox Multiline=AutoHotkey|Demo|Multiline AHK scripting|if StrLen(Clipboard) > 500%g_strEol%%g_strTab%str := "The 500 first characters of your Clipboard are:``n``n" . SubStr(Clipboard, 1, 500) . "..."%g_strEol%else%g_strEol%%g_strTab%str := "Your Clipboard contains:``n``n" . Clipboard%g_strEol%MsgBox, `%str`%|||||||||
 
 ) ; leave the last extra line above
 			, % o_Settings.strIniFile, % (A_IsUnicode ? "UTF-16" : "")
@@ -1035,7 +1034,7 @@ Gui, Font
 
 Gui, 1:Add, ListView
 	, % "vf_lvRulesAvailable +Hwndg_strRulesAvailableHwnd Count32 Sort -Multi AltSubmit LV0x10 LV0x10000 gGuiRulesAvailableEvents x40 ys w490 r10 Section"
-	, % o_L["DialogRuleName"] . "|" . o_L["DialogRuleType"] . "|" . o_L["DialogRuleCategory"] ; SysHeader321 / SysListView321
+	, % o_L["DialogRuleName"] . "|" . o_L["DialogRuleType"] . "|" . o_L["DialogRuleCategory"] . "|" . o_L["DialogRuleNotes"] ; SysHeader321 / SysListView321
 
 Gui, Font, s9, Arial
 ; Unicode chars: https://www.fileformat.info/info/unicode/category/So/list.htm
@@ -1152,7 +1151,7 @@ GuiLoadRulesAvailable:
 Gui, 1:ListView, f_lvRulesAvailable
 LV_Delete()
 for strName, aaRule in g_aaRulesByName
-	LV_Add(, strName, aaRule.strType, aaRule.strCategory)
+	aaRule.ListViewAdd("f_lvRulesAvailable")
 LV_ModifyCol()
 
 Gui, 1:ListView, f_lvRulesSelected
@@ -1189,10 +1188,7 @@ LV_GetText(strName, intPosition, 1)
 LV_Delete(intPosition)
 
 Gui, 1:ListView, % (A_ThisLabel = "GuiRuleDeselect" ? "f_lvRulesAvailable" : "f_lvRulesSelected")
-if (A_ThisLabel = "GuiRuleDeselect")
-	LV_Add("Select", strName, g_aaRulesByName[strName].strType, g_aaRulesByName[strName].strCategory)
-else
-	LV_Add("Select", strName)
+g_aaRulesByName[strName].ListViewAdd((A_ThisLabel = "GuiRuleDeselect" ? "f_lvRulesAvailable" : "f_lvRulesSelected"), "Select")
 
 intPosition := ""
 intOrder := ""
@@ -1210,7 +1206,10 @@ GuiRulesSelectedEvents:
 if (A_GuiEvent = "DoubleClick")
 {
 	Gui, 1:ListView, %A_GuiControl%
-	Gosub, % (A_GuiControl = "f_lvRulesAvailable" ? "GuiRuleSelect" : "GuiRuleDeSelect")
+	if (A_GuiControl = "f_lvRulesAvailable" and GetKeyState("Shift"))
+		Gosub, GuiRuleEdit
+	else
+		Gosub, % (A_GuiControl = "f_lvRulesAvailable" ? "GuiRuleSelect" : "GuiRuleDeSelect")
 }
 else if (A_ThisLabel = "GuiRulesSelectedEvents" and A_GuiEvent == "D") ; case sensitive to exclude "d" for right click
 {
@@ -1278,7 +1277,7 @@ strTop =
 	CheckTimeOut:
 	;-----------------------------------------------------------
 
-	if (A_TickCount - g_intLastTick > %intTimeoutMs%)
+	if ((A_TickCount - g_intLastTick) > %intTimeoutMs%)
 	{
 		ToolTip, ~1~
 		; send message to main app to uncheck rules checkboxes
@@ -1606,7 +1605,7 @@ Gui, 2:+OwnDialogs
 Gui, 2:Add, Text, x10 y+20, % o_L["DialogAddRuleSelectPrompt"] . ":"
 
 for intOrder, aaRuleType in g_saRuleTypesOrder
-	Gui, 2:Add, Radio, % (A_Index = 1 ? "y+20 section" : "y+10") . " x10 w120 vf_intRadioRuleType" . A_Index . " gGuiAddRuleSelectTypeRadioButtonChanged", % aaRuleType.strLabel
+	Gui, 2:Add, Radio, % (A_Index = 1 ? "y+20 section" : "y+10") . " x10 w120 vf_intRadioRuleType" . A_Index . " gGuiAddRuleSelectTypeRadioButtonChanged", % aaRuleType.strTypeLabel
 
 Gui, 2:Add, Button, x20 y+20 vf_btnAddRuleSelectTypeContinue gGuiAddRuleSelectTypeContinue default, % o_L["DialogContinue"]
 Gui, 2:Add, Button, yp vf_btnAddRuleSelectTypeCancel gGuiAddRuleCancel, % o_L["GuiCancel"]
@@ -1637,7 +1636,7 @@ GuiAddRuleSelectTypeRadioButtonChanged:
 Gui, 2:Submit, NoHide
 
 g_intAddRuleType := StrReplace(A_GuiControl, "f_intRadioRuleType")
-GuiControl, , f_lblAddRuleTypeHelp, % g_saRuleTypesOrder[g_intAddRuleType].strHelp
+GuiControl, , f_lblAddRuleTypeHelp, % g_saRuleTypesOrder[g_intAddRuleType].strTypeHelp
 
 if (A_GuiEvent = "DoubleClick")
 	Gosub, GuiAddRuleSelectTypeContinue
@@ -1686,7 +1685,7 @@ else
 if (strAction = "Add")
 {
 	aaEditedRule := new Rule()
-	aaEditedRule.strType := g_saRuleTypesOrder[g_intAddRuleType].strTypeCode ; type
+	aaEditedRule.strTypeCode := g_saRuleTypesOrder[g_intAddRuleType].strTypeCode
 }
 else if (strAction = "Edit")
 	aaEditedRule := g_aaRulesByName[strName]
@@ -1695,7 +1694,7 @@ else ; Copy
 
 strGuiTitle := L(o_L["DialogAddEditRuleTitle"]
 	, (strAction = "Add" ? o_L["DialogEdit"] : (strAction = "Copy" ? o_L["DialogCopy"] : o_L["DialogAdd"]))
-	, g_strAppNameText, g_strAppVersion, g_aaRuleTypes[aaEditedRule.strType].strLabel)
+	, g_strAppNameText, g_strAppVersion, aaEditedRule.strTypeLabel)
 ; Gui, 2:New, +Resize -MaximizeBox +MinSize570x555 +MaxSizex555 +Hwndg_strGui2Hwnd, %strGuiTitle%
 Gui, 2:New, +Resize -MaximizeBox +Hwndg_strGui2Hwnd, %strGuiTitle%
 Gui, 2:+Owner1
@@ -1709,28 +1708,28 @@ Gui, 2:Add, Text, w300, % o_L["DialogRuleNotes"]
 Gui, 2:Add, Edit, w300 vf_strNotes, % aaEditedRule.strNotes
 
 Gui, 2:Font, w600
-Gui, 2:Add, Text, y+10 w300, % g_aaRuleTypes[aaEditedRule.strType].strLabel
+Gui, 2:Add, Text, y+10 w300, % aaEditedRule.strTypeLabel
 Gui, 2:Font
 
-if (aaEditedRule.strType = "ChangeCase")
+if (aaEditedRule.strTypeCode = "ChangeCase")
 	
 	loop, 3
 		Gui, 2:Add, Radio, % (A_Index = 1 ? "vf_varValue1 " : "") . "w300 " . (aaEditedRule.intCaseType = A_Index ? " checked" : ""), % o_L["DialogCaseType" . A_Index]
 	
-else if (aaEditedRule.strType = "Replace")
+else if (aaEditedRule.strTypeCode = "Replace")
 {
 	Gui, 2:Add, Text, y+5 w300, % o_L["DialogFind"]
 	Gui, 2:Add, Edit, w300 vf_varValue1, % aaEditedRule.strFind ; aaEditedRule.saVarValues[4]
 	Gui, 2:Add, Text, w300, % o_L["DialogReplaceWith"]
 	Gui, 2:Add, Edit, w300 vf_varValue2, % aaEditedRule.strReplace ; aaEditedRule.saVarValues[5]
 }
-else if (aaEditedRule.strType = "AutoHotkey")
+else if (aaEditedRule.strTypeCode = "AutoHotkey")
 {
 	Gui, 2:Font, s12, Courier New
 	Gui, 2:Add, Edit, w900 r12 Multi t20 WantReturn vf_varValue1, % aaEditedRule.strCode ; aaEditedRule.saVarValues[4]
 	Gui, 2:Font
 }
-else if (aaEditedRule.strType = "SubStr")
+else if (aaEditedRule.strTypeCode = "SubStr")
 {
 	Gui, 2:Add, Radio, % "vf_blnRadioSubStrFromStart gGuiEditRuleSubStrTypeChanged"
 		. (!aaEditedRule.saVarValues[1] ? " Checked" : ""), % o_L["DialogSubStrFromStart"] ; aaEditedRule.saVarValues[4]
@@ -1753,7 +1752,7 @@ else if (aaEditedRule.strType = "SubStr")
 	
 	Gosub, GuiEditRuleSubStrTypeChanged
 }
-else if InStr("Prefix Suffix", aaEditedRule.strType)
+else if InStr("Prefix Suffix", aaEditedRule.strTypeCode)
 {
 	Gui, 2:Add, Text, y+5 w300, % o_L["DialogTextToAdd"]
 	Gui, 2:Add, Edit, w300 vf_varValue1, % aaEditedRule.saVarValues[1] ; aaEditedRule.strPrefix or aaEditedRule.strSuffix
@@ -1807,14 +1806,14 @@ aaEditedRule.strCategory := f_strCategory
 aaEditedRule.strNotes := f_strNotes
 
 
-if !StrLen(f_strName) or (InStr("Replace AutoHotkey Prefix Suffix", aaEditedRule.strType) and !StrLen(f_varValue1))
+if !StrLen(f_strName) or (InStr("Replace AutoHotkey Prefix Suffix", aaEditedRule.strTypeCode) and !StrLen(f_varValue1))
 {
 	Oops(2, o_L["OopsValueMissing"])
 	return
 }
 
 saValues := Object()
-if (aaEditedRule.strType = "Substr")
+if (aaEditedRule.strTypeCode = "SubStr")
 {
 	if (f_blnRadioSubStrFromPosition and !StrLen(f_intRadioSubStrFromPosition))
 		or ((f_blnRadioSubStrLength or f_blnRadioSubStrToBeforeEnd) and !StrLen(f_intSubStrCharacters))
@@ -1827,7 +1826,7 @@ if (aaEditedRule.strType = "Substr")
 	saValues[3] := (f_blnRadioSubStrToEnd ? 0 : (f_blnRadioSubStrLength ? 1 : -1)) ; bln value, 1 length, 0 to end, -1 length before end
 	saValues[4] := (f_blnRadioSubStrToEnd ? "" : f_intSubStrCharacters) ; int value, if f_blnRadioSubStrLength or f_blnRadioSubStrToBeforeEnd, else empty
 }
-else if (aaEditedRule.strType = "AutoHotkey")
+else if (aaEditedRule.strTypeCode = "AutoHotkey")
 	
 	saValues[1] := EncodeAutoHokeyCodeForIni(f_varValue1)
 
@@ -2136,13 +2135,13 @@ if RulesNotApplied()
 	Gui, 1:ListView, f_lvRulesSelected
 	LV_Delete() ; delete all rows
 	for intIndex, strName in g_saRulesBackupSelectedOrder
-		LV_Add(, strName)
+		g_aaRulesByName[strName].ListViewAdd("f_lvRulesSelected")
 	
 	Gui, 1:ListView, f_lvRulesAvailable
 	LV_Delete() ; delete all rows
-	for strName, oRule in g_aaRulesByName
+	for strName, aaRule in g_aaRulesByName
 		if !g_saRulesBackupSelectedByName.HasKey(strName)
-			LV_Add(, strName)
+			aaRule.ListViewAdd("f_lvRulesAvailable") 
 	
 	g_saRulesBackupSelectedOrder := ""
 	g_saRulesBackupSelectedByName := ""
@@ -2642,7 +2641,6 @@ if (intEnd - intStart) ; rebuild full Clipboard
 GuiControl, , %g_strEditorControlHwnd%, %Clipboard% ; copy content to Clipboard
 
 SetSelectedTextPos(intStart, intEnd)
-sleep, 5000
 
 Gosub, DisableSaveAndCancel ; do EnableClipboardChangesInEditor
 
@@ -4427,12 +4425,12 @@ class RuleType
 ;-------------------------------------------------------------
 {
 	;---------------------------------------------------------
-	__New(strTypeCode, strLabel, strHelp)
+	__New(strTypeCode, strTypeLabel, strTypeHelp)
 	;---------------------------------------------------------
 	{
 		this.strTypeCode := strTypeCode
-		this.strLabel := strLabel
-		this.strHelp := strHelp
+		this.strTypeLabel := strTypeLabel
+		this.strTypeHelp := strTypeHelp
 		
 		g_aaRuleTypes[strTypeCode] := this
 		this.intID := g_saRuleTypesOrder.Push(this)
@@ -4452,33 +4450,34 @@ class Rule
 	;---------------------------------------------------------
 	{
 		this.strName := strName
-		this.strType := StrReplace(saRuleValues.RemoveAt(1), g_strPipe, "|")
+		this.strTypeCode := StrReplace(saRuleValues.RemoveAt(1), g_strPipe, "|")
+		this.strTypeLabel := g_aaRuleTypes[this.strTypeCode].strTypeLabel
 		this.strCategory := StrReplace(saRuleValues.RemoveAt(1), g_strPipe, "|")
 		this.strNotes := StrReplace(saRuleValues.RemoveAt(1), g_strPipe, "|")
 		; saRuleValues is now: 1) first variable value, 2) second variable value, etc.
 		this.saVarValues := saRuleValues
 		
-		if (this.strType = "ChangeCase")
+		if (this.strTypeCode = "ChangeCase")
 		{
 			this.intCaseType := saRuleValues[1] ; also in this.saVarValues[1]
 			this.strFind := ".*"
 			this.strReplace := StrSplit("$L0|$U0|$T0", "|")[this.intCaseType]
 		}
-		if (this.strType = "Replace")
+		if (this.strTypeCode = "Replace")
 		{
 			this.strFind := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
 			this.strReplace := StrReplace(saRuleValues[2], g_strPipe, "|") ; also in this.saVarValues[2]
 		}
-		else if (this.strType = "AutoHotkey")
+		else if (this.strTypeCode = "AutoHotkey")
 			this.strCode := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
-		else if (this.strType = "SubStr")
+		else if (this.strTypeCode = "SubStr")
 		{
 			this.intStartingPosition := (saRuleValues[1] ? saRuleValues[2] : 1) ; also in this.saVarValues[1-2]
 			this.intLength := (saRuleValues[3] ? saRuleValues[3] * saRuleValues[4] : "") ; also in this.saVarValues[3-4]; saRuleValues[4] is -1 if from end
 		}
-		else if (this.strType = "Prefix")
+		else if (this.strTypeCode = "Prefix")
 			this.strPrefix := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
-		else if (this.strType = "Suffix")
+		else if (this.strTypeCode = "Suffix")
 			this.strSuffix := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
 		
 		g_aaRulesByName[strName] := this
@@ -4487,11 +4486,22 @@ class Rule
 	;---------------------------------------------------------
 	
 	;---------------------------------------------------------
+	ListViewAdd(strListView, strOption := "")
+	;---------------------------------------------------------
+	{
+		if (strListView = "f_lvRulesAvailable")
+			LV_Add(strOption, this.strName, this.strTypeLabel, this.strCategory, this.strNotes)
+		else
+			LV_Add(strOption, this.strName)
+	}
+	;---------------------------------------------------------
+	
+	;---------------------------------------------------------
 	SaveRuleToIni(saValues)
 	;---------------------------------------------------------
 	{
 		; example: Lower case=ChangeCase|Example|Notes|.*|$L0
-		strIniLine := this.strType . "|"
+		strIniLine := this.strTypeCode . "|"
 		strIniLine .= StrReplace(this.strCategory, "|", g_strPipe) . "|"
 		strIniLine .= StrReplace(this.strNotes, "|", g_strPipe) . "|"
 		Loop, 9
@@ -4530,22 +4540,22 @@ class Rule
 	;---------------------------------------------------------
 	{
 		; begin rule
-		strCode := "Rule" . this.intID . "(strType) `; " . this.strType . " > " . this.strName . "`n{`n"
+		strCode := "Rule" . this.intID . "(strType) `; " . this.strName . " (" . this.strTypeCode . ")`n{`n"
 		strCode .= "`; MsgBox, Execute QACrule: %A_ThisFunc%`n"
 		strCode .= "if (strType = 1) `; text`n{`n"
 		
 		strCode .= "`; strBefore := Clipboard`n"
-		if (this.strType = "ChangeCase")
+		if (this.strTypeCode = "ChangeCase")
 			strCode .= "Clipboard := RegExReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
-		else if (this.strType = "Replace")
+		else if (this.strTypeCode = "Replace")
 			strCode .= "Clipboard := StrReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
-		else if (this.strType = "AutoHotkey")
+		else if (this.strTypeCode = "AutoHotkey")
 			strCode .= this.strCode
-		else if (this.strType = "SubStr")
+		else if (this.strTypeCode = "SubStr")
 			strCode .= "Clipboard := SubStr(Clipboard, " . this.intStartingPosition . (StrLen(this.intLength) ? "," . this.intLength : "") . ")"
-		else if (this.strType = "Prefix")
+		else if (this.strTypeCode = "Prefix")
 			strCode .= "Clipboard := """ . this.strPrefix . """ . Clipboard"
-		else if (this.strType = "Suffix")
+		else if (this.strTypeCode = "Suffix")
 			strCode .= "Clipboard .= """ . this.strSuffix . """"
 		strCode .= "`n"
 		strCode .= "Sleep, 50`n"

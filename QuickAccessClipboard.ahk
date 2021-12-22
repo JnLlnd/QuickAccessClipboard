@@ -296,7 +296,9 @@ global g_strCliboardBackup ; not used...
 global g_intClipboardContentType ; updated by ClipboardContentChanged()
 global g_saRulesBackupSelectedOrder ; backup of selected rules
 global g_saRulesBackupSelectedByName ; backup of selected rules
-global g_strEscapePipe := "Ð¡þ€" ; used to escape pipe in ini file
+global g_strPipe := "Ð¡þ€" ; used to replace pipe in ini file
+global g_strEol := "€ö¦" ; used to replace end-of-line in AutoHotkey rules in ini file
+global g_strTab := "¬ã³" ; used to replace tab in AutoHotkey rules in ini file
 
 ;---------------------------------
 ; Init language
@@ -687,8 +689,9 @@ if (g_blnIniFileCreation) ; if it exists, it is not first launch
 			Replace this with that=Replace|Demo||this|that||||||||
 			Trim 2 last characters=SubStr|Demo||0|1|-1|2||||||
 			Add Title: at beginning=Prefix|Demo||Title: |||||||||
-			MsgBox=AutoHotkey|Demo||MsgBox, Your Clipboard contains: `%Clipboard`%|||||||||
-			; MsgBox2=AutoHotkey|||MsgBox, `% "Your Clipboard contains:````n````n" . SubStr(Clipboard, 1, 100) . (StrLen(Clipboard) > 100 ? "..." : "")|||||||||
+			MsgBox=AutoHotkey|Single message|Demo||MsgBox, Your Clipboard contains: `%Clipboard`%|||||||||
+			MsgBox2=AutoHotkey|Multiline message||MsgBox, `% "Your Clipboard contains:``n``n" . Clipboard|||||||||
+			MsgBox3=AutoHotkey|Multiline script||if StrLen(Clipboard) > 500%g_strEol%%g_strTab%str := "The 500 first characters of your Clipboard are:``n``n" . SubStr(Clipboard, 1, 500) . "..."%g_strEol%else%g_strEol%%g_strTab%str := "Your Clipboard contains:``n``n" . Clipboard%g_strEol%MsgBox, `%str`%|||||||||
 
 ) ; leave the last extra line above
 			, % o_Settings.strIniFile, % (A_IsUnicode ? "UTF-16" : "")
@@ -1077,7 +1080,7 @@ Gui, 1:Add, Text, y+20 vf_lblBeginEditor ; mark for top of editor
 GuiControlGet, arrControlPos, Pos, f_lblBeginEditor
 g_saGuiControls[1].Y := arrControlPosY
 
-Gui, 1:Add, Edit, x10 y50 w600 vf_strClipboardEditor gClipboardEditorChanged Multi WantReturn +hwndg_strEditorControlHwnd
+Gui, 1:Add, Edit, x10 y50 w600 vf_strClipboardEditor gClipboardEditorChanged Multi t20 WantReturn +hwndg_strEditorControlHwnd
 Gosub, ClipboardEditorFontChanged ; must be after Add Edit
 
 Gui, 1:Font, s8 w600, Verdana
@@ -1566,7 +1569,10 @@ else
 		strRuleName := SubStr(A_LoopField, 1, intEqualSign - 1)
 		saRuleValues := StrSplit(SubStr(A_LoopField, intEqualSign + 1), "|")
 		loop, % saRuleValues.Length()
-			saRuleValues[A_Index] := DecodeSnippet(saRuleValues[A_Index])
+			if (saRuleValues[1] = "AutoHotkey")
+				saRuleValues[A_Index] := DecodeAutoHokeyCodeFromIni(saRuleValues[A_Index])
+			else
+				saRuleValues[A_Index] := DecodeFromIni(saRuleValues[A_Index])
 		new Rule(strRuleName, saRuleValues)
 	}
 	
@@ -1714,14 +1720,14 @@ if (aaEditedRule.strType = "ChangeCase")
 else if (aaEditedRule.strType = "Replace")
 {
 	Gui, 2:Add, Text, y+5 w300, % o_L["DialogFind"]
-	Gui, 2:Add, Edit, w300 vf_varValue1, % DecodeSnippet(aaEditedRule.strFind) ; aaEditedRule.saVarValues[4]
+	Gui, 2:Add, Edit, w300 vf_varValue1, % aaEditedRule.strFind ; aaEditedRule.saVarValues[4]
 	Gui, 2:Add, Text, w300, % o_L["DialogReplaceWith"]
-	Gui, 2:Add, Edit, w300 vf_varValue2, % DecodeSnippet(aaEditedRule.strReplace) ; aaEditedRule.saVarValues[5]
+	Gui, 2:Add, Edit, w300 vf_varValue2, % aaEditedRule.strReplace ; aaEditedRule.saVarValues[5]
 }
 else if (aaEditedRule.strType = "AutoHotkey")
 {
 	Gui, 2:Font, s12, Courier New
-	Gui, 2:Add, Edit, w300 r12 Multi vf_varValue1, % StrReplace(DecodeSnippet(aaEditedRule.strCode), "`r") ; aaEditedRule.saVarValues[4]
+	Gui, 2:Add, Edit, w900 r12 Multi t20 WantReturn vf_varValue1, % aaEditedRule.strCode ; aaEditedRule.saVarValues[4]
 	Gui, 2:Font
 }
 else if (aaEditedRule.strType = "SubStr")
@@ -1756,6 +1762,7 @@ else if InStr("Prefix Suffix", aaEditedRule.strType)
 Gui, 2:Add, Button, y+15 vf_btnSave gGuiRuleSave, % o_L["GuiSave"]
 Gui, 2:Add, Button, yp vf_btnCancel g2GuiClose, % o_L["GuiCancel"]
 GuiCenterButtons(g_strGui2Hwnd, , , , , , "f_btnSave", "f_btnCancel")
+Gui, 2:Add, Text, yp+20
 
 Gosub, ShowGui2AndDisableGui1
 
@@ -1799,6 +1806,13 @@ aaEditedRule.strName := f_strName
 aaEditedRule.strCategory := f_strCategory
 aaEditedRule.strNotes := f_strNotes
 
+
+if !StrLen(f_strName) or (InStr("Replace AutoHotkey Prefix Suffix", aaEditedRule.strType) and !StrLen(f_varValue1))
+{
+	Oops(2, o_L["OopsValueMissing"])
+	return
+}
+
 saValues := Object()
 if (aaEditedRule.strType = "Substr")
 {
@@ -1813,15 +1827,13 @@ if (aaEditedRule.strType = "Substr")
 	saValues[3] := (f_blnRadioSubStrToEnd ? 0 : (f_blnRadioSubStrLength ? 1 : -1)) ; bln value, 1 length, 0 to end, -1 length before end
 	saValues[4] := (f_blnRadioSubStrToEnd ? "" : f_intSubStrCharacters) ; int value, if f_blnRadioSubStrLength or f_blnRadioSubStrToBeforeEnd, else empty
 }
+else if (aaEditedRule.strType = "AutoHotkey")
+	
+	saValues[1] := EncodeAutoHokeyCodeForIni(f_varValue1)
+
 else
-	if !StrLen(f_strName) or (InStr("Replace AutoHotkey Prefix Suffix", aaEditedRule.strType) and !StrLen(f_varValue1))
-	{
-		Oops(2, o_L["OopsValueMissing"])
-		return
-	}
-	else
-		Loop, 9
-			saValues.Push(EncodeSnippet(f_varValue%A_Index%))
+	Loop, 9
+		saValues.Push(EncodeForIni(f_varValue%A_Index%))
 
 if (strAction <> "Edit" and g_aaRulesByName.HasKey(f_strName)) ; when adding or copying
 {
@@ -3398,8 +3410,7 @@ GetLVPosition(ByRef intPosition, strMessage)
 
 
 ;------------------------------------------------------------
-EncodeSnippet(strSnippet)
-; convert from display format (when f_blnProcessEOLTab is true) to raw content, ready for saving to in file
+EncodeForIni(str)
 ;------------------------------------------------------------
 /*
 https://rosettacode.org/wiki/Special_characters#AutoHotkey
@@ -3427,27 +3438,47 @@ No need to process:
 - | (pipe) used as separator in favorites lines in ini file are already replaced with the escape sequence "Ð¡þ€"
 */
 {
-	strSnippet := StrReplace(strSnippet, "``", "````") ;  replace backticks with double-backticks
-	strSnippet := StrReplace(strSnippet, "`n", "``n")  ; encode end-of-lines
-	strSnippet := StrReplace(strSnippet, "`t", "``t")  ; encode tabs
+	str := StrReplace(str, "``", "````") ;  replace backticks with double-backticks
+	str := StrReplace(str, "`n", "``n")  ; encode end-of-lines
+	str := StrReplace(str, "`t", "``t")  ; encode tabs
 	
-	return strSnippet
+	return str
 }
 ;------------------------------------------------------------
 
 
 ;------------------------------------------------------------
-DecodeSnippet(strSnippet, blnWithCarriageReturn := false)
+DecodeFromIni(str, blnWithCarriageReturn := false)
 ; convert from raw content (as from ini file) to display format (when f_blnProcessEOLTab is true) or to paste format
 ;------------------------------------------------------------
 {
-	strSnippet := StrReplace(strSnippet, "````", "!r4nd0mt3xt!")	; preserve double-backticks
-	strSnippet := StrReplace(strSnippet
+	str := StrReplace(str, "````", "!r4nd0mt3xt!")	; preserve double-backticks
+	str := StrReplace(str
 		, "``n", (blnWithCarriageReturn ? "`r" : "") . "`n")		; decode end-of-lines (with `r only when sending as Snippet)
-	strSnippet := StrReplace(strSnippet, "``t", "`t")				; decode tabs
-	strSnippet := StrReplace(strSnippet, "!r4nd0mt3xt!", "``")		; restore double-backticks
+	str := StrReplace(str, "``t", "`t")				; decode tabs
+	str := StrReplace(str, "!r4nd0mt3xt!", "``")		; restore double-backticks
 	
-	return strSnippet
+	return str
+}
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+EncodeAutoHokeyCodeForIni(str)
+; replace TAB and LF characrters with visible replacement for ini file
+;------------------------------------------------------------
+{
+	return StrReplace(StrReplace(str, Chr(9), g_strTab), Chr(10), g_strEol)
+}
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+DecodeAutoHokeyCodeFromIni(str)
+; replace visible replacement for TAB and LF characrters with actual character
+;------------------------------------------------------------
+{
+	return StrReplace(StrReplace(str, g_strTab, Chr(9)), g_strEol, Chr(10))
 }
 ;------------------------------------------------------------
 
@@ -4421,9 +4452,9 @@ class Rule
 	;---------------------------------------------------------
 	{
 		this.strName := strName
-		this.strType := StrReplace(saRuleValues.RemoveAt(1), g_strEscapePipe, "|")
-		this.strCategory := StrReplace(saRuleValues.RemoveAt(1), g_strEscapePipe, "|")
-		this.strNotes := StrReplace(saRuleValues.RemoveAt(1), g_strEscapePipe, "|")
+		this.strType := StrReplace(saRuleValues.RemoveAt(1), g_strPipe, "|")
+		this.strCategory := StrReplace(saRuleValues.RemoveAt(1), g_strPipe, "|")
+		this.strNotes := StrReplace(saRuleValues.RemoveAt(1), g_strPipe, "|")
 		; saRuleValues is now: 1) first variable value, 2) second variable value, etc.
 		this.saVarValues := saRuleValues
 		
@@ -4435,20 +4466,20 @@ class Rule
 		}
 		if (this.strType = "Replace")
 		{
-			this.strFind := StrReplace(saRuleValues[1], g_strEscapePipe, "|") ; also in this.saVarValues[1]
-			this.strReplace := StrReplace(saRuleValues[2], g_strEscapePipe, "|") ; also in this.saVarValues[2]
+			this.strFind := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
+			this.strReplace := StrReplace(saRuleValues[2], g_strPipe, "|") ; also in this.saVarValues[2]
 		}
 		else if (this.strType = "AutoHotkey")
-			this.strCode := StrReplace(saRuleValues[1], g_strEscapePipe, "|") ; also in this.saVarValues[1]
+			this.strCode := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
 		else if (this.strType = "SubStr")
 		{
 			this.intStartingPosition := (saRuleValues[1] ? saRuleValues[2] : 1) ; also in this.saVarValues[1-2]
 			this.intLength := (saRuleValues[3] ? saRuleValues[3] * saRuleValues[4] : "") ; also in this.saVarValues[3-4]; saRuleValues[4] is -1 if from end
 		}
 		else if (this.strType = "Prefix")
-			this.strPrefix := StrReplace(saRuleValues[1], g_strEscapePipe, "|") ; also in this.saVarValues[1]
+			this.strPrefix := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
 		else if (this.strType = "Suffix")
-			this.strSuffix := StrReplace(saRuleValues[1], g_strEscapePipe, "|") ; also in this.saVarValues[1]
+			this.strSuffix := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
 		
 		g_aaRulesByName[strName] := this
 		this.intID := g_saRulesOrder.Push(this)
@@ -4461,10 +4492,10 @@ class Rule
 	{
 		; example: Lower case=ChangeCase|Example|Notes|.*|$L0
 		strIniLine := this.strType . "|"
-		strIniLine .= StrReplace(this.strCategory, "|", g_strEscapePipe) . "|"
-		strIniLine .= StrReplace(this.strNotes, "|", g_strEscapePipe) . "|"
+		strIniLine .= StrReplace(this.strCategory, "|", g_strPipe) . "|"
+		strIniLine .= StrReplace(this.strNotes, "|", g_strPipe) . "|"
 		Loop, 9
-			strIniLine .= StrReplace(saValues[A_Index], "|", g_strEscapePipe) . "|"
+			strIniLine .= StrReplace(saValues[A_Index], "|", g_strPipe) . "|"
 			; do not remove last | in case we have a space as last character
 		
 		IniWrite, %strIniLine%, % o_Settings.strIniFile, Rules, % this.strName

@@ -366,9 +366,9 @@ if (o_Settings.Launch.blnDiagMode.IniValue)
 }
 
 ; Build menu used in Settings Gui
-Gosub, BuildGuiMenuBar ; must be before BuildMainMenuInit
-Gosub, BuildTrayMenu
 Gosub, BuildEditorContextMenu
+Gosub, BuildGuiMenuBar
+Gosub, BuildTrayMenu
 
 ; Build Editor Gui
 Gosub, BuildGui
@@ -973,7 +973,24 @@ Menu, menuBarFile, Add
 Menu, menuBarFile, Add, QACrules.ahk, OpenQacRulesFile
 Menu, menuBarFile, Add
 Menu, menuBarFile, Add, % L(o_L["MenuExitApp"], g_strAppNameText), GuiCloseCancelAndExitApp
+
+Menu, menuBarRule, Add, % o_L["MenuRuleAdd"], GuiAddRuleSelectType
+Menu, menuBarRule, Add, % o_L["MenuRuleEdit"], GuiRuleEdit
+Menu, menuBarRule, Add, % o_L["MenuRuleRemove"], GuiRuleRemove
+Menu, menuBarRule, Add, % o_L["MenuRuleCopy"], GuiRuleCopy
+Menu, menuBarRule, Add
+Menu, menuBarRule, Add, % o_L["MenuRuleSelect"], GuiRuleSelect
+Menu, menuBarRule, Add, % o_L["MenuRuleDeselect"], GuiRuleDeselect
+Menu, menuBarRule, Add, % o_L["MenuRuleDeselectAll"], GuiRuleDeselectAll
+Menu, menuBarRule, Add
+Menu, menuBarRule, Add, % o_L["GuiApplyRules"], GuiApplyRules
+
+Menu, menuBarHelp, Add, % L(o_L["MenuAbout"], g_strAppNameText), GuiAbout
+
 Menu, menuBarMain, Add, % o_L["MenuFile"], :menuBarFile
+Menu, menuBarMain, Add, % o_L["MenuRule"], :menuBarRule
+Menu, menuBarMain, Add, % o_L["GuiApplyRule"], :menuRules
+Menu, menuBarMain, Add, % o_L["MenuHelp"], :menuBarHelp
 
 return
 ;------------------------------------------------------------
@@ -1915,7 +1932,7 @@ GuiCheck4Update:
 ;------------------------------------------------------------
 ; !! adapt
 
-strChangeLog := Url2Var("https://www.quickaccesspopup.com/clipboard/changelog/changelog" . (g_strUpdateProdOrBeta <> "prod" ? "-" . g_strUpdateProdOrBeta : "") . ".txt")
+strChangeLog := Url2Var("https://clipboard.quickaccesspopup.com/changelog/changelog" . (g_strUpdateProdOrBeta <> "prod" ? "-" . g_strUpdateProdOrBeta : "") . ".txt")
 
 if StrLen(strChangeLog)
 {
@@ -1979,11 +1996,10 @@ ButtonCheck4UpdateDialogRemind:
 UpdateGuiClose:
 UpdateGuiEscape:
 ;------------------------------------------------------------
-; !! adapt
 
-strUrlChangeLog := AddUtm2Url("https://www.quickaccesspopup.com/clipboard/change-log" . (g_strUpdateProdOrBeta <> "prod" ? "-" . g_strUpdateProdOrBeta . "-version" : "") . "/", A_ThisLabel, "Check4Update")
-strUrlDownloadSetup := AddUtm2Url("https://www.quickaccesspopup.com/clipboard/latest/check4update-download-setup-redirect.html", A_ThisLabel, "Check4Update") ; prod only
-strUrlDownloadPortable:= AddUtm2Url("https://www.quickaccesspopup.com/clipboard/latest/check4update-download-portable-redirect.html", A_ThisLabel, "Check4Update") ; prod only
+strUrlChangeLog := AddUtm2Url("https://clipboard.quickaccesspopup.com/change-log" . (g_strUpdateProdOrBeta <> "prod" ? "-" . g_strUpdateProdOrBeta . "-version" : "") . "/", A_ThisLabel, "Check4Update")
+strUrlDownloadSetup := AddUtm2Url("https://clipboard.quickaccesspopup.com/latest/check4update-download-setup-redirect.html", A_ThisLabel, "Check4Update") ; prod only
+strUrlDownloadPortable:= AddUtm2Url("https://clipboard.quickaccesspopup.com/latest/check4update-download-portable-redirect.html", A_ThisLabel, "Check4Update") ; prod only
 strUrlAppLandingPageBeta := AddUtm2Url("https://forum.quickaccesspopup.com/forumdisplay.php?fid=28", A_ThisLabel, "Check4Update")
 
 if InStr(A_ThisLabel, "ButtonCheck4UpdateDialogChangeLog")
@@ -2266,7 +2282,6 @@ GuiShow:
 GuiShowFromTray:
 ;------------------------------------------------------------
 
-Gosub, BackupSelectedRules
 Gosub, UpdateEditorWithClipboardFromGuiShow
 Gosub, DisableSaveAndCancel
 
@@ -2370,6 +2385,61 @@ return
 
 
 ;------------------------------------------------------------
+GuiAbout:
+;------------------------------------------------------------
+Gui, 1:Submit, NoHide
+
+intWidthTotal := 680
+intWidthHalf := 340
+intXCol2 := 360
+
+strGuiTitle := L(o_L["AboutTitle"], g_strAppNameText, g_strAppVersion)
+Gui, 2:New, +Hwndg_strGui2Hwnd, %strGuiTitle%
+if (g_blnUseColors)
+	Gui, 2:Color, %g_strGuiWindowColor%
+Gui, 2:+Owner1
+
+; header
+Gui, 2:Font, s12 w700, Verdana
+Gui, 2:Add, Link, x10 y10 w%intWidthTotal%, % L(o_L["AboutText1"], g_strAppNameText, g_strAppVersion, A_PtrSize * 8) ;  ; A_PtrSize * 8 = 32 or 64
+Gui, 2:Font, s8 w400, Verdana
+Gui, 2:Add, Link, x10 w%intWidthTotal%, % L(o_L["AboutText2"], g_strAppNameText)
+FormatTime, strYear, , yyyy ; current time
+Gui, 2:Add, Link, x10 w%intWidthTotal%, % L(o_L["AboutText3"], chr(169), strYear
+	, AddUtm2Url("https://clipboard.quickaccesspopup.com/license/", A_ThisLabel, "License"), "www.clipboard.quickaccesspopup.com/license/")
+
+; user info (left)
+Gui, 2:Add, Text, x10 w%intWidthHalf% section, % L(o_L["AboutUserComputerName"], A_UserName, A_ComputerName)
+Gui, 2:Add, Link, x10 w%intWidthHalf%, % L(o_L["AboutText4"])
+
+; credits translators (left)
+Gui, 2:Font, s8 w700, Verdana
+Gui, 2:Add, Link, x10 y+10 w%intWidthTotal%, % L(o_L["AboutText5"])
+Gui, 2:Font, s8 w400, Verdana
+Gui, 2:Add, Link, x10 w%intWidthHalf% section, % L(o_L["AboutText6"], "Lexikos (AutoHotkey_L), Joe Glines (the-Automator.com), RaptorX, Blackholyman, just_me"
+	. ", Learning One, Maestrith, Pulover (LV_Rows class), Tank, jeeswg", "https://www.autohotkey.com/boards/")
+aaL := o_L.InsertAmpersand(false, "GuiClose")
+Gui, 2:Add, Button, y+20 vf_btnAboutClose g2GuiClose, % o_L["GuiClose"]
+
+; contributors (right)
+Gui, 2:Add, Link, x%intXCol2% ys w%intWidthHalf%, % L(o_L["AboutText7"], A_AhkVersion)
+
+GuiCenterButtons(g_strGui2Hwnd, , , , , , "f_btnAboutClose")
+GuiControl, Focus, f_btnAboutClose
+Gosub, ShowGui2AndDisableGui1
+
+strYear := ""
+strGuiTitle := ""
+aaL := ""
+intWidth := ""
+intWidthHalf :=
+intXCol2 := ""
+
+return
+;------------------------------------------------------------
+ 
+
+;------------------------------------------------------------
 RemoveOldTemporaryFolders:
 ; remove temporary folders older than 5 days
 ;------------------------------------------------------------
@@ -2394,11 +2464,10 @@ Check4Update:
 Check4UpdateNow:
 ;------------------------------------------------------------
 
-; !! implement on website
-strUrlCheck4Update := "https://www.quickaccesspopup.com/clipboard/latest/latest-version-1.php"
+strUrlCheck4Update := "https://clipboard.quickaccesspopup.com/latest/latest-version-1.php"
 
-g_strUrlAppLandingPage := "https://www.quickaccesspopup.com/clipboard" ; must be here if user select Check for update from tray menu
-strBetaLandingPage := "https://www.quickaccesspopup.com/clipboard/latest/check4update-beta-redirect.html"
+g_strUrlAppLandingPage := "https://clipboard.quickaccesspopup.com" ; must be here if user select Check for update from tray menu
+strBetaLandingPage := "https://clipboard.quickaccesspopup.com/clipboard/latest/check4update-beta-redirect.html"
 
 strLatestSkippedProd := o_Settings.ReadIniValue("LatestVersionSkipped", 0.0)
 strLatestSkippedBeta := o_Settings.ReadIniValue("LatestVersionSkippedBeta", 0.0)
@@ -2415,14 +2484,10 @@ strQuery := strUrlCheck4Update
 	. "?v=" . g_strCurrentVersion
 	. "&os=" . GetOSVersion()
 	. "&is64=" . A_Is64bitOS
-	. "&setup=" . (blnSetup)
-				; + 0 ; was (2 * (g_blnSponsor ? 1 : 0))
-				; + (4 * (o_FileManagers.P_intActiveFileManager = 2 ? 1 : 0)) ; DirectoryOpus
-				; + (8 * (o_FileManagers.P_intActiveFileManager = 3 ? 1 : 0)) ; TotalCommander
-				; + (16 * (o_FileManagers.P_intActiveFileManager = 4 ? 1 : 0)) ; QAPconnect
+	. "&setup=" . (blnSetup ? 1 : 0)
 	. "&lsys=" . A_Language
-	. "&lfp=" . o_Settings.Launch.strLanguageCode.IniValue
-	. "&nbi=" . g_intRulesItemsCount ; !!
+	. "&lqac=" . o_Settings.Launch.strLanguageCode.IniValue
+	. "&nbi=" . g_aaRulesByName.Count()
 strLatestVersions := Url2Var(strQuery)
 if !StrLen(strLatestVersions)
 	if (A_ThisLabel = "Check4UpdateNow")
@@ -2449,10 +2514,10 @@ Loop, Parse, strLatestVersions, , 0123456789.| ; strLatestVersions should only c
 		return
 	}
 
-objLatestVersions := StrSplit(strLatestVersions, "|")
-strLatestVersionProd := objLatestVersions[1]
-strLatestVersionBeta := objLatestVersions[2]
-strLatestVersionAlpha := objLatestVersions[3]
+saLatestVersions := StrSplit(strLatestVersions, "|")
+strLatestVersionProd := saLatestVersions[1]
+strLatestVersionBeta := saLatestVersions[2]
+strLatestVersionAlpha := saLatestVersions[3]
 
 ; DEGUG VALUES
 ; g_strCurrentVersion := "10.4.9.3"

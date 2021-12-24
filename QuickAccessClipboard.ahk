@@ -1896,6 +1896,11 @@ if !GetLVPosition(intPosition, o_L["GuiSelectRuleRemove"])
 	return
 
 LV_GetText(strName, intPosition, 1)
+
+MsgBox, 52, % o_L["MenuRuleRemove"] . " - " . g_strAppNameText, % L(o_L["DialogRuleRemove"], strName)
+IfMsgBox, No
+	return
+
 g_aaRulesByName[strName].DeleteRule()
 LV_Delete(intPosition)
 

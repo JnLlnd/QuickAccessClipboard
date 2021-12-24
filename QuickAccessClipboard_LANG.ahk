@@ -7,7 +7,7 @@ this["AboutText6"] := "Thanks for their expertise and code snippets to ~1~ and m
 this["AboutText7"] := "Icons by: <a href=""https://icons8.com/"">Icons8</a>`nInstall program: <a href=""http://www.jrsoftware.org/isinfo.php"">Inno Setup</a> by jrsoftware.org`nAutoHotkey_L v~1~"
 this["AboutTitle"] := "About - ~1~ ~2~"
 this["AboutUserComputerName"] := "User name: ~1~`nComputer: ~2~"
-this["DialogApplyEachLine"] := "Apply rule to each line"
+this["DialogExecuteOnEachLine"] := "Execute rule on each line"
 this["DiagModeCaution"] := "~1~ is running in diagnostic mode.`n`nInformation about the app's execution will be collected in the file:`n~2~`n`nNothing will be sent without your consent.`n`nDo you want to keep diagnostic mode ON?"
 this["DiagModeExit"] := "~1~ collected diagnostic information in the file ~2~."
 this["DiagModeIntro"] := "Send this file to support@quickaccesspopup.com with a description of the situation requiring diagnostic"

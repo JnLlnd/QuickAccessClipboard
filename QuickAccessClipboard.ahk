@@ -1762,7 +1762,7 @@ else if (aaEditedRule.strTypeCode = "SubStr")
 	Gui, 2:Add, Text, yp x+5 vf_lblRadioSubStrFromPosition disabled, % o_L["DialogSubStrCharacters"]
 	
 	Gui, 2:Add, Radio, % "x10 w140 vf_blnRadioSubStrToEnd gGuiEditRuleSubStrTypeChanged"
-		. (aaEditedRule.saVarValues[3] = 0 ? " Checked" : ""), % o_L["DialogSubStrToEnd"] ; aaEditedRule.saVarValues[6]
+		. (!StrLen(aaEditedRule.saVarValues[3]) or aaEditedRule.saVarValues[3] = 0 ? " Checked" : ""), % o_L["DialogSubStrToEnd"] ; aaEditedRule.saVarValues[6]
 	Gui, 2:Add, Radio, % "Section vf_blnRadioSubStrLength gGuiEditRuleSubStrTypeChanged"
 		. (aaEditedRule.saVarValues[3] = 1 ? " Checked" : ""), % o_L["DialogSubStrLength"] ; aaEditedRule.saVarValues[6]
 	Gui, 2:Add, Radio, % "vf_blnRadioSubStrToBeforeEnd gGuiEditRuleSubStrTypeChanged"
@@ -1781,7 +1781,18 @@ else if InStr("Prefix Suffix", aaEditedRule.strTypeCode)
 	Gui, 2:Add, Edit, w300 vf_varValue1, % aaEditedRule.saVarValues[1] ; aaEditedRule.strPrefix or aaEditedRule.strSuffix
 }
 
-Gui, 2:Add, Button, y+15 vf_btnSave gGuiRuleSave, % o_L["GuiSave"]
+if (aaEditedRule.strTypeCode = "SubStr")
+{
+	Gui, 2:Add, CheckBox, x10 y+25 w400 vf_blnApplyEachLine, % o_L["DialogExecuteOnEachLine"]
+	GuiControl, , f_blnApplyEachLine, % (aaEditedRule.saVarValues[5] = true)
+}
+else if InStr("Prefix Suffix", aaEditedRule.strTypeCode)
+{
+	Gui, 2:Add, CheckBox, x10 y+10 w400 vf_varValue2, % o_L["DialogExecuteOnEachLine"]
+	GuiControl, , f_varValue2, % (aaEditedRule.saVarValues[2] = true)
+}
+
+Gui, 2:Add, Button, y+20 vf_btnSave gGuiRuleSave, % o_L["GuiSave"]
 Gui, 2:Add, Button, yp vf_btnCancel g2GuiClose, % o_L["GuiCancel"]
 GuiCenterButtons(g_strGui2Hwnd, , , , , , "f_btnSave", "f_btnCancel")
 Gui, 2:Add, Text, yp+20
@@ -1848,6 +1859,7 @@ if (aaEditedRule.strTypeCode = "SubStr")
 	saValues[2] := f_intRadioSubStrFromPosition ; int value, if from f_blnRadioSubStrFromPosition is true
 	saValues[3] := (f_blnRadioSubStrToEnd ? 0 : (f_blnRadioSubStrLength ? 1 : -1)) ; bln value, 1 length, 0 to end, -1 length before end
 	saValues[4] := (f_blnRadioSubStrToEnd ? "" : f_intSubStrCharacters) ; int value, if f_blnRadioSubStrLength or f_blnRadioSubStrToBeforeEnd, else empty
+	saValues[5] := f_blnApplyEachLine
 }
 else if (aaEditedRule.strTypeCode = "AutoHotkey")
 	
@@ -4559,11 +4571,15 @@ class Rule
 		{
 			this.intStartingPosition := (saRuleValues[1] ? saRuleValues[2] : 1) ; also in this.saVarValues[1-2]
 			this.intLength := (saRuleValues[3] ? saRuleValues[3] * saRuleValues[4] : "") ; also in this.saVarValues[3-4]; saRuleValues[4] is -1 if from end
+			this.blnRepeat := saRuleValues[5]
 		}
 		else if (this.strTypeCode = "Prefix")
 			this.strPrefix := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
 		else if (this.strTypeCode = "Suffix")
 			this.strSuffix := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
+		
+		if InStr("Prefix Suffix", this.strTypeCode)
+			this.blnRepeat := saRuleValues[2]
 		
 		g_aaRulesByName[strName] := this
 		this.intID := g_saRulesOrder.Push(this)
@@ -4637,11 +4653,23 @@ class Rule
 		else if (this.strTypeCode = "AutoHotkey")
 			strCode .= this.strCode
 		else if (this.strTypeCode = "SubStr")
-			strCode .= "Clipboard := SubStr(Clipboard, " . this.intStartingPosition . (StrLen(this.intLength) ? "," . this.intLength : "") . ")"
-		else if (this.strTypeCode = "Prefix")
-			strCode .= "Clipboard := """ . this.strPrefix . """ . Clipboard"
-		else if (this.strTypeCode = "Suffix")
-			strCode .= "Clipboard .= """ . this.strSuffix . """"
+			if (this.blnRepeat)
+				; strCode .= "Clipboard := SubStr(Clipboard, " . this.intStartingPosition . (StrLen(this.intLength) ? "," . this.intLength : "") . ")"
+				strCode .= "strTemp := """"`n"
+					. "Loop, Parse, Clipboard, ``n`n"
+					. "`tstrTemp .= SubStr(A_LoopField, " . this.intStartingPosition . (StrLen(this.intLength) ? "," . this.intLength : "") . ") . " . """``n""`n"
+					. "Clipboard := SubStr(strTemp, 1, -1) `; remove last eol"
+			else
+				strCode .= "Clipboard := SubStr(Clipboard, " . this.intStartingPosition . (StrLen(this.intLength) ? "," . this.intLength : "") . ")"
+		else if InStr("Prefix Suffix", this.strTypeCode)
+			if (this.blnRepeat)
+				strCode .= "strTemp := """"`n"
+					. "Loop, Parse, Clipboard, ``n`n"
+					. "`tstrTemp .=  """ . (this.strTypeCode = "Prefix" ? this.strPrefix : "") . """ . A_LoopField . """ . (this.strTypeCode = "Suffix" ? this.strSuffix : "") . "``n""`n"
+					. "Clipboard := SubStr(strTemp, 1, -1) `; remove last eol"
+			else
+				strCode .= "Clipboard := """ . (this.strTypeCode = "Prefix" ? this.strPrefix : "") . """ . Clipboard . """ . (this.strTypeCode = "Suffix" ? this.strSuffix : "") . """"
+		
 		strCode .= "`n"
 		strCode .= "Sleep, 50`n"
 		strCode .= "`; strAfter := Clipboard`n"

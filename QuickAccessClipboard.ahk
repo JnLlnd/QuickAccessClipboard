@@ -970,8 +970,14 @@ BuildGuiMenuBar:
 Menu, menuBarFile, Add, % o_L["GuiSaveEditor"] . "`tCtrl+S", EditorCtrlS
 Menu, menuBarFile, Add, % o_L["GuiClose"] . "`tEsc", GuiCloseCancel
 Menu, menuBarFile, Add
-Menu, menuBarFile, Add, QACrules.ahk, OpenQacRulesFile
+Menu, menuBarFile, Add, % o_L["MenuOpenWorkingDirectory"], OpenWorkingDirectory
+Menu, menuBarFile, Add, % L(o_L["MenuEditIniFile"], o_Settings.strIniFileNameExtOnly), ShowSettingsIniFile
 Menu, menuBarFile, Add
+if (g_strCurrentBranch <> "prod")
+{
+	Menu, menuBarFile, Add, Debug QACrules.ahk (beta only), OpenQacRulesFile
+	Menu, menuBarFile, Add
+}
 Menu, menuBarFile, Add, % L(o_L["MenuExitApp"], g_strAppNameText), GuiCloseCancelAndExitApp
 
 Menu, menuBarRule, Add, % o_L["MenuRuleAdd"], GuiAddRuleSelectType

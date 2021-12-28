@@ -299,6 +299,7 @@ global g_saRulesBackupSelectedByName ; backup of selected rules
 global g_strPipe := "Ð¡þ€" ; used to replace pipe in ini file
 global g_strEol := "€ö¦" ; used to replace end-of-line in AutoHotkey rules in ini file
 global g_strTab := "¬ã³" ; used to replace tab in AutoHotkey rules in ini file
+global g_aaToolTipsMessages := Object() ; messages to display by ToolTip when mouse is over selected buttons in Settings
 
 ;---------------------------------
 ; Init language
@@ -406,6 +407,12 @@ Gosub, EnableClipboardChangesInEditor
 IniWrite, % (intStartups + 1), % o_Settings.strIniFile, Global, Startups
 IniWrite, %g_strCurrentVersion%, % o_Settings.strIniFile, Global, % "LastVersionUsed" . (g_strCurrentBranch = "alpha" ? "Alpha" : (g_strCurrentBranch = "beta" ? "Beta" : "Prod"))
 IniWrite, % (g_blnPortableMode ? "Portable" : "Easy Setup"), % o_Settings.strIniFile, Global, Installation
+
+;---------------------------------
+; Load the cursor and start the "hook" to change mouse cursor in Settings - See WM_MOUSEMOVE function below
+
+g_objHandCursor := DllCall("LoadCursor", "UInt", NULL, "Int", 32649, "UInt") ; IDC_HAND
+OnMessage(0x200, "WM_MOUSEMOVE")
 
 ;---------------------------------
 ; Respond to SendMessage sent by QACrules
@@ -871,10 +878,6 @@ return
 ShowUpdatedEditorContextMenu:
 ;------------------------------------------------------------
 
-GuiControlGet, strFocusedControl, Focus
-if (strFocusedControl <> "Edit2") ; show context menu only if editor is active
-	return
-
 GuiControl, Focus, f_strClipboardEditor ; give focus to control for EditorContextMenuActions
 
 GuiControlGet, blnEnable, Enabled, f_btnGuiSaveEditor ; enable Undo item if Save button is enabled
@@ -1050,9 +1053,13 @@ Gui, 1:Add, Text, x10 y+10 Section
 Gui, Font, s9, Arial
 ; Unicode chars: https://www.fileformat.info/info/unicode/category/So/list.htm
 Gui, 1:Add, Button, ys x10 ys+30 w24 vf_btnRuleAdd gGuiAddRuleSelectType, % chr(0x2795) ; or chr(0x271B)
+g_aaToolTipsMessages["Button1"] := o_L["MenuRuleAdd"]
 Gui, 1:Add, Button, ys+60 x10 w24 vf_btnRuleEdit gGuiRuleEdit, % chr(0x2328)
+g_aaToolTipsMessages["Button2"] := o_L["MenuRuleEdit"]
 Gui, 1:Add, Button, ys+90 x10 w24 vf_btnRuleRemove gGuiRuleRemove, % chr(0x2796)
+g_aaToolTipsMessages["Button3"] := o_L["MenuRuleRemove"]
 Gui, 1:Add, Button, ys+120 x10 w24 vf_btnRuleCopy gGuiRuleCopy, % chr(0x1F5D7) ; or 0x2750
+g_aaToolTipsMessages["Button4"] := o_L["MenuRuleCopy"]
 Gui, Font
 
 Gui, 1:Add, ListView
@@ -1062,8 +1069,11 @@ Gui, 1:Add, ListView
 Gui, Font, s9, Arial
 ; Unicode chars: https://www.fileformat.info/info/unicode/category/So/list.htm
 Gui, 1:Add, Button, ys+30 x535 w24 vf_btnRuleSelect gGuiRuleSelect, % chr(0x25BA)
+g_aaToolTipsMessages["Button5"] := o_L["MenuRuleSelect"]
 Gui, 1:Add, Button, ys+60 x535 w24 vf_btnRuleDeselect gGuiRuleDeselect, % chr(0x25C4)
+g_aaToolTipsMessages["Button6"] := o_L["MenuRuleDeselect"]
 Gui, 1:Add, Button, ys+90 x535 w24 vf_btnRuleDeslectAll gGuiRuleDeselectAll, % chr(0x232B)
+g_aaToolTipsMessages["Button7"] := o_L["MenuRuleDeselectAll"]
 Gui, Font
 
 Gui, 1:Add, ListView
@@ -1354,10 +1364,8 @@ strTop =
 		{
 			strRule := "Rule" . saData[2]
 			`%strRule`%(1)
-			return 1 ; success
+			`; return 1 ; success
 		}
-		else
-			return 0 ; error
 	}
 	;------------------------------------------------------------
 
@@ -2158,7 +2166,9 @@ if (A_ThisLabel = "GuiCloseCancelAndExitApp")
 	ExitApp
 ; else continue
 
-if EditorUnsaved() or RulesNotApplied()
+blnShiftPressed := GetKeyState("Shift")
+
+if (!blnShiftPressed and (EditorUnsaved() or RulesNotApplied()))
 {
 	Gui, 1:+OwnDialogs
 	MsgBox, 36, % L(o_L["DialogCancelTitle"], g_strAppNameText, g_strAppVersion)
@@ -2169,7 +2179,7 @@ if EditorUnsaved() or RulesNotApplied()
 		return
 }
 
-if RulesNotApplied()
+if (blnShiftPressed and RulesNotApplied())
 {
 	Gui, 1:ListView, f_lvRulesSelected
 	LV_Delete() ; delete all rows
@@ -2191,7 +2201,8 @@ if RulesNotApplied()
 Gosub, DisableSaveAndCancel
 Gosub, DisableApplyRulesAndCancel
 
-Gui, 1:Cancel ; hide the window
+if !(blnShiftPressed)
+	Gui, 1:Cancel ; hide the window
 
 return
 ;------------------------------------------------------------
@@ -3587,6 +3598,60 @@ DecodeAutoHokeyCodeFromIni(str)
 !_095_ONMESSAGE_FUNCTIONS:
 return
 ;========================================================================================================================
+
+;------------------------------------------------
+WM_MOUSEMOVE(wParam, lParam)
+; "hook" for image buttons cursor and buttons tooltips
+; see http://www.autohotkey.com/board/topic/70261-gui-buttons-hover-cant-change-cursor-to-hand/
+; and https://autohotkey.com/board/topic/83045-solved-onmessage-gui-tooltips-issues/#entry528803
+;------------------------------------------------
+{
+	static s_strControl
+	static s_strControlPrev
+	
+	global g_objHandCursor
+	global g_blnEditButtonDisabled
+
+	; get window's titte and exit if it is not the Settings window
+	WinGetTitle, strCurrentWindow, A
+	if (strCurrentWindow <> QACGuiTitle())
+		return
+
+	; get hover control name and Static control number
+	s_strControlPrev := s_strControl
+	MouseGetPos, , , , s_strControl ; Static1, StaticN, Button1, ButtonN
+	intControl := StrReplace(s_strControl, "Static")
+	
+	/* code to use for Static controls
+	; display hand cursor over selected buttons
+	if InStr(s_strControl, "Static")
+	{
+		; Static controls to exclude if any
+		if (intControl < 1 or intControl > 25 or ((intControl = 2 or intControl = 3 or intControl = 22) and g_blnEditButtonDisabled))
+			return
+	}
+	else if...
+	*/
+	if !InStr(s_strControl, "Button")
+	{
+		ToolTip ; turn ToolTip off
+		return
+	}
+	DllCall("SetCursor", "UInt", g_objHandCursor)
+	
+	; display tooltip for hovered control
+	if (s_strControl <> s_strControlPrev) ;  prevent flicker caused by repeating tooltip when mouse moving over the same control
+		and StrLen(g_aaToolTipsMessages[s_strControl])
+	{
+		ToolTip, % g_aaToolTipsMessages[s_strControl] ; display tooltip or remove tooltip if no message for this control
+		if StrLen(g_aaToolTipsMessages[s_strControl])
+			SetTimer, RemoveToolTip, 2500 ; will remove tooltip if not removed by mouse going hovering elsewhere (required if window become inactive)
+	}
+
+	return
+}
+;------------------------------------------------
+
 
 ;-----------------------------------------------------------
 Send_WM_COPYDATA(ByRef strStringToSend, ByRef strTargetScriptTitle) ; ByRef saves a little memory in this case.

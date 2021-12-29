@@ -23,7 +23,7 @@ ChangeCase: .intCaseType (1), .strFind (always ".*"), .strReplace ("$L0|$U0|$T0"
 Replace: .strFind (1), .strReplace (2)
 AutoHotkey: .strCode (1)
 SubStr: .intSubStrFromType (1: FromStart, FromPosition, FromBeginText, FromEndText), .intSubStrFromPosition (2), .strSubStrFromText (3), .intSubStrFromPlusMinus (4)
-	, .intSubStrToType (5: ToEnd, Length, ToBeforeEnd, ToBeginText, ToEndText), .intSubStrToLength (6, positive or negative), .strSubStrToText (7), .intSubStrToPlusMinus (8), 	.blnSubStrRepeat (9)
+	, .intSubStrToType (5: ToEnd, ToLength, ToBeforeEnd, ToBeginText, ToEndText), .intSubStrToLength (6, positive or negative), .strSubStrToText (7), .intSubStrToPlusMinus (8), .blnSubStrRepeat (9)
 Prefix: .strPrefix (1), .blnSubStrRepeat(2)
 Suffix: .strSuffix (1), .blnSubStrRepeat(2)
 Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
@@ -4798,15 +4798,50 @@ class Rule
 			strCode .= "Clipboard := StrReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
 		else if (this.strTypeCode = "AutoHotkey")
 			strCode .= this.strCode
-		else if (this.strTypeCode = "SubStr") and 0 ; #####
+		else if (this.strTypeCode = "SubStr")
+		{
+			strSubStr := "SubStr(Clipboard, "
+			if (this.intSubStrFromType = 1) ; FromStart
+				strSubStr .= "1"
+			else if (this.intSubStrFromType = 2) ; FromPosition
+				strSubStr .= this.intSubStrFromPosition
+			else if (this.intSubStrFromType = 3) ; FromBeginText
+			{
+				strCodeStart := "InStr(Clipboard, """ . this.strSubStrFromText . """) + " . this.intSubStrFromPlusMinus ; used to substract from "to" position
+				strSubStr .= strCodeStart
+			}
+			else if (this.intSubStrFromType = 4) ; FromEndText
+			{
+				strCodeStart := "InStr(Clipboard, """ . this.strSubStrFromText . """) + StrLen(""" . this.strSubStrFromText . """) + " . this.intSubStrFromPlusMinus ; used to substract from "to" position
+				strSubStr .= strCodeStart
+			}
+			
+			if (this.intSubStrToType <> 1)
+				strSubStr .= ", "
+			
+			; if this.intSubStrToType = 1 ToEnd, add nothing
+			if (this.intSubStrToType = 2) ; ToLength
+				strSubStr .= this.intSubStrToLength
+			else if (this.intSubStrToType = 3) ; ToBeforeEnd
+				strSubStr .= this.intSubStrToLength ; intSubStrToLength already negative
+			else if (this.intSubStrToType = 4) ; ToBeginText
+				strSubStr .= "InStr(Clipboard, """ . this.strSubStrToText . """) + " . this.intSubStrToPlusMinus . " - (" . strCodeStart . ")"
+			else if (this.intSubStrToType = 5) ; ToEndText
+				strSubStr .= "InStr(Clipboard, """ . this.strSubStrToText . """) + StrLen(""" . this.strSubStrToText . """) + " . this.intSubStrToPlusMinus . " - (" . strCodeStart . ")"
+			strSubStr .= ")"
+			
 			if (this.blnSubStrRepeat)
-				; strCode .= "Clipboard := SubStr(Clipboard, " . this.intStartingPosition . (StrLen(this.intLength) ? "," . this.intLength : "") . ")"
+			{
+				strSubStr := StrReplace(strSubStr , "Clipboard", "A_LoopField")
 				strCode .= "strTemp := """"`n"
 					. "Loop, Parse, Clipboard, ``n`n"
-					. "`tstrTemp .= SubStr(A_LoopField, " . this.intStartingPosition . (StrLen(this.intLength) ? "," . this.intLength : "") . ") . " . """``n""`n"
+					; . "`tstrTemp .= SubStr(A_LoopField, " . intStartingPosition . (StrLen(intLength) ? "," . intLength : "") . ") . " . """``n""`n"
+					. "`tstrTemp .= " . strSubStr . " . ""``n""`n"
 					. "Clipboard := SubStr(strTemp, 1, -1) `; remove last eol"
+				}
 			else
-				strCode .= "Clipboard := SubStr(Clipboard, " . this.intStartingPosition . (StrLen(this.intLength) ? "," . this.intLength : "") . ")"
+				strCode .= "Clipboard := " . strSubStr
+		}
 		else if InStr("Prefix Suffix", this.strTypeCode)
 			if (this.blnSubStrRepeat)
 				strCode .= "strTemp := """"`n"

@@ -32,7 +32,30 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
-Version ALPHA: 0.0.5.2 (2021-12-19)
+Version ALPHA: 0.0.6 (2021-12-29)
+ 
+Editor
+- add confirmation prompt before deleting a rule
+- add column Notes to available rules listview
+- add tooltip messages when hovering buttons
+- make tab stop shorter in editor and in edit AutoHotkey rule
+- edit rule when shift + double click a rule in Available rules
+- do not close Editor when pressing Shift while clicking the Cancel button
+ 
+Menu bar
+- add "Rule" and "Help" menus to menu bar
+- add "About QAC" under "Help menu"
+- new menu item under "File" menu to open QAC ini file and QAC working directory
+- only in alpha or beta releases, new menu item under "File" menu to open QACrules.ahk 
+ 
+Rules
+- add Substring subtypes FromBeginText, FromEndText, ToBeginText and ToEndText with a +/- offset
+- option to execute a rule on each line of the Clipboard or editor's content for Substring and Prefix/Suffix rules
+- replace LF with eol replacement chars when saving AutoHotkey code value to ini file, replace LF when editing AutoHotkey code and when building rule code
+ 
+Various
+- after saving a rule, reload rules, rebuild rules menu, update Available rules listview and relaunch QACrules
+- enable check for update
 
 Version ALPHA: 0.0.5.1 (2021-12-19)
 - add rules demo in new ini file
@@ -159,7 +182,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.5.2
+;@Ahk2Exe-SetVersion 0.0.6
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -229,7 +252,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.5.2" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.6" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"

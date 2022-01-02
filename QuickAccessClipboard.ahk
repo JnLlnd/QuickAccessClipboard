@@ -13,17 +13,19 @@ OBJECT MODEL
 
 RULE TYPES
 ----------
+Types: ChangeCase, ConvertFormat, Replace, AutoHotkey, SubStr, Prefix, Suffix
 Values: .strTypeCode, .strTypeLabel, .strTypeHelp, .intID
 Collections: g_aaRuleTypes (by strTypeCode), g_saRuleTypesOrder (by intID)
 
 RULE
 ----
-All types: .strName, .strTypeCode, .strTypeLabel, .strCategory, .strNotes, .saVarValues (variable values, starting à 1), .intID
+All types: .strName, .strTypeCode, .strTypeLabel, .strTypeHelp, .strCategory, .strNotes, .saVarValues (variable values, starting à 1), .intID
+ConvertFormat: .intConvertFormat (1: 1-Text)
 ChangeCase: .intCaseType (1), .strFind (always ".*"), .strReplace ("$L0|$U0|$T0")
 Replace: .strFind (1), .strReplace (2)
 AutoHotkey: .strCode (1)
-SubStr: .intSubStrFromType (1: FromStart, FromPosition, FromBeginText, FromEndText), .intSubStrFromPosition (2), .strSubStrFromText (3), .intSubStrFromPlusMinus (4)
-	, .intSubStrToType (5: ToEnd, ToLength, ToBeforeEnd, ToBeginText, ToEndText), .intSubStrToLength (6, positive or negative), .strSubStrToText (7), .intSubStrToPlusMinus (8), .blnSubStrRepeat (9)
+SubStr: .intSubStrFromType (1: 1-FromStart, 2-FromPosition, 3-FromBeginText, 4-FromEndText), .intSubStrFromPosition (2), .strSubStrFromText (3), .intSubStrFromPlusMinus (4)
+	, .intSubStrToType (5: 1-ToEnd, 2-ToLength, 3-ToBeforeEnd, 4-ToBeginText, 5-ToEndText), .intSubStrToLength (6, positive or negative), .strSubStrToText (7), .intSubStrToPlusMinus (8), .blnSubStrRepeat (9)
 Prefix: .strPrefix (1), .blnSubStrRepeat(2)
 Suffix: .strSuffix (1), .blnSubStrRepeat(2)
 Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
@@ -182,7 +184,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.6
+;@Ahk2Exe-SetVersion 0.0.6.1
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -252,7 +254,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.6" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.6.1" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -284,16 +286,16 @@ if StrLen(o_CommandLineParameters.AA["Settings"])
 ;---------------------------------
 ; Create temporary folder
 
-o_Settings.ReadIniOption("Launch", "strQAPTempFolderParent", "QAPTempFolder", " ", "General"
-	, "f_strQAPTempFolderParentPath|f_lblQAPTempFolderParentPath|f_btnQAPTempFolderParentPath") ; g_strQAPTempFolderParent
+o_Settings.ReadIniOption("Launch", "strQACTempFolderParent", "QACTempFolder", "%TEMP%", "General"
+	, "f_strQACTempFolderParentPath|f_lblQACTempFolderParentPath|f_btnQACTempFolderParentPath")
 
-if !StrLen(o_Settings.Launch.strQAPTempFolderParent.IniValue)
+if !StrLen(o_Settings.Launch.strQACTempFolderParent.IniValue)
 	if StrLen(EnvVars("%TEMP%")) ; make sure the environment variable exists
-		o_Settings.Launch.strQAPTempFolderParent.IniValue := "%TEMP%" ; for new installation v8.6.9.2+
+		o_Settings.Launch.strQAPTempFolderParent.IniValue := "%TEMP%"
 	else
-		o_Settings.Launch.strQAPTempFolderParent.IniValue := A_WorkingDir ; for installations installed before v8.6.9.2
+		o_Settings.Launch.strQACTempFolderParent.IniValue := A_WorkingDir
 
-global g_strTempDirParent := PathCombine(A_WorkingDir, EnvVars(o_Settings.Launch.strQAPTempFolderParent.IniValue))
+global g_strTempDirParent := PathCombine(A_WorkingDir, EnvVars(o_Settings.Launch.strQACTempFolderParent.IniValue))
 
 ; add a random number between 0 and 2147483647 to generate a unique temp folder in case multiple QAP instances are running
 global g_strTempDir := g_strTempDirParent . "\_QAC_temp_" . RandomBetween()
@@ -323,6 +325,7 @@ Gosub, InitFileInstall
 
 global g_strEscapeReplacement := "!r4nd0mt3xt!"
 global o_L := new Language
+o_Settings.InitOptionsGroupsLabelNames() ; init options groups labels after language is initialized
 
 ;---------------------------------
 ; Init global variables
@@ -395,6 +398,11 @@ global o_Utc2LocalTime := new Utc2LocalTime
 Gosub, InitRuleTypes
 
 ;---------------------------------
+; Init startups and last version used
+intStartups := o_Settings.ReadIniValue("Startups", 0)
+global g_strLastVersionUsed := o_Settings.ReadIniValue("LastVersionUsed" . (g_strCurrentBranch = "alpha" ? "Alpha" : (g_strCurrentBranch = "beta" ? "Beta" : "Prod")), 0.0)
+
+;---------------------------------
 ; Load Settings file
 
 Gosub, LoadIniFile ; load options and rules
@@ -448,9 +456,9 @@ if (blnStartup) ; both setup and portable
 Gosub, EnableClipboardChangesInEditor
 
 ; startups count and trace
-IniWrite, % (intStartups + 1), % o_Settings.strIniFile, Global, Startups
-IniWrite, %g_strCurrentVersion%, % o_Settings.strIniFile, Global, % "LastVersionUsed" . (g_strCurrentBranch = "alpha" ? "Alpha" : (g_strCurrentBranch = "beta" ? "Beta" : "Prod"))
-IniWrite, % (g_blnPortableMode ? "Portable" : "Easy Setup"), % o_Settings.strIniFile, Global, Installation
+IniWrite, % (intStartups + 1), % o_Settings.strIniFile, Internal, Startups
+IniWrite, %g_strCurrentVersion%, % o_Settings.strIniFile, Internal, % "LastVersionUsed" . (g_strCurrentBranch = "alpha" ? "Alpha" : (g_strCurrentBranch = "beta" ? "Beta" : "Prod"))
+IniWrite, % (g_blnPortableMode ? "Portable" : "Easy Setup"), % o_Settings.strIniFile, Internal, Installation
 
 ;---------------------------------
 ; Load the cursor and start the "hook" to change mouse cursor in Settings - See WM_MOUSEMOVE function below
@@ -475,7 +483,8 @@ Hotkey, If, WinActive(QACGuiTitle()) ; main Gui title
 
 Hotkey, If
 
-Gosub, GuiShow ; #####
+if (o_Settings.EditorWindow.blnDisplayEditorAtStartup.IniValue)
+	Gosub, GuiShow
 
 return
 
@@ -693,12 +702,21 @@ InitRuleTypes:
 global g_aaRuleTypes = Object()
 global g_saRuleTypesOrder = Object()
 
-saRuleTypes := StrSplit("ChangeCase|Replace|AutoHotkey|SubStr|Prefix|Suffix", "|")
+saRuleTypes := StrSplit("ChangeCase|ConvertFormat|Replace|AutoHotkey|Prefix|Suffix|SubStr", "|")
 for intIndex, strType in saRuleTypes
 {
 	strLabels .= o_L["Type" . strType] . "|" ; "TypeChangeCase", etc.
-	strHelp .= o_L["Type" . strType . "Help"] . "|" ; "TypeChangeCaseHelp", etc.
+
+	if (strType = "AutoHotkey")
+		strHelp .=  L(o_L["Type" . strType . "Help"], "https://www.autohotkey.com/docs/AutoHotkey.htm"
+			, "https://www.autohotkey.com/docs/Variables.htm", "https://www.autohotkey.com/docs/commands/SubStr.htm"
+			, "https://www.autohotkey.com/docs/commands/InStr.htm", "https://www.autohotkey.com/docs/commands/Loop.htm"
+			, "https://www.autohotkey.com/docs/commands/LoopParse.htm")
+	else
+		strHelp .=  o_L["Type" . strType . "Help"]
+	strHelp .= "|"
 }
+
 saRuleTypesLabels := StrSplit(SubStr(strLabels, 1, -1), "|")
 saRuleTypesHelp := StrSplit(SubStr(strHelp, 1, -1), "|")
 
@@ -719,32 +737,22 @@ LoadIniFile:
 ; load options, load rules to menu object
 ;-----------------------------------------------------------
 
-g_blnIniFileCreation := !FileExist(o_Settings.strIniFile)
-if (g_blnIniFileCreation) ; if it exists, it is not first launch
-{
-	strLanguageCode := o_Settings.Launch.strLanguageCode.IniValue
-	
-	FileAppend,
-		(LTrim Join`r`n
-			[Global]
-			LanguageCode=%strLanguageCode%
-			FixedFont=1
-			FontSize=12
-			DisplayTrayTip=1
-			RulesTimeoutSecs=60
-			AlwaysOnTop=0
-			UseTab=0
-			[Rules]
-			Lower case=ChangeCase|Demo|Convert Clipboard to lower case|1|||||||||
-			Upper case=ChangeCase|Demo|Convert Clipboard to upper case|2|||||||||
-			Replace this with that=Replace|Demo|Text substitution example|this|that||||||||
-			Trim 2 last characters=SubStr|Demo|String manipulation example|0|1|-1|2||||||
-			Prefix with Title=Prefix|Demo|Append text example|Title: |||||||||
-			MsgBox=AutoHotkey|Demo|Simple AutoHotkey line of code|MsgBox, Your Clipboard contains: `%Clipboard`%|||||||||
-			MsgBox Multiline=AutoHotkey|Demo|Multiline AHK scripting|if StrLen(Clipboard) > 500%g_strEol%%g_strTab%str := "The 500 first characters of your Clipboard are:``n``n" . SubStr(Clipboard, 1, 500) . "..."%g_strEol%else%g_strEol%%g_strTab%str := "Your Clipboard contains:``n``n" . Clipboard%g_strEol%MsgBox, `%str`%|||||||||
+strRulesExist := StrLen(o_Settings.ReadIniSection("Rules"))
 
-) ; leave the last extra line above
-			, % o_Settings.strIniFile, % (A_IsUnicode ? "UTF-16" : "")
+if !(strRulesExist) ; first launch
+{
+	IniWrite, ChangeCase|Demo|Convert Clipboard to lower case|1|, % o_Settings.strIniFile, Rules, Lower case
+	IniWrite, ChangeCase|Demo|Convert Clipboard to upper case|2|, % o_Settings.strIniFile, Rules, Upper case
+	IniWrite, ConvertFormat|Demo|Convert Clipboard to Text format|1|, % o_Settings.strIniFile, Rules, Convert to text
+	IniWrite, Replace|Demo|Text substitution example|this|that|, % o_Settings.strIniFile, Rules, Replace this with that
+	IniWrite, SubStr|Demo|String manipulation example|1|||0|3|-2||0|0|, % o_Settings.strIniFile, Rules, Trim 2 last characters
+	IniWrite, Prefix|Demo|Append text example|Title: |, % o_Settings.strIniFile, Rules, Prefix with Title
+	IniWrite, AutoHotkey|Demo|Simple AutoHotkey line of code|MsgBox`, Your Clipboard1 contains: `%Clipboard`%|, % o_Settings.strIniFile, Rules, MsgBox
+	IniWrite, % "AutoHotkey|Demo|Multiline AHK scripting|if StrLen(Clipboard) > 500" . g_strEol
+		. g_strTab . "str := ""The 500 first characters of your Clipboard are:``n``n"" . SubStr(Clipboard, 1, 500) . ""...""" . g_strEol
+		. "else" . g_strEol
+		. g_strTab . "str := ""Your Clipboard contains:``n``n"" . Clipboard"
+		. g_strEol . "MsgBox, %str%|", % o_Settings.strIniFile, Rules, MsgBox Multiline
 }
 else
 	Settings.BackupIniFile(o_Settings.strIniFile) ; backup main ini file
@@ -758,21 +766,21 @@ o_Settings.ReadIniOption("Launch", "blnDisplayTrayTip", "DisplayTrayTip", 1, "Ge
 o_Settings.ReadIniOption("Launch", "blnCheck4Update", "Check4Update", (g_blnPortableMode ? 0 : 1), "General", "f_blnCheck4Update|f_lnkCheck4Update") ; g_blnCheck4Update ; enable by default only in setup install mode
 o_Settings.ReadIniOption("Launch", "intRulesTimeoutSecs", "RulesTimeoutSecs", 60, "General", "")
 
-; Group SettingsWindow
-o_Settings.ReadIniOption("SettingsWindow", "blnDisplaySettingsStartup", "DisplaySettingsStartup", 0, "SettingsWindow", "f_blnDisplaySettingsStartup|f_lblOptionsSettingsWindow")
-o_Settings.ReadIniOption("SettingsWindow", "blnRememberSettingsPosition", "RememberSettingsPosition", 1, "SettingsWindow", "f_blnRememberSettingsPosition") ; g_blnRememberSettingsPosition
-o_Settings.ReadIniOption("SettingsWindow", "blnOpenSettingsOnActiveMonitor", "OpenSettingsOnActiveMonitor", 1, "SettingsWindow", "f_blnOpenSettingsOnActiveMonitor") ; g_blnOpenSettingsOnActiveMonitor
-o_Settings.ReadIniOption("SettingsWindow", "blnDarkModeCustomize", "DarkModeCustomize", 0, "SettingsWindow", "f_blnDarkModeCustomize")
-o_Settings.ReadIniOption("SettingsWindow", "blnFixedFont", "FixedFont", 0, "SettingsWindow", "")
-o_Settings.ReadIniOption("SettingsWindow", "intFontSize", "FontSize", 12, "SettingsWindow", "")
-o_Settings.ReadIniOption("SettingsWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "SettingsWindow", "")
-o_Settings.ReadIniOption("SettingsWindow", "blnUseTab", "UseTab", 0, "SettingsWindow", "")
+; Group EditorWindow
+o_Settings.ReadIniOption("EditorWindow", "blnDisplayEditorAtStartup", "DisplayEditorAtStartup", 1, "EditorWindow", "f_blnDisplayEditorAtStartup|f_lblOptionsEditorWindow")
+o_Settings.ReadIniOption("EditorWindow", "blnRememberEditorPosition", "RememberEditorPosition", 1, "EditorWindow", "f_blnRememberEditorPosition")
+o_Settings.ReadIniOption("EditorWindow", "blnOpenEditorOnActiveMonitor", "OpenEditorOnActiveMonitor", 1, "EditorWindow", "f_blnOpenEditorOnActiveMonitor")
+; need improvement !! o_Settings.ReadIniOption("EditorWindow", "blnDarkModeCustomize", "DarkModeCustomize", 0, "EditorWindow", "f_blnDarkModeCustomize")
+o_Settings.ReadIniOption("EditorWindow", "blnFixedFont", "FixedFont", 1, "EditorWindow", "")
+o_Settings.ReadIniOption("EditorWindow", "intFontSize", "FontSize", 12, "EditorWindow", "")
+o_Settings.ReadIniOption("EditorWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "EditorWindow", "")
+o_Settings.ReadIniOption("EditorWindow", "blnUseTab", "UseTab", 0, "EditorWindow", "")
 
 ; Group MenuAdvanced
-o_Settings.ReadIniOption("MenuAdvanced", "intShowMenuBar", "ShowMenuBar", 3, "MenuAdvanced", "") ; default false, if true reload QAP as admin ; g_blnRunAsAdmin
+o_Settings.ReadIniOption("MenuAdvanced", "intShowMenuBar", "ShowMenuBar", 3, "MenuAdvanced", "")
 
 ; Group AdvancedOther
-o_Settings.ReadIniOption("LaunchAdvanced", "blnRunAsAdmin", "RunAsAdmin", 0, "AdvancedOther", "f_blnRunAsAdmin|f_picRunAsAdmin") ; default false, if true reload QAP as admin ; g_blnRunAsAdmin
+; not ready !! o_Settings.ReadIniOption("LaunchAdvanced", "blnRunAsAdmin", "RunAsAdmin", 0, "AdvancedOther", "f_blnRunAsAdmin|f_picRunAsAdmin") ; default false, if true reload QAC as admin
 
 ; not in Options Gui
 o_Settings.ReadIniOption("Launch", "blnDiagMode", "DiagMode", 0) ; g_blnDiagMode
@@ -1141,12 +1149,12 @@ Gui, 1:Add, Text, x20 y+5, % o_L["MenuEditor"]
 Gui, 1:Font
 
 Gui, 1:Add, Text, x10
-Gui, 1:Add, Checkbox, % "x+1 yp vf_blnFixedFont gClipboardEditorFontChanged " . (o_Settings.SettingsWindow.blnFixedFont.IniValue = 1 ? "checked" : ""), % o_L["DialogFixedFont"]
+Gui, 1:Add, Checkbox, % "x+1 yp vf_blnFixedFont gClipboardEditorFontChanged " . (o_Settings.EditorWindow.blnFixedFont.IniValue = 1 ? "checked" : ""), % o_L["DialogFixedFont"]
 Gui, 1:Add, Text, x+10 yp vf_lblFontSize, % o_L["DialogFontSize"]
 Gui, 1:Add, Edit, x+5 yp w40 vf_intFontSize gClipboardEditorFontChanged
-Gui, 1:Add, UpDown, Range6-36 vf_intFontUpDown, % o_Settings.SettingsWindow.intFontSize.IniValue
-Gui, 1:Add, Checkbox, % "x+20 yp vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopChanged " . (o_Settings.SettingsWindow.blnAlwaysOnTop.IniValue = 1 ? "checked" : ""), % o_L["DialogAlwaysOnTop"]
-Gui, 1:Add, Checkbox, % "x+10 yp vf_blnUseTab gClipboardEditorUseTabChanged " . (o_Settings.SettingsWindow.blnUseTab.IniValue = 1 ? "checked" : ""), % o_L["DialogUseTab"]
+Gui, 1:Add, UpDown, Range6-36 vf_intFontUpDown, % o_Settings.EditorWindow.intFontSize.IniValue
+Gui, 1:Add, Checkbox, % "x+20 yp vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopChanged " . (o_Settings.EditorWindow.blnAlwaysOnTop.IniValue = 1 ? "checked" : ""), % o_L["DialogAlwaysOnTop"]
+Gui, 1:Add, Checkbox, % "x+10 yp vf_blnUseTab gClipboardEditorUseTabChanged " . (o_Settings.EditorWindow.blnUseTab.IniValue = 1 ? "checked" : ""), % o_L["DialogUseTab"]
 Gui, 1:Add, Checkbox, x+10 yp vf_blnSeeInvisible gClipboardEditorSeeInvisibleChanged disabled, % o_L["DialogSeeInvisible"] ; enable only if f_strClipboardEditor contains Clipboard
 
 Gosub, ClipboardEditorAlwaysOnTopChanged
@@ -1168,26 +1176,29 @@ Gui, 1:Font
 Gui, 1:Add, StatusBar
 SB_SetParts(200, 200)
 
-GetSavedSettingsWindowPosition(saSettingsPosition) ; format: x|y|w|h with optional |M if maximized
+GetSavedEditorWindowPosition(saEditorPosition) ; format: x|y|w|h with optional |M if maximized
 
 Gui, 1:Show, % "Hide "
-	. (saSettingsPosition[1] = -1 or saSettingsPosition[1] = "" or saSettingsPosition[2] = ""
+	. (saEditorPosition[1] = -1 or saEditorPosition[1] = "" or saEditorPosition[2] = ""
 	? "center w" . g_intGuiDefaultWidth . " h" . g_intGuiDefaultHeight
-	: "x" . saSettingsPosition[1] . " y" . saSettingsPosition[2])
+	: "x" . saEditorPosition[1] . " y" . saEditorPosition[2])
 sleep, 100
-if (saSettingsPosition[1] <> -1)
+if (saEditorPosition[1] <> -1)
 {
-	WinMove, ahk_id %g_strGui1Hwnd%, , , , % saSettingsPosition[3], % saSettingsPosition[4]
-	if (saSettingsPosition[5] = "M")
+	WinMove, ahk_id %g_strGui1Hwnd%, , , , % saEditorPosition[3], % saEditorPosition[4]
+	if (saEditorPosition[5] = "M")
 	{
 		WinMaximize, ahk_id %g_strGui1Hwnd%
 		WinHide, ahk_id %g_strGui1Hwnd%
 	}
 }
 
+/*
+To improve with help. "ButtonN" controls including checkboxes do not respond to colo command,
+
 ; testing the dark mode display on Customize window (see https://www.autohotkey.com/boards/viewtopic.php?p=426678&sid=0f08bed4b46e1ed1f59601053df8c959#p426678)
 RegRead, blnLightMode, HKCU, SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize, AppsUseLightTheme ; check SystemUsesLightTheme for Windows system preference
-if (o_Settings.SettingsWindow.blnDarkModeCustomize.IniValue and !blnLightMode)
+if (o_Settings.EditorWindow.blnDarkModeCustomize.IniValue and !blnLightMode)
 	; si dark mode forcer theme "Windows"
 {
 	intWindowColor := 0x404040
@@ -1210,10 +1221,16 @@ if (o_Settings.SettingsWindow.blnDarkModeCustomize.IniValue and !blnLightMode)
 			Gui,Font, c%intControlColor%
 			GuiControl, Font, %strControl%
 		}
+		if InStr(strControl, "Button")
+		{
+			Gui,Font, c%intControlColor%
+			GuiControl, Font, %strControl%
+		}
 	}
 }
+*/
 
-saSettingsPosition := ""
+saEditorPosition := ""
 strTextColor := ""
 strHwnd := ""
 
@@ -1685,7 +1702,7 @@ for intOrder, aaRuleType in g_saRuleTypesOrder
 Gui, 2:Add, Button, x20 y+20 vf_btnAddRuleSelectTypeContinue gGuiAddRuleSelectTypeContinue default, % o_L["DialogContinue"]
 Gui, 2:Add, Button, yp vf_btnAddRuleSelectTypeCancel gGuiAddRuleCancel, % o_L["GuiCancel"]
 Gui, Add, Text
-Gui, 2:Add, Text, x140 ys vf_lblAddRuleTypeHelp w260 h140, % L(o_L["DialogRuleSelectType"], o_L["DialogContinue"])
+Gui, 2:Add, Link, x140 ys vf_lblAddRuleTypeHelp w360 h140, % L(o_L["DialogRuleSelectType"], o_L["DialogContinue"])
 
 GuiCenterButtons(g_strGui2Hwnd, 10, 5, 20, , , "f_btnAddRuleSelectTypeContinue", "f_btnAddRuleSelectTypeCancel")
 
@@ -1772,28 +1789,33 @@ Gui, 2:New, +Resize -MaximizeBox +Hwndg_strGui2Hwnd, %strGuiTitle%
 Gui, 2:+Owner1
 Gui, 2:+OwnDialogs
 
-Gui, 2:Add, Text, w300, % o_L["DialogRuleName"]
-Gui, 2:Add, Edit, w300 vf_strName, % aaEditedRule.strName
-Gui, 2:Add, Text, w300, % o_L["DialogRuleCategory"]
-Gui, 2:Add, Edit, w300 vf_strCategory, % aaEditedRule.strCategory
-Gui, 2:Add, Text, w300, % o_L["DialogRuleNotes"]
-Gui, 2:Add, Edit, w300 vf_strNotes, % aaEditedRule.strNotes
+Gui, 2:Add, Text, w400, % o_L["DialogRuleName"]
+Gui, 2:Add, Edit, w400 vf_strName, % aaEditedRule.strName
+Gui, 2:Add, Text, w400, % o_L["DialogRuleCategory"]
+Gui, 2:Add, Edit, w400 vf_strCategory, % aaEditedRule.strCategory
+Gui, 2:Add, Text, w400, % o_L["DialogRuleNotes"]
+Gui, 2:Add, Edit, w400 vf_strNotes, % aaEditedRule.strNotes
 
 Gui, 2:Font, w600
-Gui, 2:Add, Text, y+10 w300, % aaEditedRule.strTypeLabel
+Gui, 2:Add, Text, y+10 w400, % aaEditedRule.strTypeLabel
 Gui, 2:Font
+Gui, 2:Add, Link, % "y+2 w" . (aaEditedRule.strTypeCode = "AutoHotkey" ? 900 : 400), % aaEditedRule.strTypeHelp
 
 if (aaEditedRule.strTypeCode = "ChangeCase")
 	
 	loop, 3
-		Gui, 2:Add, Radio, % (A_Index = 1 ? "vf_varValue1 " : "") . "w300 " . (aaEditedRule.intCaseType = A_Index ? " checked" : ""), % o_L["DialogCaseType" . A_Index]
+		Gui, 2:Add, Radio, % (A_Index = 1 ? "vf_varValue1 " : "") . (aaEditedRule.intCaseType = A_Index ? " checked" : ""), % o_L["DialogCaseType" . A_Index]
 	
+else if (aaEditedRule.strTypeCode = "ConvertFormat")
+
+	Gui, 2:Add, Radio, % "vf_varValue1" . (aaEditedRule.intConvertFormat = 1 ? " Checked" : ""), % o_L["DialogConvertFormatText"]
+
 else if (aaEditedRule.strTypeCode = "Replace")
 {
 	Gui, 2:Add, Text, y+5 w300, % o_L["DialogFind"]
-	Gui, 2:Add, Edit, w300 vf_varValue1, % aaEditedRule.strFind ; aaEditedRule.saVarValues[4]
-	Gui, 2:Add, Text, w300, % o_L["DialogReplaceWith"]
-	Gui, 2:Add, Edit, w300 vf_varValue2, % aaEditedRule.strReplace ; aaEditedRule.saVarValues[5]
+	Gui, 2:Add, Edit, vf_varValue1, % aaEditedRule.strFind ; aaEditedRule.saVarValues[4]
+	Gui, 2:Add, Text, , % o_L["DialogReplaceWith"]
+	Gui, 2:Add, Edit, vf_varValue2, % aaEditedRule.strReplace ; aaEditedRule.saVarValues[5]
 }
 else if (aaEditedRule.strTypeCode = "AutoHotkey")
 {
@@ -1802,7 +1824,6 @@ else if (aaEditedRule.strTypeCode = "AutoHotkey")
 	Gui, 2:Font
 }
 else if (aaEditedRule.strTypeCode = "SubStr")
-
 {
 	Gui, 2:Add, Radio, % "vf_blnRadioSubStrFromStart gGuiEditRuleSubStrTypeChanged"
 		. (aaEditedRule.intSubStrFromType = 1 ? " Checked" : ""), % o_L["DialogSubStrFromStart"]
@@ -1851,8 +1872,8 @@ else if (aaEditedRule.strTypeCode = "SubStr")
 }
 else if InStr("Prefix Suffix", aaEditedRule.strTypeCode)
 {
-	Gui, 2:Add, Text, y+5 w300, % o_L["DialogTextToAdd"]
-	Gui, 2:Add, Edit, w300 vf_varValue1, % aaEditedRule.saVarValues[1] ; aaEditedRule.strPrefix or aaEditedRule.strSuffix
+	Gui, 2:Add, Text, y+5 w400, % o_L["DialogTextToAdd"]
+	Gui, 2:Add, Edit, w400 vf_varValue1, % aaEditedRule.saVarValues[1] ; aaEditedRule.strPrefix or aaEditedRule.strSuffix
 }
 
 if (aaEditedRule.strTypeCode = "SubStr")
@@ -2201,13 +2222,13 @@ if (o_Settings.Launch.blnDiagMode.IniValue)
 DllCall("LockWindowUpdate", Uint, g_strGui1Hwnd) ; lock QAP window while restoring window
 if FileExist(o_Settings.strIniFile) ; in case user deleted the ini file to create a fresh one, this avoids creating an ini file with just this value
 {
-	o_Settings.SettingsWindow.blnFixedFont.WriteIni(f_blnFixedFont)
-	o_Settings.SettingsWindow.intFontSize.WriteIni(f_intFontSize)
-	o_Settings.SettingsWindow.blnAlwaysOnTop.WriteIni(f_blnAlwaysOnTop)
-	o_Settings.SettingsWindow.blnUseTab.WriteIni(f_blnUseTab)
+	o_Settings.EditorWindow.blnFixedFont.WriteIni(o_Settings.EditorWindow.blnFixedFont.IniValue)
+	o_Settings.EditorWindow.intFontSize.WriteIni(o_Settings.EditorWindow.intFontSize.IniValue)
+	o_Settings.EditorWindow.blnAlwaysOnTop.WriteIni(o_Settings.EditorWindow.blnAlwaysOnTop.IniValue)
+	o_Settings.EditorWindow.blnUseTab.WriteIni(o_Settings.EditorWindow.blnUseTab.IniValue)
 
-	SaveWindowPosition("SettingsPosition", "ahk_id " . g_strGui1Hwnd)
-	IniWrite, % GetScreenConfiguration(), % o_Settings.strIniFile, Global, LastScreenConfiguration
+	SaveWindowPosition("EditorPosition", "ahk_id " . g_strGui1Hwnd)
+	IniWrite, % GetScreenConfiguration(), % o_Settings.strIniFile, Internal, LastScreenConfiguration
 }
 DllCall("LockWindowUpdate", Uint, 0)  ; 0 to unlock the window
 
@@ -2432,7 +2453,13 @@ if (blnExist) ; keep the gui as-is if it is not closed
 }
 ; else continue
 
-Gui, Show
+GetPositionFromMouseOrKeyboard(g_strMenuTriggerLabel, A_ThisHotkey, intActiveX, intActiveY)
+if (o_Settings.EditorWindow.blnOpenEditorOnActiveMonitor.IniValue
+	and GetWindowPositionOnActiveMonitor("ahk_id " . g_strGui1Hwnd, intActiveX, intActiveY, intPositionX, intPositionY))
+	; display at center of active monitor
+	Gui, 1:Show, % "x" . intPositionX . " y" . intPositionY
+else ; keep existing position
+	Gui, 1:Show
 
 return
 ;------------------------------------------------------------
@@ -3091,7 +3118,7 @@ CalculateTopGuiPosition(g_strTopHwnd, g_strRefHwnd, ByRef intTopGuiX, ByRef intT
 
 
 ;------------------------------------------------------------
-GetSavedSettingsWindowPosition(ByRef saSettingsPosition)
+GetSavedEditorWindowPosition(ByRef saEditorPosition)
 ; use LastScreenConfiguration and window position from ini file
 ; if screen configuration changed, return -1 instead of the saved position
 ;------------------------------------------------------------
@@ -3101,19 +3128,19 @@ GetSavedSettingsWindowPosition(ByRef saSettingsPosition)
 	strCurrentScreenConfiguration := GetScreenConfiguration()
 	if !StrLen(g_strLastScreenConfiguration) or (strCurrentScreenConfiguration <> g_strLastScreenConfiguration)
 	{
-		IniWrite, %strCurrentScreenConfiguration%, % o_Settings.strIniFile, Global, LastScreenConfiguration ; always save in case QAP is not closed properly
-		arrSettingsPosition1 := -1 ; returned value by first ByRef parameter
+		IniWrite, %strCurrentScreenConfiguration%, % o_Settings.strIniFile, Internal, LastScreenConfiguration ; always save in case QAP is not closed properly
+		arrEditorPosition1 := -1 ; returned value by first ByRef parameter
 	}
 	else
-		if (o_Settings.SettingsWindow.blnRememberSettingsPosition.IniValue)
+		if (o_Settings.EditorWindow.blnRememberEditorPosition.IniValue)
 		{
-			strSettingsPosition := o_Settings.ReadIniValue("SettingsPosition", -1) ; by default -1 to center at minimal size
-			saSettingsPosition := StrSplit(strSettingsPosition, "|")
+			strEditorPosition := o_Settings.ReadIniValue("EditorPosition", -1) ; by default -1 to center at minimal size
+			saEditorPosition := StrSplit(strEditorPosition, "|")
 		}
 		else ; delete Settings position
 		{
-			IniDelete, % o_Settings.strIniFile, Global, SettingsPosition
-			arrSettingsPosition1 := -1 ; returned value by first ByRef parameter
+			IniDelete, % o_Settings.strIniFile, Internal, EditorPosition
+			arrEditorPosition1 := -1 ; returned value by first ByRef parameter
 		}
 	
 	g_strLastConfiguration := strCurrentScreenConfiguration
@@ -3150,7 +3177,7 @@ SaveWindowPosition(strThisWindow, strWindowHandle)
 ; format: x|y|w|h
 ;------------------------------------------------------------
 {
-	if (strThisWindow <> "SettingsPosition" or o_Settings.SettingsWindow.blnRememberSettingsPosition.IniValue)
+	if (strThisWindow <> "EditorPosition" or o_Settings.EditorWindow.blnRememberEditorPosition.IniValue)
 	; always for Add, Edit, Copy or Move Favorites dialog boxes, only if remember for Settings
 	{
 		WinGet, intMinMax, MinMax, %strWindowHandle%
@@ -3159,10 +3186,10 @@ SaveWindowPosition(strThisWindow, strWindowHandle)
 		
 		WinGetPos, intX, intY, intW, intH, %strWindowHandle%
 		strPosition := intX . "|" . intY . "|" . intW . "|" . intH . (intMinMax = 1 ? "|M" : "")
-		IniWrite, %strPosition%, % o_Settings.strIniFile, Global, %strThisWindow%
+		IniWrite, %strPosition%, % o_Settings.strIniFile, Internal, %strThisWindow%
 	}
 	else ; delete Settings position
-		IniDelete, % o_Settings.strIniFile, Global, %strThisWindow%
+		IniDelete, % o_Settings.strIniFile, Internal, %strThisWindow%
 }
 ;------------------------------------------------------------
 
@@ -3177,7 +3204,6 @@ GetWindowPositionOnActiveMonitor(strWindowId, intActivePositionX, intActivePosit
 	
 	intActiveMonitorForWindow := GetActiveMonitorForPosition(intWindowX, intWindowY, intNbMonitors)
 	intActiveMonitorForPosition := GetActiveMonitorForPosition(intActivePositionX, intActivePositionY, intNbMonitors)
-	; ###_V(A_ThisFunc, "*intActiveMonitorForWindow", intActiveMonitorForWindow, "*intActiveMonitorForPosition", intActiveMonitorForPosition)
 	
 	if (intNbMonitors > 1) and intActiveMonitorForWindow and (intActiveMonitorForWindow <> intActiveMonitorForPosition)
 	{
@@ -3186,11 +3212,9 @@ GetWindowPositionOnActiveMonitor(strWindowId, intActivePositionX, intActivePosit
 		intWindowX := arrThisMonitorLeft + (((arrThisMonitorRight - arrThisMonitorLeft) - intWindowWidth) / 2)
 		intWindowY := arrThisMonitorTop + (((arrThisMonitorBottom - arrThisMonitorTop) - intWindowHeight) / 2)
 		
-		; ###_V(A_ThisFunc . " True", strWindowId, intActivePositionX, intActivePositionY, intNbMonitors, intActiveMonitorForWindow, intActiveMonitorForPosition, "", intActivePositionX, intActivePositionY, "ByRef", intWindowX, intWindowY)
 		return true
 	}
 
-	; ###_V(A_ThisFunc . " False", strWindowId, intActivePositionX, intActivePositionY, intNbMonitors, intActiveMonitorForWindow, intActiveMonitorForPosition, "", intActivePositionX, intActivePositionY, "ByRef", intWindowX, intWindowY)
 	return false
 }
 ;------------------------------------------------------------
@@ -3236,8 +3260,6 @@ GetPositionFromMouseOrKeyboard(strMenuTriggerLabel, strThisHotkey, ByRef intPosi
 	}
 	else
 		WinGetPos, intPositionX, intPositionY, , , A ; window top-left position
-	
-	; ###_V(A_ThisFunc, strMenuTriggerLabel, strThisHotkey, "ByRef", intPositionX, intPositionY)
 }
 ;------------------------------------------------------------
 
@@ -4051,10 +4073,10 @@ TODO
 		this.strIniFileNameExtOnly := strIniFileNameExtOnly
 		this.strIniFileDefault := this.strIniFile
 		
-		this.saOptionsGroups := ["General", "SettingsWindow", "AdvancedOther"]
+		this.saOptionsGroups := ["General", "Launch", "EditorWindow", "SettingsFile", "LaunchAdvanced", "MenuAdvanced", "AdvancedOther"]
 			
 		; at first launch quickaccessclipboard.ini does not exist, read language value in quickaccessclipboard-setup.ini (if exist) created by Setup
-		this.ReadIniOption("Launch", "strLanguageCode", "LanguageCode", "EN", "General", "", "Global"
+		this.ReadIniOption("Launch", "strLanguageCode", "LanguageCode", "EN", "General", "", ""
 			, (FileExist(this.strIniFile) ? this.strIniFile : A_WorkingDir . "\" . g_strAppNameFile . "-setup.ini"))
 	}
 	;---------------------------------------------------------
@@ -4064,12 +4086,12 @@ TODO
 	; called after o_L is initialized
 	;---------------------------------------------------------
 	{
-		this.saOptionsGroupsLabelNames := ["OptionsGeneral", "OptionsSettingsWindow", "OptionsAdvancedOther"]
+		this.saOptionsGroupsLabelNames := ["OptionsGeneral", "OptionsLaunch", "OptionsEditorWindow", "OptionsSettingsFile", "OptionsLaunchAdvanced", "OptionsMenuAdvanced", "OptionsAdvancedOther"]
 	}
 	;---------------------------------------------------------
 
 	;---------------------------------------------------------
-	ReadIniOption(strOptionGroup, strSettingName, strIniValueName, strDefault := "", strGuiGroup := "", strGuiControls := "", strSection := "Global", strIniFile := "")
+	ReadIniOption(strOptionGroup, strSettingName, strIniValueName, strDefault := "", strGuiGroup := "", strGuiControls := "", strSection := "", strIniFile := "")
 	;---------------------------------------------------------
 	{
 		if !IsObject(this[strOptionGroup])
@@ -4078,7 +4100,7 @@ TODO
 			this.aaGroupItems[strGuiGroup] := Object()
 		
 		if StrLen(strIniValueName) ; for exception f_blnOptionsRunAtStartup having no ini value, but a control in Options gui
-			strOutValue := this.ReadIniValue(strIniValueName, strDefault, strSection, strIniFile)
+			strOutValue := this.ReadIniValue(strIniValueName, strDefault, (StrLen(strSection) ? strSection : strOptionGroup), strIniFile)
 		
 		oIniValue := new this.IniValue(strIniValueName, strOutValue, strGuiGroup, strGuiControls, strSection, strIniFile)
 		
@@ -4092,12 +4114,17 @@ TODO
 	;---------------------------------------------------------
 
 	;---------------------------------------------------------
-	ReadIniValue(strIniValueName, strDefault := "", strSection := "Global", strIniFile := "")
+	ReadIniValue(strIniValueName, strDefault := "", strSection := "Internal", strIniFile := "")
 	;---------------------------------------------------------
 	{
-		IniRead, strOutValue, % (StrLen(strIniFile) ? strIniFile : this.strIniFile), %strSection%, %strIniValueName%, %strDefault%
-		; ###_V(A_ThisFunc, strIniValueName, "|" . strDefault . "|", strSection, strIniFile, this.strIniFile, strOutValue)
-		return strOutValue
+		IniRead, strOutValue, % (StrLen(strIniFile) ? strIniFile : this.strIniFile), %strSection%, %strIniValueName%
+		if (strOutValue = "ERROR")
+		{
+			IniWrite, %strDefault%, % (StrLen(strIniFile) ? strIniFile : this.strIniFile), %strSection%, %strIniValueName%
+			return strDefault
+		}
+		else
+			return strOutValue
 	}
 	;---------------------------------------------------------
 
@@ -4119,7 +4146,7 @@ TODO
 	{
 		SplitPath, strIniFile, strIniFileFilename, strIniFileFolder
 		
-		strThisBackupFolder := o_Settings.ReadIniValue("BackupFolder", " ", "Global", strIniFile) ; can be main ini file, alternative ini or external ini file backup folder
+		strThisBackupFolder := o_Settings.ReadIniValue("BackupFolder", " ", "SettingsFile", strIniFile) ; can be main ini file, alternative ini or external ini file backup folder
 		if !StrLen(strThisBackupFolder) ; if no backup folder in ini file, backup in ini file's folder
 			strThisBackupFolder := strIniFileFolder
 		
@@ -4146,9 +4173,6 @@ TODO
 		
 		; always keep the most recent backup for a given day
 		FileCopy, %strIniFile%, %strIniBackupFile%, 1
-		
-		; if this is a shared menu, delete the lock flag from the backup (it does nothing in a regular settings file)
-		IniDelete, %strIniBackupFile%, Global, MenuReservedBy
 	}
 	;---------------------------------------------------------
 
@@ -4177,7 +4201,7 @@ TODO
 			if !(blnDoNotSave)
 				this.IniValue := varNewValue
 			IniWrite, % this.IniValue, % (StrLen(this.strIniFile) ? this.strIniFile : o_Settings.strIniFile)
-				, % (StrLen(this.strSection) ? this.strSection : "Global"), % this.strIniValueName
+				, % (StrLen(this.strSection) ? this.strSection : "Internal"), % this.strIniValueName
 		}
 		;-----------------------------------------------------
 	}
@@ -4710,6 +4734,7 @@ class Rule
 		this.strName := strName
 		this.strTypeCode := saRuleValues.RemoveAt(1)
 		this.strTypeLabel := g_aaRuleTypes[this.strTypeCode].strTypeLabel
+		this.strTypeHelp := g_aaRuleTypes[this.strTypeCode].strTypeHelp
 		this.strCategory := StrReplace(saRuleValues.RemoveAt(1), g_strPipe, "|")
 		this.strNotes := StrReplace(saRuleValues.RemoveAt(1), g_strPipe, "|")
 		; saRuleValues is now: 1) first variable value, 2) second variable value, etc.
@@ -4721,7 +4746,9 @@ class Rule
 			this.strFind := ".*"
 			this.strReplace := StrSplit("$L0|$U0|$T0", "|")[this.intCaseType]
 		}
-		if (this.strTypeCode = "Replace")
+		else if (this.strTypeCode = "ConvertFormat")
+			this.intConvertFormat := saRuleValues[1]
+		else if (this.strTypeCode = "Replace")
 		{
 			this.strFind := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
 			this.strReplace := StrReplace(saRuleValues[2], g_strPipe, "|") ; also in this.saVarValues[2]
@@ -4817,6 +4844,8 @@ class Rule
 		strCode .= "`; strBefore := Clipboard`n"
 		if (this.strTypeCode = "ChangeCase")
 			strCode .= "Clipboard := RegExReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
+		if (this.strTypeCode = "ConvertFormat") ; only Text format is supported
+			strCode .= "Clipboard := Clipboard"
 		else if (this.strTypeCode = "Replace")
 			strCode .= "Clipboard := StrReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
 		else if (this.strTypeCode = "AutoHotkey")

@@ -22,7 +22,7 @@ RULE
 All types: .strName, .strTypeCode, .strTypeLabel, .strTypeHelp, .strCategory, .strNotes, .saVarValues (variable values, starting à 1), .intID
 ConvertFormat: .intConvertFormat (1: 1-Text)
 ChangeCase: .intCaseType (1), .strFind (always ".*"), .strReplace ("$L0|$U0|$T0")
-Replace: .strFind (1), .strReplace (2)
+Replace: .strFind (1), .strReplace (2), blnReplaceWholeWord (3), blnReplaceCaseSensitive (4)
 AutoHotkey: .strCode (1)
 SubStr: .intSubStrFromType (1: 1-FromStart, 2-FromPosition, 3-FromBeginText, 4-FromEndText), .intSubStrFromPosition (2), .strSubStrFromText (3), .intSubStrFromPlusMinus (4)
 	, .intSubStrToType (5: 1-ToEnd, 2-ToLength, 3-ToBeforeEnd, 4-ToBeginText, 5-ToEndText), .intSubStrToLength (6, positive or negative), .strSubStrToText (7), .intSubStrToPlusMinus (8), .blnSubStrRepeat (9)
@@ -744,7 +744,7 @@ if !(strRulesExist) ; first launch
 	IniWrite, ChangeCase|Demo|Convert Clipboard to lower case|1|, % o_Settings.strIniFile, Rules, Lower case
 	IniWrite, ChangeCase|Demo|Convert Clipboard to upper case|2|, % o_Settings.strIniFile, Rules, Upper case
 	IniWrite, ConvertFormat|Demo|Convert Clipboard to Text format|1|, % o_Settings.strIniFile, Rules, Convert to text
-	IniWrite, Replace|Demo|Text substitution example|this|that|, % o_Settings.strIniFile, Rules, Replace this with that
+	IniWrite, Replace|Demo|Text substitution example with whole word option|this|that|1||, % o_Settings.strIniFile, Rules, Replace this with that
 	IniWrite, SubStr|Demo|String manipulation example|1|||0|3|-2||0|0|, % o_Settings.strIniFile, Rules, Trim 2 last characters
 	IniWrite, Prefix|Demo|Append text example|Title: |, % o_Settings.strIniFile, Rules, Prefix with Title
 	IniWrite, AutoHotkey|Demo|Simple AutoHotkey line of code|MsgBox`, Your Clipboard1 contains: `%Clipboard`%|, % o_Settings.strIniFile, Rules, MsgBox
@@ -1812,10 +1812,13 @@ else if (aaEditedRule.strTypeCode = "ConvertFormat")
 
 else if (aaEditedRule.strTypeCode = "Replace")
 {
-	Gui, 2:Add, Text, y+5 w300, % o_L["DialogFind"]
-	Gui, 2:Add, Edit, vf_varValue1, % aaEditedRule.strFind ; aaEditedRule.saVarValues[4]
+	Gui, 2:Add, Text, y+5, % o_L["DialogFind"]
+	Gui, 2:Add, Edit, vf_varValue1 w400, % aaEditedRule.strFind ; aaEditedRule.saVarValues[4]
 	Gui, 2:Add, Text, , % o_L["DialogReplaceWith"]
-	Gui, 2:Add, Edit, vf_varValue2, % aaEditedRule.strReplace ; aaEditedRule.saVarValues[5]
+	Gui, 2:Add, Edit, vf_varValue2 w400, % aaEditedRule.strReplace ; aaEditedRule.saVarValues[5]
+
+	Gui, 2:Add, Checkbox, % "vf_varValue3 " . (aaEditedRule.blnReplaceWholeWord ? " Checked" : ""), % o_L["DialogReplaceWholeWord"]
+	Gui, 2:Add, Checkbox, % "vf_varValue4 " . (aaEditedRule.blnReplaceCaseSensitive ? " Checked" : ""), % o_L["DialogReplaceCaseSensitive"]
 }
 else if (aaEditedRule.strTypeCode = "AutoHotkey")
 {
@@ -4752,6 +4755,8 @@ class Rule
 		{
 			this.strFind := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
 			this.strReplace := StrReplace(saRuleValues[2], g_strPipe, "|") ; also in this.saVarValues[2]
+			this.blnReplaceWholeWord := saRuleValues[3] ; also in this.saVarValues[3]
+			this.blnReplaceCaseSensitive := saRuleValues[4] ; also in this.saVarValues[4]
 		}
 		else if (this.strTypeCode = "AutoHotkey")
 			this.strCode := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
@@ -4847,7 +4852,11 @@ class Rule
 		if (this.strTypeCode = "ConvertFormat") ; only Text format is supported
 			strCode .= "Clipboard := Clipboard"
 		else if (this.strTypeCode = "Replace")
-			strCode .= "Clipboard := StrReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
+		{
+			strFind := (this.blnReplaceWholeWord ? "\b" . this.strFind . "\b" : this.strFind) ; \b...\b for whole word boundries
+			strFind := (this.blnReplaceCaseSensitive ? "" : "i)") . strFind ; by default, regex are case-sensitive, changed with "i)"
+			strCode .= "Clipboard := RegExReplace(Clipboard, """ . strFind . """, """ . this.strReplace . """)"
+		}
 		else if (this.strTypeCode = "AutoHotkey")
 			strCode .= this.strCode
 		else if (this.strTypeCode = "SubStr")

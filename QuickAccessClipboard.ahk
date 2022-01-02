@@ -347,6 +347,7 @@ global g_strPipe := "Ð¡þ€" ; used to replace pipe in ini file
 global g_strEol := "€ö¦" ; used to replace end-of-line in AutoHotkey rules in ini file
 global g_strTab := "¬ã³" ; used to replace tab in AutoHotkey rules in ini file
 global g_aaToolTipsMessages := Object() ; messages to display by ToolTip when mouse is over selected buttons in Settings
+global g_strRulesBackupExist := StrLen(o_Settings.ReadIniSection("Rules-backup")) ; used in BuildGui and BuildGuiMenuBar
 
 ;---------------------------------
 ; Init language
@@ -1040,6 +1041,9 @@ Menu, menuBarRule, Add, % o_L["MenuRuleEdit"], GuiRuleEdit
 Menu, menuBarRule, Add, % o_L["MenuRuleRemove"], GuiRuleRemove
 Menu, menuBarRule, Add, % o_L["MenuRuleCopy"], GuiRuleCopy
 Menu, menuBarRule, Add
+Menu, menuBarRule, Add, % o_L["MenuRuleUndo"], GuiRuleUndo
+Menu, menuBarRule, % (g_strRulesBackupExist ? "Enable" : "Disable"), % o_L["MenuRuleUndo"]
+Menu, menuBarRule, Add
 Menu, menuBarRule, Add, % o_L["MenuRuleSelect"], GuiRuleSelect
 Menu, menuBarRule, Add, % o_L["MenuRuleDeselect"], GuiRuleDeselect
 Menu, menuBarRule, Add, % o_L["MenuRuleDeselectAll"], GuiRuleDeselectAll
@@ -1112,6 +1116,8 @@ Gui, 1:Add, Button, ys+90 x10 w24 vf_btnRuleRemove gGuiRuleRemove, % chr(0x2796)
 g_aaToolTipsMessages["Button3"] := o_L["MenuRuleRemove"]
 Gui, 1:Add, Button, ys+120 x10 w24 vf_btnRuleCopy gGuiRuleCopy, % chr(0x1F5D7) ; or 0x2750
 g_aaToolTipsMessages["Button4"] := o_L["MenuRuleCopy"]
+Gui, 1:Add, Button, % "ys+173 x10 w24 vf_btnRuleUndo gGuiRuleUndo " . (g_strRulesBackupExist ? "" : "Disabled"), % chr(0x238C) ; or 0x2750
+g_aaToolTipsMessages["Button5"] := o_L["MenuRuleUndo"]
 Gui, Font
 
 Gui, 1:Add, ListView
@@ -1121,11 +1127,11 @@ Gui, 1:Add, ListView
 Gui, Font, s9, Arial
 ; Unicode chars: https://www.fileformat.info/info/unicode/category/So/list.htm
 Gui, 1:Add, Button, ys+30 x535 w24 vf_btnRuleSelect gGuiRuleSelect, % chr(0x25BA)
-g_aaToolTipsMessages["Button5"] := o_L["MenuRuleSelect"]
+g_aaToolTipsMessages["Button6"] := o_L["MenuRuleSelect"]
 Gui, 1:Add, Button, ys+60 x535 w24 vf_btnRuleDeselect gGuiRuleDeselect, % chr(0x25C4)
-g_aaToolTipsMessages["Button6"] := o_L["MenuRuleDeselect"]
+g_aaToolTipsMessages["Button7"] := o_L["MenuRuleDeselect"]
 Gui, 1:Add, Button, ys+90 x535 w24 vf_btnRuleDeslectAll gGuiRuleDeselectAll, % chr(0x232B)
-g_aaToolTipsMessages["Button7"] := o_L["MenuRuleDeselectAll"]
+g_aaToolTipsMessages["Button8"] := o_L["MenuRuleDeselectAll"]
 Gui, Font
 
 Gui, 1:Add, ListView
@@ -1233,6 +1239,7 @@ if (o_Settings.EditorWindow.blnDarkModeCustomize.IniValue and !blnLightMode)
 saEditorPosition := ""
 strTextColor := ""
 strHwnd := ""
+g_strRulesBackupExist := ""
 
 return
 ;------------------------------------------------------------
@@ -1804,11 +1811,11 @@ Gui, 2:Add, Link, % "y+2 w" . (aaEditedRule.strTypeCode = "AutoHotkey" ? 900 : 4
 if (aaEditedRule.strTypeCode = "ChangeCase")
 	
 	loop, 3
-		Gui, 2:Add, Radio, % (A_Index = 1 ? "vf_varValue1 " : "") . (aaEditedRule.intCaseType = A_Index ? " checked" : ""), % o_L["DialogCaseType" . A_Index]
+		Gui, 2:Add, Radio, % (A_Index = 1 ? "vf_varValue1 " : "") . ((aaEditedRule.intCaseType = A_Index or aaEditedRule.intCaseType = "" and A_Index = 1) ? " checked" : ""), % o_L["DialogCaseType" . A_Index]
 	
 else if (aaEditedRule.strTypeCode = "ConvertFormat")
 
-	Gui, 2:Add, Radio, % "vf_varValue1" . (aaEditedRule.intConvertFormat = 1 ? " Checked" : ""), % o_L["DialogConvertFormatText"]
+	Gui, 2:Add, Radio, % "vf_varValue1" . ((aaEditedRule.intConvertFormat = 1 or aaEditedRule.intConvertFormat = "") ? " Checked" : ""), % o_L["DialogConvertFormatText"]
 
 else if (aaEditedRule.strTypeCode = "Replace")
 {
@@ -1829,7 +1836,7 @@ else if (aaEditedRule.strTypeCode = "AutoHotkey")
 else if (aaEditedRule.strTypeCode = "SubStr")
 {
 	Gui, 2:Add, Radio, % "vf_blnRadioSubStrFromStart gGuiEditRuleSubStrTypeChanged"
-		. (aaEditedRule.intSubStrFromType = 1 ? " Checked" : ""), % o_L["DialogSubStrFromStart"]
+		. ((aaEditedRule.intSubStrFromType = 1 or aaEditedRule.intSubStrFromType = "") ? " Checked" : ""), % o_L["DialogSubStrFromStart"]
 	Gui, 2:Add, Radio, % "Section vf_blnRadioSubStrFromPosition gGuiEditRuleSubStrTypeChanged"
 		. (aaEditedRule.intSubStrFromType = 2 ? " Checked" : ""), % o_L["DialogSubStrFromPosition"]
 	Gui, 2:Add, Radio, % "vf_blnRadioSubStrFromBeginText gGuiEditRuleSubStrTypeChanged"
@@ -1849,7 +1856,7 @@ else if (aaEditedRule.strTypeCode = "SubStr")
 	Gui, 2:Add, UpDown, vf_intSubStrFromUpDown Range-9999-9999, % aaEditedRule.intSubStrFromPlusMinus
 		
 	Gui, 2:Add, Radio, % "x10 y+25 w140 vf_blnRadioSubStrToEnd gGuiEditRuleSubStrTypeChanged"
-		. (aaEditedRule.intSubStrToType = 1 ? " Checked" : ""), % o_L["DialogSubStrToEnd"] ; aaEditedRule.saVarValues[6]
+		. ((aaEditedRule.intSubStrToType = 1 or aaEditedRule.intSubStrToType = "") ? " Checked" : ""), % o_L["DialogSubStrToEnd"] ; aaEditedRule.saVarValues[6]
 	Gui, 2:Add, Radio, % "Section vf_blnRadioSubStrLength gGuiEditRuleSubStrTypeChanged"
 		. (aaEditedRule.intSubStrToType = 2 ? " Checked" : ""), % o_L["DialogSubStrLength"] ; aaEditedRule.saVarValues[6]
 	Gui, 2:Add, Radio, % "vf_blnRadioSubStrToBeforeEnd gGuiEditRuleSubStrTypeChanged"
@@ -2009,6 +2016,7 @@ if (strAction <> "Edit" and g_aaRulesByName.HasKey(f_strName)) ; when adding or 
 	return
 }
 
+Gosub, BackupRulesToIni
 aaEditedRule.SaveRuleToIni(saValues)
 
 if (strAction = "Edit" and strOriginalName <> aaEditedRule.strName)
@@ -2047,10 +2055,43 @@ MsgBox, 52, % o_L["MenuRuleRemove"] . " - " . g_strAppNameText, % L(o_L["DialogR
 IfMsgBox, No
 	return
 
+Gosub, BackupRulesToIni
 g_aaRulesByName[strName].DeleteRule()
 LV_Delete(intPosition)
 
 strName := ""
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+BackupRulesToIni:
+;------------------------------------------------------------
+
+o_Settings.WriteIniSection(o_Settings.ReadIniSection("Rules"), "Rules-backup")
+GuiControl, 1:Enable, f_btnRuleUndo
+Menu, menuBarRule, Enable, % o_L["MenuRuleUndo"]
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GuiRuleUndo:
+;------------------------------------------------------------
+
+MsgBox, 52, % o_L["MenuRuleUndo"] . " - " . g_strAppNameText, % o_L["DialogRuleUndo"]
+IfMsgBox, No
+	return
+
+o_Settings.WriteIniSection(o_Settings.ReadIniSection("Rules-backup"), "Rules")
+o_Settings.DeleteIniSection("Rules-backup")
+
+Gosub, LoadRulesFromIni
+Gosub, GuiLoadRulesAvailable
+GuiControl, 1:Disable, f_btnRuleUndo
+Menu, menuBarRule, Disable, % o_L["MenuRuleUndo"]
 
 return
 ;------------------------------------------------------------
@@ -3772,7 +3813,7 @@ WM_MOUSEMOVE(wParam, lParam)
 	{
 		ToolTip, % g_aaToolTipsMessages[s_strControl] ; display tooltip or remove tooltip if no message for this control
 		if StrLen(g_aaToolTipsMessages[s_strControl])
-			SetTimer, RemoveToolTip, 2500 ; will remove tooltip if not removed by mouse going hovering elsewhere (required if window become inactive)
+			SetTimer, RemoveToolTip, -2500 ; will remove tooltip if not removed by mouse going hovering elsewhere (required if window become inactive)
 	}
 
 	return
@@ -4137,6 +4178,24 @@ TODO
 	{
 		IniRead, strOutValue, % (StrLen(strIniFile) ? strIniFile : this.strIniFile), %strSection%
 		return strOutValue
+	}
+	;---------------------------------------------------------
+
+	;---------------------------------------------------------
+	WriteIniSection(strInValue, strSection, strIniFile := "")
+	;---------------------------------------------------------
+	{
+		IniWrite, %strInValue%, % (StrLen(strIniFile) ? strIniFile : this.strIniFile), %strSection%
+		return !(ErrorLevel)
+	}
+	;---------------------------------------------------------
+
+	;---------------------------------------------------------
+	DeleteIniSection(strSection, strIniFile := "")
+	;---------------------------------------------------------
+	{
+		IniDelete, % (StrLen(strIniFile) ? strIniFile : this.strIniFile), %strSection%
+		return !(ErrorLevel)
 	}
 	;---------------------------------------------------------
 

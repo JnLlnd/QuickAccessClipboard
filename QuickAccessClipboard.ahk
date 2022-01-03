@@ -452,7 +452,10 @@ else
 	blnStartup := RegistryExist("HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", g_strAppNameText)
 
 if (blnStartup) ; both setup and portable
+{
 	Menu, Tray, Check, % o_L["MenuRunAtStartup"]
+	Menu, menuBarOptions, Check, % o_L["MenuRunAtStartup"]
+}
 
 Gosub, EnableClipboardChangesInEditor
 
@@ -766,6 +769,8 @@ o_Settings.ReadIniOption("Launch", "blnRunAtStartup", "", , "General", "f_lblOpt
 o_Settings.ReadIniOption("Launch", "blnDisplayTrayTip", "DisplayTrayTip", 1, "General", "f_blnDisplayTrayTip") ; g_blnDisplayTrayTip
 o_Settings.ReadIniOption("Launch", "blnCheck4Update", "Check4Update", (g_blnPortableMode ? 0 : 1), "General", "f_blnCheck4Update|f_lnkCheck4Update") ; g_blnCheck4Update ; enable by default only in setup install mode
 o_Settings.ReadIniOption("Launch", "intRulesTimeoutSecs", "RulesTimeoutSecs", 60, "General", "")
+o_Settings.ReadIniOption("SettingsFile", "strBackupFolder", "BackupFolder", A_WorkingDir, "General"
+	, "f_lblBackupFolder|f_strBackupFolder|f_btnBackupFolder|f_lblWorkingFolder|f_strWorkingFolder|f_btnWorkingFolder|f_lblWorkingFolderDisabled")
 
 ; Group EditorWindow
 o_Settings.ReadIniOption("EditorWindow", "blnDisplayEditorAtStartup", "DisplayEditorAtStartup", 1, "EditorWindow", "f_blnDisplayEditorAtStartup|f_lblOptionsEditorWindow")
@@ -783,10 +788,8 @@ o_Settings.ReadIniOption("MenuAdvanced", "intShowMenuBar", "ShowMenuBar", 3, "Me
 ; Group AdvancedOther
 ; not ready !! o_Settings.ReadIniOption("LaunchAdvanced", "blnRunAsAdmin", "RunAsAdmin", 0, "AdvancedOther", "f_blnRunAsAdmin|f_picRunAsAdmin") ; default false, if true reload QAC as admin
 
-; not in Options Gui
+; not in a Gui group
 o_Settings.ReadIniOption("Launch", "blnDiagMode", "DiagMode", 0) ; g_blnDiagMode
-o_Settings.ReadIniOption("SettingsFile", "strBackupFolder", "BackupFolder", A_WorkingDir, "General"
-	, "f_lblBackupFolder|f_strBackupFolder|f_btnBackupFolder|f_lblWorkingFolder|f_strWorkingFolder|f_btnWorkingFolder|f_lblWorkingFolderDisabled")
 
 ; ---------------------
 ; Load rules
@@ -861,6 +864,10 @@ if (o_Settings.MenuAdvanced.intShowMenuBar.IniValue > 1) ; 1 Customize menu bar,
 {
 	Menu, Tray, Add
 	Menu, Tray, Add, % o_L["MenuFile"], :menuBarFile
+	Menu, Tray, Add, % o_L["MenuRule"], :menuBarRule
+	Menu, Tray, Add, % o_L["GuiApplyRule"], :menuRules
+	Menu, Tray, Add, % o_L["MenuOptions"], :menuBarOptions
+	Menu, Tray, Add, % o_L["MenuHelp"], :menuBarHelp
 }
 Menu, Tray, Add
 Menu, Tray, Add, % o_L["MenuSuspendHotkeys"], ToggleSuspendHotkeys
@@ -1052,8 +1059,11 @@ Menu, menuBarRule, Add, % o_L["GuiApplyRules"], GuiApplyRules
 Menu, menuBarOptions, Add, % o_L["MenuSelectHotkeyMouse"], GuiSelectHotkeyMouse
 Menu, menuBarOptions, Add, % o_L["MenuSelectHotkeyKeyboard"], GuiSelectHotkeyKeyboard
 Menu, menuBarOptions, Add
+Menu, menuBarOptions, Add, % o_L["MenuRunAtStartup"], ToggleRunAtStartup
+Menu, menuBarOptions, Add
 Menu, menuBarOptions, Add, % L(o_L["MenuEditIniFile"], o_Settings.strIniFileNameExtOnly), ShowSettingsIniFile
 
+Menu, menuBarHelp, Add, % o_L["MenuUpdate"], Check4Update
 Menu, menuBarHelp, Add, % L(o_L["MenuAbout"], g_strAppNameText), GuiAbout
 
 Menu, menuBarMain, Add, % o_L["MenuFile"], :menuBarFile
@@ -3198,6 +3208,7 @@ ToggleRunAtStartup(blnForce := -1)
 	blnValueAfter := (blnForce = -1 ? !blnValueBefore : blnForce)
 
 	Menu, Tray, % (blnValueAfter ? "Check" : "Uncheck"), % o_L["MenuRunAtStartup"]
+	Menu, menuBarOptions, % (blnValueAfter ? "Check" : "Uncheck"), % o_L["MenuRunAtStartup"]
 	
 	if (g_blnPortableMode)
 	{

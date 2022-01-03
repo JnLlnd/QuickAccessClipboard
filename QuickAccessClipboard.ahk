@@ -286,7 +286,7 @@ if StrLen(o_CommandLineParameters.AA["Settings"])
 ;---------------------------------
 ; Create temporary folder
 
-o_Settings.ReadIniOption("Launch", "strQACTempFolderParent", "QACTempFolder", "%TEMP%", "General"
+o_Settings.ReadIniOption("Launch", "strQACTempFolderParent", "QACTempFolder", "%TEMP%"
 	, "f_strQACTempFolderParentPath|f_lblQACTempFolderParentPath|f_btnQACTempFolderParentPath")
 
 if !StrLen(o_Settings.Launch.strQACTempFolderParent.IniValue)
@@ -325,7 +325,6 @@ Gosub, InitFileInstall
 
 global g_strEscapeReplacement := "!r4nd0mt3xt!"
 global o_L := new Language
-o_Settings.InitOptionsGroupsLabelNames() ; init options groups labels after language is initialized
 
 ;---------------------------------
 ; Init global variables
@@ -764,32 +763,26 @@ else
 ; ---------------------
 ; Load Options
 
-; Group General
-o_Settings.ReadIniOption("Launch", "blnRunAtStartup", "", , "General", "f_lblOptionsRunAtStartup|f_blnOptionsRunAtStartup") ; blnRunAtStartup is not used but strGuiControls is
-o_Settings.ReadIniOption("Launch", "blnDisplayTrayTip", "DisplayTrayTip", 1, "General", "f_blnDisplayTrayTip") ; g_blnDisplayTrayTip
-o_Settings.ReadIniOption("Launch", "blnCheck4Update", "Check4Update", (g_blnPortableMode ? 0 : 1), "General", "f_blnCheck4Update|f_lnkCheck4Update") ; g_blnCheck4Update ; enable by default only in setup install mode
-o_Settings.ReadIniOption("Launch", "intRulesTimeoutSecs", "RulesTimeoutSecs", 60, "General", "")
-o_Settings.ReadIniOption("SettingsFile", "strBackupFolder", "BackupFolder", A_WorkingDir, "General"
+; Group Launch
+o_Settings.ReadIniOption("Launch", "blnRunAtStartup", "", , "f_lblOptionsRunAtStartup|f_blnOptionsRunAtStartup") ; blnRunAtStartup is not used but strGuiControls is
+o_Settings.ReadIniOption("Launch", "blnDisplayTrayTip", "DisplayTrayTip", 1, "f_blnDisplayTrayTip") ; g_blnDisplayTrayTip
+o_Settings.ReadIniOption("Launch", "blnCheck4Update", "Check4Update", (g_blnPortableMode ? 0 : 1), "f_blnCheck4Update|f_lnkCheck4Update") ; g_blnCheck4Update ; enable by default only in setup install mode
+o_Settings.ReadIniOption("Launch", "intRulesTimeoutSecs", "RulesTimeoutSecs", 60, "")
+o_Settings.ReadIniOption("Launch", "strBackupFolder", "BackupFolder", A_WorkingDir
 	, "f_lblBackupFolder|f_strBackupFolder|f_btnBackupFolder|f_lblWorkingFolder|f_strWorkingFolder|f_btnWorkingFolder|f_lblWorkingFolderDisabled")
+o_Settings.ReadIniOption("Launch", "intShowMenuBar", "ShowMenuBar", 3, "")
+o_Settings.ReadIniOption("Launch", "blnDiagMode", "DiagMode", 0) ; g_blnDiagMode
+; not ready !! o_Settings.ReadIniOption("Launch", "blnRunAsAdmin", "RunAsAdmin", 0, "f_blnRunAsAdmin|f_picRunAsAdmin") ; default false, if true reload QAC as admin
 
 ; Group EditorWindow
-o_Settings.ReadIniOption("EditorWindow", "blnDisplayEditorAtStartup", "DisplayEditorAtStartup", 1, "EditorWindow", "f_blnDisplayEditorAtStartup|f_lblOptionsEditorWindow")
-o_Settings.ReadIniOption("EditorWindow", "blnRememberEditorPosition", "RememberEditorPosition", 1, "EditorWindow", "f_blnRememberEditorPosition")
-o_Settings.ReadIniOption("EditorWindow", "blnOpenEditorOnActiveMonitor", "OpenEditorOnActiveMonitor", 1, "EditorWindow", "f_blnOpenEditorOnActiveMonitor")
-; need improvement !! o_Settings.ReadIniOption("EditorWindow", "blnDarkModeCustomize", "DarkModeCustomize", 0, "EditorWindow", "f_blnDarkModeCustomize")
-o_Settings.ReadIniOption("EditorWindow", "blnFixedFont", "FixedFont", 1, "EditorWindow", "")
-o_Settings.ReadIniOption("EditorWindow", "intFontSize", "FontSize", 12, "EditorWindow", "")
-o_Settings.ReadIniOption("EditorWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "EditorWindow", "")
-o_Settings.ReadIniOption("EditorWindow", "blnUseTab", "UseTab", 0, "EditorWindow", "")
-
-; Group MenuAdvanced
-o_Settings.ReadIniOption("MenuAdvanced", "intShowMenuBar", "ShowMenuBar", 3, "MenuAdvanced", "")
-
-; Group AdvancedOther
-; not ready !! o_Settings.ReadIniOption("LaunchAdvanced", "blnRunAsAdmin", "RunAsAdmin", 0, "AdvancedOther", "f_blnRunAsAdmin|f_picRunAsAdmin") ; default false, if true reload QAC as admin
-
-; not in a Gui group
-o_Settings.ReadIniOption("Launch", "blnDiagMode", "DiagMode", 0) ; g_blnDiagMode
+o_Settings.ReadIniOption("EditorWindow", "blnDisplayEditorAtStartup", "DisplayEditorAtStartup", 1, "f_blnDisplayEditorAtStartup|f_lblOptionsEditorWindow")
+o_Settings.ReadIniOption("EditorWindow", "blnRememberEditorPosition", "RememberEditorPosition", 1, "f_blnRememberEditorPosition")
+o_Settings.ReadIniOption("EditorWindow", "blnOpenEditorOnActiveMonitor", "OpenEditorOnActiveMonitor", 1, "f_blnOpenEditorOnActiveMonitor")
+o_Settings.ReadIniOption("EditorWindow", "blnFixedFont", "FixedFont", 1, "")
+o_Settings.ReadIniOption("EditorWindow", "intFontSize", "FontSize", 12, "")
+o_Settings.ReadIniOption("EditorWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "")
+o_Settings.ReadIniOption("EditorWindow", "blnUseTab", "UseTab", 0, "")
+; need improvement !! o_Settings.ReadIniOption("EditorWindow", "blnDarkModeCustomize", "DarkModeCustomize", 0, "f_blnDarkModeCustomize")
 
 ; ---------------------
 ; Load rules
@@ -807,10 +800,10 @@ SetTrayMenuIcon:
 ;------------------------------------------------------------
 
 Menu, Tray, NoStandard
-o_Settings.ReadIniOption("LaunchAdvanced", "strAlternativeTrayIcon", "AlternativeTrayIcon", " ", "AdvancedLaunch", "f_strAlternativeTrayIcon|f_lblAlternativeTrayIcon|f_btnAlternativeTrayIcon") ; empty if not found
+o_Settings.ReadIniOption("Launch", "strAlternativeTrayIcon", "AlternativeTrayIcon", " ", "f_strAlternativeTrayIcon|f_lblAlternativeTrayIcon|f_btnAlternativeTrayIcon") ; empty if not found
 
 Menu, Tray, UseErrorLevel ; will be turned off at the end of SetTrayMenuIcon
-arrAlternativeTrayIcon := StrSplit(o_Settings.LaunchAdvanced.strAlternativeTrayIcon.IniValue, ",") ; 1 file, 2 index
+arrAlternativeTrayIcon := StrSplit(o_Settings.Launch.strAlternativeTrayIcon.IniValue, ",") ; 1 file, 2 index
 strTempAlternativeTrayIconLocation := arrAlternativeTrayIcon[1]
 if StrLen(arrAlternativeTrayIcon[1]) and FileExistInPath(strTempAlternativeTrayIconLocation) ; return strTempLocation with expanded relative path and envvars, and absolute location if in PATH
 	Menu, Tray, Icon, %strTempAlternativeTrayIconLocation%, % arrAlternativeTrayIcon[2], 1 ; last 1 to freeze icon during pause or suspend
@@ -832,7 +825,7 @@ return
 SetTrayMenuIconForCurrentBranch:
 ;------------------------------------------------------------
 
-if (A_IsAdmin and o_Settings.LaunchAdvanced.blnRunAsAdmin.IniValue)
+if (A_IsAdmin and o_Settings.Launch.blnRunAsAdmin.IniValue)
 	; 68 is iconQACadminBeta and 67 is iconQACadmin, last 1 to freeze icon during pause or suspend
 	Menu, Tray, Icon, % o_JLicons.strFileLocation, % (g_strCurrentBranch <> "prod" ? 68 : 67), 1
 else
@@ -860,7 +853,7 @@ BuildTrayMenu:
 ;------------------------------------------------------------
 
 Menu, Tray, Add, % o_L["MenuEditor"], GuiShowFromTray
-if (o_Settings.MenuAdvanced.intShowMenuBar.IniValue > 1) ; 1 Customize menu bar, 2 System menu, 3 both
+if (o_Settings.Launch.intShowMenuBar.IniValue > 1) ; 1 Customize menu bar, 2 System menu, 3 both
 {
 	Menu, Tray, Add
 	Menu, Tray, Add, % o_L["MenuFile"], :menuBarFile
@@ -1111,7 +1104,7 @@ BuildGui:
 ;------------------------------------------------------------
 
 Gui, 1:New, +Hwndg_strGui1Hwnd +Resize -MinimizeBox +MinSize%g_intGuiDefaultWidth%x%g_intGuiDefaultHeight%, % QACGuiTitle()
-if (o_Settings.MenuAdvanced.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar, 2 System menu, 3 both
+if (o_Settings.Launch.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar, 2 System menu, 3 both
 	Gui, Menu, menuBarMain
 
 Gui, 1:Font, s8 w600, Verdana
@@ -2468,15 +2461,15 @@ CanPopup(strMouseOrKeyboard) ; SEE HotkeyIfWin.ahk to use Hotkey, If, Expression
 
 /* !! Adapt from QAP? Will process window exclusions?
 	if (strMouseOrKeyboard = o_PopupHotkeyNavigateOrLaunchHotkeyMouse.P_strAhkHotkey) ; if hotkey is mouse
-		Loop, Parse, % o_Settings.MenuPopup.strExclusionMouseList.strExclusionMouseListApp, |
+		Loop, Parse, % o_Settings.EditorWindow.strExclusionMouseList.strExclusionMouseListApp, |
 			if StrLen(A_Loopfield)
 				and (InStr(g_strTargetClass, A_LoopField)
 				or InStr(g_strTargetWinTitle, A_LoopField)
 				or InStr(g_strTargetProcessName, A_LoopField))
-				return (o_Settings.MenuPopup.blnExclusionMouseListWhitelist.IniValue ? true : false)
+				return (o_Settings.EditorWindow.blnExclusionMouseListWhitelist.IniValue ? true : false)
 
 	if WindowIsTray(g_strTargetClass)
-		return o_Settings.MenuPopup.blnOpenMenuOnTaskbar.IniValue
+		return o_Settings.EditorWindow.blnOpenMenuOnTaskbar.IniValue
 
 	if WindowIsTreeview(g_strTargetWinId)
 		return false
@@ -2486,7 +2479,7 @@ CanPopup(strMouseOrKeyboard) ; SEE HotkeyIfWin.ahk to use Hotkey, If, Expression
 	
 	; else we can launch
 
-	return (o_Settings.MenuPopup.blnExclusionMouseListWhitelist.IniValue ? false : true)
+	return (o_Settings.EditorWindow.blnExclusionMouseListWhitelist.IniValue ? false : true)
 */
 	return true
 }
@@ -2597,7 +2590,7 @@ o_PopupHotkeys.SA[intHotkeyType].P_strAhkHotkey := SelectShortcut(o_PopupHotkeys
 	, o_PopupHotkeys.SA[intHotkeyType].AA.strPopupHotkeyLocalizedName, intHotkeyType, o_PopupHotkeys.SA[intHotkeyType].AA.strPopupHotkeyDefault
 	, o_PopupHotkeys.SA[intHotkeyType].AA.strPopupHotkeyLocalizedDescription)
 
-o_Settings.MenuPopup["str" . o_PopupHotkeys.SA[intHotkeyType].AA.strPopupHotkeyInternalName].WriteIni(o_PopupHotkeys.SA[intHotkeyType].P_strAhkHotkey)
+o_Settings.EditorWindow["str" . o_PopupHotkeys.SA[intHotkeyType].AA.strPopupHotkeyInternalName].WriteIni(o_PopupHotkeys.SA[intHotkeyType].P_strAhkHotkey)
 o_PopupHotkeys.EnablePopupHotkeys()
 
 intHotkeyType := ""
@@ -4470,9 +4463,7 @@ TODO
 */
 ;-------------------------------------------------------------
 {
-	aaGroupItems := Object()
 	saOptionsGroups := Object()
-	saOptionsGroupsLabelNames := Object()
 	
 	;---------------------------------------------------------
 	__New()
@@ -4497,39 +4488,27 @@ TODO
 		this.strIniFileNameExtOnly := strIniFileNameExtOnly
 		this.strIniFileDefault := this.strIniFile
 		
-		this.saOptionsGroups := ["General", "Launch", "EditorWindow", "SettingsFile", "LaunchAdvanced", "MenuAdvanced", "AdvancedOther"]
+		this.saOptionsGroups := ["General", "Launch", "EditorWindow"]
 			
 		; at first launch quickaccessclipboard.ini does not exist, read language value in quickaccessclipboard-setup.ini (if exist) created by Setup
-		this.ReadIniOption("Launch", "strLanguageCode", "LanguageCode", "EN", "General", "", ""
+		this.ReadIniOption("Launch", "strLanguageCode", "LanguageCode", "EN", ""
 			, (FileExist(this.strIniFile) ? this.strIniFile : A_WorkingDir . "\" . g_strAppNameFile . "-setup.ini"))
 	}
 	;---------------------------------------------------------
 
 	;---------------------------------------------------------
-	InitOptionsGroupsLabelNames()
-	; called after o_L is initialized
-	;---------------------------------------------------------
-	{
-		this.saOptionsGroupsLabelNames := ["OptionsGeneral", "OptionsLaunch", "OptionsEditorWindow", "OptionsSettingsFile", "OptionsLaunchAdvanced", "OptionsMenuAdvanced", "OptionsAdvancedOther"]
-	}
-	;---------------------------------------------------------
-
-	;---------------------------------------------------------
-	ReadIniOption(strOptionGroup, strSettingName, strIniValueName, strDefault := "", strGuiGroup := "", strGuiControls := "", strSection := "", strIniFile := "")
+	ReadIniOption(strOptionGroup, strSettingName, strIniValueName, strDefault := "", strGuiControls := "", strIniFile := "")
 	;---------------------------------------------------------
 	{
 		if !IsObject(this[strOptionGroup])
 			this[strOptionGroup] := Object()
-		if !IsObject(this.aaGroupItems[strGuiGroup])
-			this.aaGroupItems[strGuiGroup] := Object()
 		
 		if StrLen(strIniValueName) ; for exception f_blnOptionsRunAtStartup having no ini value, but a control in Options gui
 			strOutValue := this.ReadIniValue(strIniValueName, strDefault, (StrLen(strSection) ? strSection : strOptionGroup), strIniFile)
 		
-		oIniValue := new this.IniValue(strIniValueName, strOutValue, strGuiGroup, strGuiControls, (StrLen(strSection) ? strSection : strOptionGroup), strIniFile)
+		oIniValue := new this.IniValue(strIniValueName, strOutValue, strGuiControls, (StrLen(strSection) ? strSection : strOptionGroup), strIniFile)
 		
 		this[strOptionGroup][strSettingName] := oIniValue
-		this.aaGroupItems[strGuiGroup].Push(oIniValue)
 		
 		return oIniValue.IniValue
 	}
@@ -4621,11 +4600,10 @@ TODO
 	;---------------------------------------------------------
 	{
 		;-----------------------------------------------------
-		__New(strIniValueName, strIniValue, strGuiGroup, strGuiControls, strSection, strIniFile)
+		__New(strIniValueName, strIniValue, strGuiControls, strSection, strIniFile)
 		;-----------------------------------------------------
 		{
 			this.IniValue := strIniValue
-			this.strGuiGroup := strGuiGroup
 			this.strGuiControls := strGuiControls
 			this.strIniFile := strIniFile
 			this.strIniValueName := strIniValueName
@@ -4739,7 +4717,7 @@ class Triggers.MouseButtons
 			for intThisIndex, strThisPopupHotkeyInternalName in saPopupHotkeyInternalNames
 			{
 				; Init Settings class items for Triggers (must be before o_PopupHotkeys)
-				strThisPopupHotkey := o_Settings.ReadIniOption("MenuPopup", "str" . strThisPopupHotkeyInternalName, strThisPopupHotkeyInternalName, saPopupHotkeyDefaults[A_Index], "PopupHotkeys"
+				strThisPopupHotkey := o_Settings.ReadIniOption("EditorWindow", "str" . strThisPopupHotkeyInternalName, strThisPopupHotkeyInternalName, saPopupHotkeyDefaults[A_Index]
 					, "f_lblChangeShortcut" . A_Index . "|f_lblHotkeyText" . A_Index . "|f_btnChangeShortcut" . A_Index . "|f_lnkChangeShortcut" . A_Index)
 				oPopupHotkey := new this.PopupHotkey(strThisPopupHotkeyInternalName, strThisPopupHotkey, saPopupHotkeyDefaults[A_Index]
 					, saOptionsPopupHotkeyLocalizedNames[A_Index], saOptionsPopupHotkeyLocalizedDescriptions[A_Index])

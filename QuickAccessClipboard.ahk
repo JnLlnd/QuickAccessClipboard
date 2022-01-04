@@ -413,6 +413,11 @@ Gosub, LoadIniFile ; load options and rules
 ;---------------------------------
 ; Must be after LoadIniFile
 
+; Build menu used in Settings Gui
+Gosub, BuildEditorContextMenu
+Gosub, BuildGuiMenuBar
+Gosub, BuildTrayMenu
+
 ; Init diag mode
 if (o_Settings.Launch.blnDiagMode.IniValue)
 {
@@ -420,11 +425,6 @@ if (o_Settings.Launch.blnDiagMode.IniValue)
 	; Diag("Launch", "strLaunchSettingsFolderDiag", strLaunchSettingsFolderDiag)
 	strLaunchSettingsFolderDiag := ""
 }
-
-; Build menu used in Settings Gui
-Gosub, BuildEditorContextMenu
-Gosub, BuildGuiMenuBar
-Gosub, BuildTrayMenu
 
 ; Build Editor Gui
 Gosub, BuildGui
@@ -747,18 +747,21 @@ strRulesExist := StrLen(o_Settings.ReadIniSection("Rules"))
 
 if !(strRulesExist) ; first launch
 {
-	IniWrite, ChangeCase|Demo|Convert Clipboard to lower case|1|, % o_Settings.strIniFile, Rules, Lower case
-	IniWrite, ChangeCase|Demo|Convert Clipboard to upper case|2|, % o_Settings.strIniFile, Rules, Upper case
-	IniWrite, ConvertFormat|Demo|Convert Clipboard to Text format|1|, % o_Settings.strIniFile, Rules, Convert to text
-	IniWrite, Replace|Demo|Text substitution example with whole word option|this|that|1||, % o_Settings.strIniFile, Rules, Replace this with that
-	IniWrite, SubString|Demo|String manipulation example|1|||0|3|-2||0|0|, % o_Settings.strIniFile, Rules, Trim 2 last characters
-	IniWrite, Prefix|Demo|Append text example|Title: |, % o_Settings.strIniFile, Rules, Prefix with Title
-	IniWrite, AutoHotkey|Demo|Simple AutoHotkey line of code|MsgBox`, Your Clipboard1 contains: `%Clipboard`%|, % o_Settings.strIniFile, Rules, MsgBox
-	IniWrite, % "AutoHotkey|Demo|Multiline AHK scripting|if StrLen(Clipboard) > 500" . g_strEol
+	strRulesList := ";"
+	strRulesList .= AddDefaultRule("ChangeCase|Demo|Convert Clipboard to lower case|1|", "Lower case")
+	strRulesList .= AddDefaultRule("ChangeCase|Demo|Convert Clipboard to upper case|2|", "Upper case")
+	strRulesList .= AddDefaultRule("ConvertFormat|Demo|Convert Clipboard to Text format|1|", "Convert to text")
+	strRulesList .= AddDefaultRule("Replace|Demo|Text substitution example with whole word option|this|that|1||", "Replace this with that")
+	strRulesList .= AddDefaultRule("SubString|Demo|String manipulation example|1|||0|3|-2||0|0|", "Trim 2 last characters")
+	strRulesList .= AddDefaultRule("Prefix|Demo|Append text example|Title: |", "Prefix with Title")
+	strRulesList .= AddDefaultRule("AutoHotkey|Demo|Simple AutoHotkey line of code|MsgBox`, Your Clipboard1 contains: `%Clipboard`%|", "MsgBox")
+	strRulesList .= AddDefaultRule("AutoHotkey|Demo|Multiline AHK scripting|if StrLen(Clipboard) > 500" . g_strEol
 		. g_strTab . "str := ""The 500 first characters of your Clipboard are:``n``n"" . SubStr(Clipboard, 1, 500) . ""...""" . g_strEol
 		. "else" . g_strEol
 		. g_strTab . "str := ""Your Clipboard contains:``n``n"" . Clipboard"
-		. g_strEol . "MsgBox, %str%|", % o_Settings.strIniFile, Rules, MsgBox Multiline
+		. g_strEol . "MsgBox, %str%|", "MsgBox Multiline")
+		
+	IniWrite, %strRulesList%, % o_Settings.strIniFile, Rules-index, Rules
 }
 else
 	Settings.BackupIniFile(o_Settings.strIniFile) ; backup main ini file
@@ -790,7 +793,7 @@ o_Settings.ReadIniOption("EditorWindow", "blnUseTab", "UseTab", 0, "")
 ; ---------------------
 ; Load rules
 
-Gosub, LoadRulesFromIni ; load rules
+Gosub, LoadRules ; load rules from ini and update rules objects
 
 strLanguageCode := ""
 
@@ -892,8 +895,6 @@ BuildEditorContextMenu:
 OnMessage(0x204, "WM_RBUTTONDOWN")
 OnMessage(0x205, "WM_RBUTTONUP")
 
-Gosub, BuildRulesMenu
-
 Menu, menuEditorContextMenu, Add, % o_L["DialogUndo"], EditorContextMenuActions
 Menu, menuEditorContextMenu, Add
 Menu, menuEditorContextMenu, Add, % o_L["DialogCut"], EditorContextMenuActions
@@ -904,27 +905,6 @@ Menu, menuEditorContextMenu, Add
 Menu, menuEditorContextMenu, Add, % o_L["MenuExecuteRule"], :menuRules
 Menu, menuEditorContextMenu, Add
 Menu, menuEditorContextMenu, Add, % o_L["DialogSelectAll"], EditorContextMenuActions
-
-return
-;------------------------------------------------------------
-
-
-;------------------------------------------------------------
-BuildRulesMenu:
-;------------------------------------------------------------
-
-; delete menu before updating it
-Menu, menuRules, Add ; to avoid an error if menu is empty when deleting
-Menu, menuRules, DeleteAll ; required for menu updates
-
-if g_aaRulesByName.Count()
-	for strRuleName, oRule in g_aaRulesByName
-		Menu, menuRules, Add, %strRuleName%, ExecuteRule
-else
-{
-	Menu, menuRules, Add, % o_L["MenuNoRule"], DoNothing
-	Menu, menuRules, Disable, % o_L["MenuNoRule"]
-}
 
 return
 ;------------------------------------------------------------
@@ -1157,8 +1137,7 @@ Gui, 1:Add, ListView
 Gui, 1:Add, Button, ys+30 xs+205 w24 vf_btnRuleAddGroup gGuiAddRuleGroup Disabled, % chr(0x2795) ; or chr(0x271B)
 g_aaToolTipsMessages["Button11"] := o_L["MenuRuleGroupAdd"]
 
-Gosub, GuiLoadRulesAvailable
-Gosub, LaunchQACrules
+Gosub, LoadRules
 
 ; initialize LV_Rows class (https://github.com/Pulover/Class_LV_Rows)
 o_LvRowsHandle := New LV_Rows(Hwndg_strRulesSelectedHwnd)
@@ -1260,26 +1239,6 @@ saEditorPosition := ""
 strTextColor := ""
 strHwnd := ""
 g_strRulesBackupExist := ""
-
-return
-;------------------------------------------------------------
-
-
-;------------------------------------------------------------
-GuiLoadRulesAvailable:
-;------------------------------------------------------------
-
-Gui, 1:ListView, f_lvRulesAvailable
-LV_Delete()
-for strName, aaRule in g_aaRulesByName
-	aaRule.ListViewAdd("f_lvRulesAvailable")
-LV_ModifyCol()
-
-Gui, 1:ListView, f_lvRulesSelected
-LV_Delete()
-
-strName := ""
-aaRule := ""
 
 return
 ;------------------------------------------------------------
@@ -1669,49 +1628,6 @@ return
 ;------------------------------------------------------------
 
 
-;------------------------------------------------------------
-LoadRulesFromIni:
-;------------------------------------------------------------
-
-if !FileExist(o_Settings.strIniFile)
-{
-	Oops(0, o_L["OopsWriteProtectedError"], g_strAppNameText)
-	OnExit ; disable exit subroutine
-	ExitApp
-}
-else
-{
-	; Name=Type|Category|Notes|param1|param2|...
-	; example:
-	; Lower case=ChangeCase|Example|My notes|.*|$L0
-	
-	g_aaRulesByName := Object() ; reset list of rules by name
-	g_saRulesOrder := Object()
-	
-	strRules := o_Settings.ReadIniSection("Rules")
-	Loop, Parse, strRules, `n
-	{
-		intEqualSign := InStr(A_LoopField, "=")
-		strRuleName := SubStr(A_LoopField, 1, intEqualSign - 1)
-		saRuleValues := StrSplit(SubStr(A_LoopField, intEqualSign + 1), "|")
-		loop, % saRuleValues.Length()
-			if (saRuleValues[1] = "AutoHotkey")
-				saRuleValues[A_Index] := DecodeAutoHokeyCodeFromIni(saRuleValues[A_Index])
-			else
-				saRuleValues[A_Index] := DecodeFromIni(saRuleValues[A_Index])
-		new Rule(strRuleName, saRuleValues)
-	}
-	
-	strRules := ""
-	saRule := ""
-	intEqualSign := ""
-	strRuleName := ""
-}
-
-return
-;------------------------------------------------------------
-
-
 ;========================================================================================================================
 ; END !_020_GUI:
 ;========================================================================================================================
@@ -1975,7 +1891,7 @@ if InStr(f_strName, "=") or InStr(f_strName, ";")
 	return
 }
 
-strOriginalName := aaEditedRule.strName
+strPreviousName := aaEditedRule.strName
 
 aaEditedRule.strName := f_strName
 aaEditedRule.strCategory := f_strCategory
@@ -2044,23 +1960,15 @@ if (strAction <> "Edit" and g_aaRulesByName.HasKey(f_strName)) ; when adding or 
 	return
 }
 
-Gosub, BackupRulesToIni
-aaEditedRule.SaveRuleToIni(saValues)
-
-if (strAction = "Edit" and strOriginalName <> aaEditedRule.strName)
-	IniDelete, % o_Settings.strIniFile, Rules, %strOriginalName%
+Gosub, BackupRules
+aaEditedRule.SaveRule(strAction, saValues, strPreviousName)
+Gosub, LoadRules
 
 loop, 9 ; delete form values because Gui:Destroy does not
 	GuiControl, , f_varValue%A_Index%
 Gosub, 2GuiClose
 
-Gui, 1:Default
-Gosub, LoadRulesFromIni ; reload rules
-Gosub, BuildRulesMenu ; rebuild rules menu
-Gosub, GuiLoadRulesAvailable ; update Available rules listview
-Gosub, LaunchQACrules ; relaunch QACrules
-
-strOriginalName := ""
+strPreviousName := ""
 saValues := ""
 strAction := ""
 
@@ -2083,9 +1991,9 @@ MsgBox, 52, % o_L["MenuRuleRemove"] . " - " . g_strAppNameText, % L(o_L["DialogR
 IfMsgBox, No
 	return
 
-Gosub, BackupRulesToIni
+Gosub, BackupRules
 g_aaRulesByName[strName].DeleteRule()
-LV_Delete(intPosition)
+Gosub, LoadRules
 
 strName := ""
 
@@ -2094,10 +2002,11 @@ return
 
 
 ;------------------------------------------------------------
-BackupRulesToIni:
+BackupRules:
 ;------------------------------------------------------------
 
 o_Settings.WriteIniSection(o_Settings.ReadIniSection("Rules"), "Rules-backup")
+o_Settings.WriteIniValue(o_Settings.ReadIniValue("Rules", "", "Rules-index"), "Rules-index", "Rules-backup")
 GuiControl, 1:Enable, f_btnRuleUndo
 Menu, menuBarRule, Enable, % o_L["MenuRuleUndo"]
 
@@ -2115,11 +2024,109 @@ IfMsgBox, No
 
 o_Settings.WriteIniSection(o_Settings.ReadIniSection("Rules-backup"), "Rules")
 o_Settings.DeleteIniSection("Rules-backup")
+o_Settings.WriteIniValue(o_Settings.ReadIniValue("Rules-backup", "", "Rules-index"), "Rules-index", "Rules")
+o_Settings.DeleteIniValue("Rules-index", "Rules-backup")
 
-Gosub, LoadRulesFromIni
-Gosub, GuiLoadRulesAvailable
+Gosub, LoadRules
 GuiControl, 1:Disable, f_btnRuleUndo
 Menu, menuBarRule, Disable, % o_L["MenuRuleUndo"]
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+LoadRules:
+;------------------------------------------------------------
+
+Gui, 1:Default
+Gosub, LoadRulesFromIni ; reload rules
+Gosub, BuildRulesMenu ; rebuild rules menu
+Gosub, GuiLoadRulesAvailable ; update Available rules listview
+Gosub, LaunchQACrules ; relaunch QACrules
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+LoadRulesFromIni:
+;------------------------------------------------------------
+
+if !FileExist(o_Settings.strIniFile)
+{
+	Oops(0, o_L["OopsWriteProtectedError"], g_strAppNameText)
+	OnExit ; disable exit subroutine
+	ExitApp
+}
+else
+{
+	; Name=Type|Category|Notes|param1|param2|...
+	; example:
+	; Lower case=ChangeCase|Example|My notes|.*|$L0
+	
+	g_aaRulesByName := Object() ; reset list of rules by name
+	g_saRulesOrder := Object()
+	
+	IniRead, strRules, % o_Settings.strIniFile, Rules-index, Rules
+	Loop, Parse, % SubStr(strRules, 2), `; ; A_LoopField is rule name
+	{
+		IniRead, strRule, % o_Settings.strIniFile, Rules, %A_LoopField%
+		saRuleValues := StrSplit(strRule, "|")
+		loop, % saRuleValues.Length()
+			if (saRuleValues[1] = "AutoHotkey")
+				saRuleValues[A_Index] := DecodeAutoHokeyCodeFromIni(saRuleValues[A_Index])
+			else
+				saRuleValues[A_Index] := DecodeFromIni(saRuleValues[A_Index])
+		new Rule(A_LoopField, saRuleValues)
+	}
+	
+	strRules := ""
+	saRule := ""
+	intEqualSign := ""
+	strRuleName := ""
+}
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+BuildRulesMenu:
+;------------------------------------------------------------
+
+; delete menu before updating it
+Menu, menuRules, Add ; to avoid an error if menu is empty when deleting
+Menu, menuRules, DeleteAll ; required for menu updates
+
+if g_aaRulesByName.Count()
+	for strRuleName, oRule in g_aaRulesByName
+		Menu, menuRules, Add, %strRuleName%, ExecuteRule
+else
+{
+	Menu, menuRules, Add, % o_L["MenuNoRule"], DoNothing
+	Menu, menuRules, Disable, % o_L["MenuNoRule"]
+}
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GuiLoadRulesAvailable:
+;------------------------------------------------------------
+
+Gui, 1:ListView, f_lvRulesAvailable
+LV_Delete()
+for strName, aaRule in g_aaRulesByName
+	aaRule.ListViewAdd("f_lvRulesAvailable")
+LV_ModifyCol()
+
+Gui, 1:ListView, f_lvRulesSelected
+LV_Delete()
+
+strName := ""
+aaRule := ""
 
 return
 ;------------------------------------------------------------
@@ -4096,6 +4103,16 @@ GetLVPosition(ByRef intPosition, strMessage)
 
 
 ;------------------------------------------------------------
+AddDefaultRule(strValues, strName)
+;------------------------------------------------------------
+{
+	IniWrite, %strValues%, % o_Settings.strIniFile, Rules, %strName%
+	return, strName . ";"
+}
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
 EncodeForIni(str)
 ;------------------------------------------------------------
 /*
@@ -4578,10 +4595,28 @@ TODO
 	;---------------------------------------------------------
 
 	;---------------------------------------------------------
+	WriteIniValue(strInValue, strSection, strValueName, strIniFile := "")
+	;---------------------------------------------------------
+	{
+		IniWrite, %strInValue%, % (StrLen(strIniFile) ? strIniFile : this.strIniFile), %strSection%, %strValueName%
+		return !(ErrorLevel)
+	}
+	;---------------------------------------------------------
+
+	;---------------------------------------------------------
 	WriteIniSection(strInValue, strSection, strIniFile := "")
 	;---------------------------------------------------------
 	{
 		IniWrite, %strInValue%, % (StrLen(strIniFile) ? strIniFile : this.strIniFile), %strSection%
+		return !(ErrorLevel)
+	}
+	;---------------------------------------------------------
+
+	;---------------------------------------------------------
+	DeleteIniValue(strSection, strValueName, strIniFile := "")
+	;---------------------------------------------------------
+	{
+		IniDelete, % (StrLen(strIniFile) ? strIniFile : this.strIniFile), %strSection%, %strValueName%
 		return !(ErrorLevel)
 	}
 	;---------------------------------------------------------
@@ -5335,8 +5370,11 @@ class Rule
 		if InStr("Prefix Suffix", this.strTypeCode)
 			this.blnRepeat := saRuleValues[2]
 		
-		g_aaRulesByName[strName] := this
-		this.intID := g_saRulesOrder.Push(this)
+		if StrLen(strName) ; update rules objects except if creating a new rule from gui
+		{
+			g_aaRulesByName[strName] := this
+			this.intID := g_saRulesOrder.Push(this)
+		}
 	}
 	;---------------------------------------------------------
 	
@@ -5352,7 +5390,7 @@ class Rule
 	;---------------------------------------------------------
 	
 	;---------------------------------------------------------
-	SaveRuleToIni(saValues)
+	SaveRule(strAction, saValues, strPreviousName)
 	;---------------------------------------------------------
 	{
 		; example: Lower case=ChangeCase|Example|Notes|.*|$L0
@@ -5364,16 +5402,30 @@ class Rule
 			; do not remove last | in case we have a space as last character
 		
 		IniWrite, %strIniLine%, % o_Settings.strIniFile, Rules, % this.strName
+		; update rules objects will be done by LoadRules
+		
+		if (strAction = "Edit" and strPreviousName <> this.strName)
+			this.DeleteRule(strPreviousName)
+		
+		; update rules index in ini file
+		IniRead, strRulesList, % o_Settings.strIniFile, Rules-index, Rules
+		strRulesList .= this.strName . ";"
+		IniWrite, %strRulesList%, % o_Settings.strIniFile, Rules-index, Rules
 	}
 	;---------------------------------------------------------
 	
 	;---------------------------------------------------------
-	DeleteRule()
+	DeleteRule(strOtherRule := "")
 	;---------------------------------------------------------
 	{
-		IniDelete, % o_Settings.strIniFile, Rules, % this.strName
-		g_aaRulesByName.Delete(this.strName)
-		g_saRulesOrder.Delete(this.intID)
+		strName := (StrLen(strOtherRule) ?  strOtherRule : this.strName)
+		IniDelete, % o_Settings.strIniFile, Rules, %strName%
+		; update rules objects will be done by LoadRules
+		
+		; update rules index in ini file
+		IniRead, strRulesList, % o_Settings.strIniFile, Rules-index, Rules
+		strRulesList := StrReplace(strRulesList, ";" . strName . ";", ";")
+		IniWrite, %strRulesList%, % o_Settings.strIniFile, Rules-index, Rules
 	}
 	;---------------------------------------------------------
 	

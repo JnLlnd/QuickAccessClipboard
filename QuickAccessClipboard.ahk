@@ -13,7 +13,7 @@ OBJECT MODEL
 
 RULE TYPES
 ----------
-Types: ChangeCase, ConvertFormat, Replace, AutoHotkey, SubStr, Prefix, Suffix
+Types: ChangeCase, ConvertFormat, Replace, AutoHotkey, SubString, Prefix, Suffix
 Values: .strTypeCode, .strTypeLabel, .strTypeHelp, .intID
 Collections: g_aaRuleTypes (by strTypeCode), g_saRuleTypesOrder (by intID)
 
@@ -24,10 +24,10 @@ ConvertFormat: .intConvertFormat (1: 1-Text)
 ChangeCase: .intCaseType (1), .strFind (always ".*"), .strReplace ("$L0|$U0|$T0")
 Replace: .strFind (1), .strReplace (2), blnReplaceWholeWord (3), blnReplaceCaseSensitive (4)
 AutoHotkey: .strCode (1)
-SubStr: .intSubStrFromType (1: 1-FromStart, 2-FromPosition, 3-FromBeginText, 4-FromEndText), .intSubStrFromPosition (2), .strSubStrFromText (3), .intSubStrFromPlusMinus (4)
-	, .intSubStrToType (5: 1-ToEnd, 2-ToLength, 3-ToBeforeEnd, 4-ToBeginText, 5-ToEndText), .intSubStrToLength (6, positive or negative), .strSubStrToText (7), .intSubStrToPlusMinus (8), .blnSubStrRepeat (9)
-Prefix: .strPrefix (1), .blnSubStrRepeat(2)
-Suffix: .strSuffix (1), .blnSubStrRepeat(2)
+SubString: .intSubStringFromType (1: 1-FromStart, 2-FromPosition, 3-FromBeginText, 4-FromEndText), .intSubStringFromPosition (2), .strSubStringFromText (3), .intSubStringFromPlusMinus (4)
+	, .intSubStringToType (5: 1-ToEnd, 2-ToLength, 3-ToBeforeEnd, 4-ToBeginText, 5-ToEndText), .intSubStringToLength (6, positive or negative), .strSubStringToText (7), .intSubStringToPlusMinus (8), .blnRepeat (9)
+Prefix: .strPrefix (1), .blnRepeat(2)
+Suffix: .strSuffix (1), .blnRepeat(2)
 Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 
 
@@ -708,7 +708,7 @@ InitRuleTypes:
 global g_aaRuleTypes = Object()
 global g_saRuleTypesOrder = Object()
 
-saRuleTypes := StrSplit("ChangeCase|ConvertFormat|Replace|AutoHotkey|Prefix|Suffix|SubStr", "|")
+saRuleTypes := StrSplit("ChangeCase|ConvertFormat|Replace|AutoHotkey|Prefix|Suffix|SubString", "|")
 for intIndex, strType in saRuleTypes
 {
 	strLabels .= o_L["Type" . strType] . "|" ; "TypeChangeCase", etc.
@@ -751,7 +751,7 @@ if !(strRulesExist) ; first launch
 	IniWrite, ChangeCase|Demo|Convert Clipboard to upper case|2|, % o_Settings.strIniFile, Rules, Upper case
 	IniWrite, ConvertFormat|Demo|Convert Clipboard to Text format|1|, % o_Settings.strIniFile, Rules, Convert to text
 	IniWrite, Replace|Demo|Text substitution example with whole word option|this|that|1||, % o_Settings.strIniFile, Rules, Replace this with that
-	IniWrite, SubStr|Demo|String manipulation example|1|||0|3|-2||0|0|, % o_Settings.strIniFile, Rules, Trim 2 last characters
+	IniWrite, SubString|Demo|String manipulation example|1|||0|3|-2||0|0|, % o_Settings.strIniFile, Rules, Trim 2 last characters
 	IniWrite, Prefix|Demo|Append text example|Title: |, % o_Settings.strIniFile, Rules, Prefix with Title
 	IniWrite, AutoHotkey|Demo|Simple AutoHotkey line of code|MsgBox`, Your Clipboard1 contains: `%Clipboard`%|, % o_Settings.strIniFile, Rules, MsgBox
 	IniWrite, % "AutoHotkey|Demo|Multiline AHK scripting|if StrLen(Clipboard) > 500" . g_strEol
@@ -1844,52 +1844,52 @@ else if (aaEditedRule.strTypeCode = "AutoHotkey")
 	Gui, 2:Add, Edit, w900 r12 Multi t20 WantReturn vf_varValue1, % aaEditedRule.strCode ; aaEditedRule.saVarValues[4]
 	Gui, 2:Font
 }
-else if (aaEditedRule.strTypeCode = "SubStr")
+else if (aaEditedRule.strTypeCode = "SubString")
 {
-	Gui, 2:Add, Radio, % "vf_blnRadioSubStrFromStart gGuiEditRuleSubStrTypeChanged"
-		. ((aaEditedRule.intSubStrFromType = 1 or aaEditedRule.intSubStrFromType = "") ? " Checked" : ""), % o_L["DialogSubStrFromStart"]
-	Gui, 2:Add, Radio, % "Section vf_blnRadioSubStrFromPosition gGuiEditRuleSubStrTypeChanged"
-		. (aaEditedRule.intSubStrFromType = 2 ? " Checked" : ""), % o_L["DialogSubStrFromPosition"]
-	Gui, 2:Add, Radio, % "vf_blnRadioSubStrFromBeginText gGuiEditRuleSubStrTypeChanged"
-		. (aaEditedRule.intSubStrFromType = 3 ? " Checked" : ""), % o_L["DialogSubStrFromBeginText"]
-	Gui, 2:Add, Radio, % "vf_blnRadioSubStrFromEndText gGuiEditRuleSubStrTypeChanged"
-		. (aaEditedRule.intSubStrFromType = 4 ? " Checked" : ""), % o_L["DialogSubStrFromEndText"]
-	GuiControlGet, arrWidth1, Pos, f_blnRadioSubStrFromPosition
-	GuiControlGet, arrWidth2, Pos, f_blnRadioSubStrFromBeginText
-	GuiControlGet, arrWidth3, Pos, f_blnRadioSubStrFromEndText
-	Gui, 2:Add, Edit, % "x" . arrWidth1w + 15 . " ys-5 w40 Number Center vf_intRadioSubStrFromPosition disabled"
-		, % aaEditedRule.intSubStrFromPosition
-	Gui, 2:Add, Text, yp x+5 vf_lblRadioSubStrFromPosition disabled, % o_L["DialogSubStrCharacters"]
-	Gui, 2:Add, Edit, % "x" . (arrWidth2w > arrWidth3w ? arrWidth2w : arrWidth3w) + 15 . " ys+25 w150 vf_strRadioSubStrFromText disabled"
-		, % aaEditedRule.strSubStrFromText
+	Gui, 2:Add, Radio, % "vf_blnRadioSubStringFromStart gGuiEditRuleSubStringTypeChanged"
+		. ((aaEditedRule.intSubStringFromType = 1 or aaEditedRule.intSubStringFromType = "") ? " Checked" : ""), % o_L["DialogSubStringFromStart"]
+	Gui, 2:Add, Radio, % "Section vf_blnRadioSubStringFromPosition gGuiEditRuleSubStringTypeChanged"
+		. (aaEditedRule.intSubStringFromType = 2 ? " Checked" : ""), % o_L["DialogSubStringFromPosition"]
+	Gui, 2:Add, Radio, % "vf_blnRadioSubStringFromBeginText gGuiEditRuleSubStringTypeChanged"
+		. (aaEditedRule.intSubStringFromType = 3 ? " Checked" : ""), % o_L["DialogSubStringFromBeginText"]
+	Gui, 2:Add, Radio, % "vf_blnRadioSubStringFromEndText gGuiEditRuleSubStringTypeChanged"
+		. (aaEditedRule.intSubStringFromType = 4 ? " Checked" : ""), % o_L["DialogSubStringFromEndText"]
+	GuiControlGet, arrWidth1, Pos, f_blnRadioSubStringFromPosition
+	GuiControlGet, arrWidth2, Pos, f_blnRadioSubStringFromBeginText
+	GuiControlGet, arrWidth3, Pos, f_blnRadioSubStringFromEndText
+	Gui, 2:Add, Edit, % "x" . arrWidth1w + 15 . " ys-5 w40 Number Center vf_intRadioSubStringFromPosition disabled"
+		, % aaEditedRule.intSubStringFromPosition
+	Gui, 2:Add, Text, yp x+5 vf_lblRadioSubStringFromPosition disabled, % o_L["DialogSubStringCharacters"]
+	Gui, 2:Add, Edit, % "x" . (arrWidth2w > arrWidth3w ? arrWidth2w : arrWidth3w) + 15 . " ys+25 w150 vf_strRadioSubStringFromText disabled"
+		, % aaEditedRule.strSubStringFromText
 	Gui, 2:Add, Text, x+10 yp+3, +/-
-	Gui, 2:Add, Edit, x+5 yp-3 w40 vf_intSubStrFromPlusMinus disabled
-	Gui, 2:Add, UpDown, vf_intSubStrFromUpDown Range-9999-9999, % aaEditedRule.intSubStrFromPlusMinus
+	Gui, 2:Add, Edit, x+5 yp-3 w40 vf_intSubStringFromPlusMinus disabled
+	Gui, 2:Add, UpDown, vf_intSubStringFromUpDown Range-9999-9999, % aaEditedRule.intSubStringFromPlusMinus
 		
-	Gui, 2:Add, Radio, % "x10 y+25 w140 vf_blnRadioSubStrToEnd gGuiEditRuleSubStrTypeChanged"
-		. ((aaEditedRule.intSubStrToType = 1 or aaEditedRule.intSubStrToType = "") ? " Checked" : ""), % o_L["DialogSubStrToEnd"] ; aaEditedRule.saVarValues[6]
-	Gui, 2:Add, Radio, % "Section vf_blnRadioSubStrLength gGuiEditRuleSubStrTypeChanged"
-		. (aaEditedRule.intSubStrToType = 2 ? " Checked" : ""), % o_L["DialogSubStrLength"] ; aaEditedRule.saVarValues[6]
-	Gui, 2:Add, Radio, % "vf_blnRadioSubStrToBeforeEnd gGuiEditRuleSubStrTypeChanged"
-		. (aaEditedRule.intSubStrToType = 3 ? " Checked" : ""), % o_L["DialogSubStrToBeforeEnd"] ; aaEditedRule.saVarValues[6]
-	Gui, 2:Add, Radio, % "vf_blnRadioSubStrToBeginText gGuiEditRuleSubStrTypeChanged"
-		. (aaEditedRule.intSubStrToType = 4 ? " Checked" : ""), % o_L["DialogSubStrToBeginText"] ; aaEditedRule.intSubStrToType
-	Gui, 2:Add, Radio, % "vf_blnRadioSubStrToEndText gGuiEditRuleSubStrTypeChanged"
-		. (aaEditedRule.intSubStrToType = 5 ? " Checked" : ""), % o_L["DialogSubStrToEndText"] ; aaEditedRule.saVarValues[4]
-	GuiControlGet, arrWidth1, Pos, f_blnRadioSubStrLength
-	GuiControlGet, arrWidth2, Pos, f_blnRadioSubStrToBeforeEnd
-	GuiControlGet, arrWidth3, Pos, f_blnRadioSubStrToBeginText
-	GuiControlGet, arrWidth4, Pos, f_blnRadioSubStrToEndText
-	Gui, 2:Add, Edit, % "x" . (arrWidth1w > arrWidth2w ? arrWidth1w : arrWidth2w) + 15 . " ys+5 w40 Number Center vf_intSubStrCharacters disabled"
-		, % Abs(aaEditedRule.intSubStrToLength) ; stored as positive or negative
-	Gui, 2:Add, Text, yp x+5 vf_lblSubStrCharacters disabled, % o_L["DialogSubStrCharacters"]
-	Gui, 2:Add, Edit, % "x" . (arrWidth3w > arrWidth4w ? arrWidth3w : arrWidth4w) + 15 . " ys+45 w150 vf_strRadioSubStrToText disabled"
-		, % aaEditedRule.strSubStrToText
+	Gui, 2:Add, Radio, % "x10 y+25 w140 vf_blnRadioSubStringToEnd gGuiEditRuleSubStringTypeChanged"
+		. ((aaEditedRule.intSubStringToType = 1 or aaEditedRule.intSubStringToType = "") ? " Checked" : ""), % o_L["DialogSubStringToEnd"] ; aaEditedRule.saVarValues[6]
+	Gui, 2:Add, Radio, % "Section vf_blnRadioSubStringLength gGuiEditRuleSubStringTypeChanged"
+		. (aaEditedRule.intSubStringToType = 2 ? " Checked" : ""), % o_L["DialogSubStringLength"] ; aaEditedRule.saVarValues[6]
+	Gui, 2:Add, Radio, % "vf_blnRadioSubStringToBeforeEnd gGuiEditRuleSubStringTypeChanged"
+		. (aaEditedRule.intSubStringToType = 3 ? " Checked" : ""), % o_L["DialogSubStringToBeforeEnd"] ; aaEditedRule.saVarValues[6]
+	Gui, 2:Add, Radio, % "vf_blnRadioSubStringToBeginText gGuiEditRuleSubStringTypeChanged"
+		. (aaEditedRule.intSubStringToType = 4 ? " Checked" : ""), % o_L["DialogSubStringToBeginText"] ; aaEditedRule.intSubStringToType
+	Gui, 2:Add, Radio, % "vf_blnRadioSubStringToEndText gGuiEditRuleSubStringTypeChanged"
+		. (aaEditedRule.intSubStringToType = 5 ? " Checked" : ""), % o_L["DialogSubStringToEndText"] ; aaEditedRule.saVarValues[4]
+	GuiControlGet, arrWidth1, Pos, f_blnRadioSubStringLength
+	GuiControlGet, arrWidth2, Pos, f_blnRadioSubStringToBeforeEnd
+	GuiControlGet, arrWidth3, Pos, f_blnRadioSubStringToBeginText
+	GuiControlGet, arrWidth4, Pos, f_blnRadioSubStringToEndText
+	Gui, 2:Add, Edit, % "x" . (arrWidth1w > arrWidth2w ? arrWidth1w : arrWidth2w) + 15 . " ys+5 w40 Number Center vf_intSubStringCharacters disabled"
+		, % Abs(aaEditedRule.intSubStringToLength) ; stored as positive or negative
+	Gui, 2:Add, Text, yp x+5 vf_lblSubStringCharacters disabled, % o_L["DialogSubStringCharacters"]
+	Gui, 2:Add, Edit, % "x" . (arrWidth3w > arrWidth4w ? arrWidth3w : arrWidth4w) + 15 . " ys+45 w150 vf_strRadioSubStringToText disabled"
+		, % aaEditedRule.strSubStringToText
 	Gui, 2:Add, Text, x+10 yp+3, +/-
-	Gui, 2:Add, Edit, x+5 yp-3 w40 vf_intSubStrToPlusMinus disabled
-	Gui, 2:Add, UpDown, vf_intSubStrToUpDown Range-9999-9999, % aaEditedRule.intSubStrToPlusMinus
+	Gui, 2:Add, Edit, x+5 yp-3 w40 vf_intSubStringToPlusMinus disabled
+	Gui, 2:Add, UpDown, vf_intSubStringToUpDown Range-9999-9999, % aaEditedRule.intSubStringToPlusMinus
 	
-	Gosub, GuiEditRuleSubStrTypeChanged
+	Gosub, GuiEditRuleSubStringTypeChanged
 }
 else if InStr("Prefix Suffix", aaEditedRule.strTypeCode)
 {
@@ -1897,10 +1897,10 @@ else if InStr("Prefix Suffix", aaEditedRule.strTypeCode)
 	Gui, 2:Add, Edit, w400 vf_varValue1, % aaEditedRule.saVarValues[1] ; aaEditedRule.strPrefix or aaEditedRule.strSuffix
 }
 
-if (aaEditedRule.strTypeCode = "SubStr")
+if (aaEditedRule.strTypeCode = "SubString")
 {
-	Gui, 2:Add, CheckBox, x10 y+25 w400 vf_blnSubStrRepeat, % o_L["DialogRepeatOnEachLine"]
-	GuiControl, , f_blnSubStrRepeat, % (aaEditedRule.blnSubStrRepeat = true)
+	Gui, 2:Add, CheckBox, x10 y+25 w400 vf_blnRepeat, % o_L["DialogRepeatOnEachLine"]
+	GuiControl, , f_blnRepeat, % (aaEditedRule.blnRepeat = true)
 }
 else if InStr("Prefix Suffix", aaEditedRule.strTypeCode)
 {
@@ -1927,21 +1927,21 @@ return
 
 
 ;------------------------------------------------------------
-GuiEditRuleSubStrTypeChanged:
+GuiEditRuleSubStringTypeChanged:
 ;------------------------------------------------------------
 Gui, 2:Submit, NoHide
 
-GuiControl, % (f_blnRadioSubStrFromPosition ? "Enable" : "Disable"), f_intRadioSubStrFromPosition
-GuiControl, % (f_blnRadioSubStrFromPosition ? "Enable" : "Disable"), f_lblRadioSubStrFromPosition
-GuiControl, % (f_blnRadioSubStrFromBeginText or f_blnRadioSubStrFromEndText ? "Enable" : "Disable"), f_strRadioSubStrFromText
-GuiControl, % (f_blnRadioSubStrFromBeginText or f_blnRadioSubStrFromEndText ? "Enable" : "Disable"), f_intSubStrFromPlusMinus
-GuiControl, % (f_blnRadioSubStrFromBeginText or f_blnRadioSubStrFromEndText ? "Enable" : "Disable"), f_intFromUpDown
+GuiControl, % (f_blnRadioSubStringFromPosition ? "Enable" : "Disable"), f_intRadioSubStringFromPosition
+GuiControl, % (f_blnRadioSubStringFromPosition ? "Enable" : "Disable"), f_lblRadioSubStringFromPosition
+GuiControl, % (f_blnRadioSubStringFromBeginText or f_blnRadioSubStringFromEndText ? "Enable" : "Disable"), f_strRadioSubStringFromText
+GuiControl, % (f_blnRadioSubStringFromBeginText or f_blnRadioSubStringFromEndText ? "Enable" : "Disable"), f_intSubStringFromPlusMinus
+GuiControl, % (f_blnRadioSubStringFromBeginText or f_blnRadioSubStringFromEndText ? "Enable" : "Disable"), f_intFromUpDown
 
-GuiControl, % (f_blnRadioSubStrLength or f_blnRadioSubStrToBeforeEnd ?  "Enable" : "Disable"), f_intSubStrCharacters
-GuiControl, % (f_blnRadioSubStrLength or f_blnRadioSubStrToBeforeEnd ?  "Enable" : "Disable"), f_lblSubStrCharacters
-GuiControl, % (f_blnRadioSubStrToBeginText or f_blnRadioSubStrToEndText ? "Enable" : "Disable"), f_strRadioSubStrToText
-GuiControl, % (f_blnRadioSubStrToBeginText or f_blnRadioSubStrToEndText ? "Enable" : "Disable"), f_intSubStrToPlusMinus
-GuiControl, % (f_blnRadioSubStrToBeginText or f_blnRadioSubStrToEndText ? "Enable" : "Disable"), f_intToUpDown
+GuiControl, % (f_blnRadioSubStringLength or f_blnRadioSubStringToBeforeEnd ?  "Enable" : "Disable"), f_intSubStringCharacters
+GuiControl, % (f_blnRadioSubStringLength or f_blnRadioSubStringToBeforeEnd ?  "Enable" : "Disable"), f_lblSubStringCharacters
+GuiControl, % (f_blnRadioSubStringToBeginText or f_blnRadioSubStringToEndText ? "Enable" : "Disable"), f_strRadioSubStringToText
+GuiControl, % (f_blnRadioSubStringToBeginText or f_blnRadioSubStringToEndText ? "Enable" : "Disable"), f_intSubStringToPlusMinus
+GuiControl, % (f_blnRadioSubStringToBeginText or f_blnRadioSubStringToEndText ? "Enable" : "Disable"), f_intToUpDown
 
 return
 ;------------------------------------------------------------
@@ -1972,46 +1972,46 @@ if !StrLen(f_strName) or (InStr("Replace AutoHotkey Prefix Suffix", aaEditedRule
 }
 
 saValues := Object()
-if (aaEditedRule.strTypeCode = "SubStr")
+if (aaEditedRule.strTypeCode = "SubString")
 {
-	if (f_blnRadioSubStrFromPosition and !StrLen(f_intRadioSubStrFromPosition))
-		or ((f_blnRadioSubStrLength or f_blnRadioSubStrToBeforeEnd) and !StrLen(f_intSubStrCharacters))
-		or ((f_blnRadioSubStrFromBeginText or f_blnRadioSubStrFromEndText) and !StrLen(f_strRadioSubStrFromText))
-		or ((f_blnRadioSubStrToBeginText or f_blnRadioSubStrToEndText) and !StrLen(f_strRadioSubStrToText))
+	if (f_blnRadioSubStringFromPosition and !StrLen(f_intRadioSubStringFromPosition))
+		or ((f_blnRadioSubStringLength or f_blnRadioSubStringToBeforeEnd) and !StrLen(f_intSubStringCharacters))
+		or ((f_blnRadioSubStringFromBeginText or f_blnRadioSubStringFromEndText) and !StrLen(f_strRadioSubStringFromText))
+		or ((f_blnRadioSubStringToBeginText or f_blnRadioSubStringToEndText) and !StrLen(f_strRadioSubStringToText))
 	{
 		Oops(2, o_L["OopsValueMissing"])
 		return
 	}
 	
-	; int, type of "from" value, intSubStrFromType
-	if (f_blnRadioSubStrFromStart)
+	; int, type of "from" value, intSubStringFromType
+	if (f_blnRadioSubStringFromStart)
 		saValues[1] := 1
-	else if (f_blnRadioSubStrFromPosition)
+	else if (f_blnRadioSubStringFromPosition)
 		saValues[1] := 2
-	else if (f_blnRadioSubStrFromBeginText)
+	else if (f_blnRadioSubStringFromBeginText)
 		saValues[1] := 3
-	else if (f_blnRadioSubStrFromEndText)
+	else if (f_blnRadioSubStringFromEndText)
 		saValues[1] := 4
-	saValues[2] := (f_intRadioSubStrFromPosition ? f_intRadioSubStrFromPosition : "") ; intSubStrFromPosition, if from f_blnRadioSubStrFromPosition is true
-	saValues[3] := f_strRadioSubStrFromText ; strSubStrFromText, if from f_blnRadioSubStrFromBeginText or f_blnRadioSubStrFromEndText is true
-	saValues[4] := f_intSubStrFromPlusMinus ; intSubStrFromPlusMinus, if from f_blnRadioSubStrFromBeginText or f_blnRadioSubStrFromEndText is true
+	saValues[2] := (f_intRadioSubStringFromPosition ? f_intRadioSubStringFromPosition : "") ; intSubStringFromPosition, if from f_blnRadioSubStringFromPosition is true
+	saValues[3] := f_strRadioSubStringFromText ; strSubStringFromText, if from f_blnRadioSubStringFromBeginText or f_blnRadioSubStringFromEndText is true
+	saValues[4] := f_intSubStringFromPlusMinus ; intSubStringFromPlusMinus, if from f_blnRadioSubStringFromBeginText or f_blnRadioSubStringFromEndText is true
 
-	; int, type of "to" value, intSubStrToType
-	if (f_blnRadioSubStrToEnd)
+	; int, type of "to" value, intSubStringToType
+	if (f_blnRadioSubStringToEnd)
 		saValues[5] := 1
-	else if (f_blnRadioSubStrLength)
+	else if (f_blnRadioSubStringLength)
 		saValues[5] := 2
-	else if (f_blnRadioSubStrToBeforeEnd)
+	else if (f_blnRadioSubStringToBeforeEnd)
 		saValues[5] := 3
-	else if (f_blnRadioSubStrToBeginText)
+	else if (f_blnRadioSubStringToBeginText)
 		saValues[5] := 4
-	else if (f_blnRadioSubStrToEndText)
+	else if (f_blnRadioSubStringToEndText)
 		saValues[5] := 5
-	saValues[6] := (f_blnRadioSubStrLength ? f_intSubStrCharacters : (f_blnRadioSubStrToBeforeEnd ? -f_intSubStrCharacters : "")) ; intSubStrToLength, positive if length from FromPosition or negative if length from end
-	saValues[7] := f_strRadioSubStrToText ; strSubStrToText, if from f_blnRadioSubStrToBeginText or f_blnRadioSubStrToEndText is true
-	saValues[8] := f_intSubStrToPlusMinus ; intSubStrToPlusMinus, if from f_blnRadioSubStrToBeginText or f_blnRadioSubStrToEndText is true
+	saValues[6] := (f_blnRadioSubStringLength ? f_intSubStringCharacters : (f_blnRadioSubStringToBeforeEnd ? -f_intSubStringCharacters : "")) ; intSubStringToLength, positive if length from FromPosition or negative if length from end
+	saValues[7] := f_strRadioSubStringToText ; strSubStringToText, if from f_blnRadioSubStringToBeginText or f_blnRadioSubStringToEndText is true
+	saValues[8] := f_intSubStringToPlusMinus ; intSubStringToPlusMinus, if from f_blnRadioSubStringToBeginText or f_blnRadioSubStringToEndText is true
 
-	saValues[9] := f_blnSubStrRepeat ; blnSubStrRepeat, execute rule on each line of the Clipboard
+	saValues[9] := f_blnRepeat ; blnRepeat, execute rule on each line of the Clipboard
 }
 else if (aaEditedRule.strTypeCode = "AutoHotkey")
 	
@@ -5277,19 +5277,19 @@ class Rule
 		}
 		else if (this.strTypeCode = "AutoHotkey")
 			this.strCode := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
-		else if (this.strTypeCode = "SubStr")
+		else if (this.strTypeCode = "SubString")
 		{
-			this.intSubStrFromType := saRuleValues[1]
-			this.intSubStrFromPosition := saRuleValues[2]
-			this.strSubStrFromText := saRuleValues[3]
-			this.intSubStrFromPlusMinus := saRuleValues[4]
+			this.intSubStringFromType := saRuleValues[1]
+			this.intSubStringFromPosition := saRuleValues[2]
+			this.strSubStringFromText := saRuleValues[3]
+			this.intSubStringFromPlusMinus := saRuleValues[4]
 			
-			this.intSubStrToType := saRuleValues[5]
-			this.intSubStrToLength := saRuleValues[6] ; positive if length from FromPosition or negative if length from End
-			this.strSubStrToText := saRuleValues[7]
-			this.intSubStrToPlusMinus := saRuleValues[8]
+			this.intSubStringToType := saRuleValues[5]
+			this.intSubStringToLength := saRuleValues[6] ; positive if length from FromPosition or negative if length from End
+			this.strSubStringToText := saRuleValues[7]
+			this.intSubStringToPlusMinus := saRuleValues[8]
 			
-			this.blnSubStrRepeat := saRuleValues[9]
+			this.blnRepeat := saRuleValues[9]
 		}
 		else if (this.strTypeCode = "Prefix")
 			this.strPrefix := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
@@ -5297,7 +5297,7 @@ class Rule
 			this.strSuffix := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
 		
 		if InStr("Prefix Suffix", this.strTypeCode)
-			this.blnSubStrRepeat := saRuleValues[2]
+			this.blnRepeat := saRuleValues[2]
 		
 		g_aaRulesByName[strName] := this
 		this.intID := g_saRulesOrder.Push(this)
@@ -5376,52 +5376,52 @@ class Rule
 		}
 		else if (this.strTypeCode = "AutoHotkey")
 			strCode .= this.strCode
-		else if (this.strTypeCode = "SubStr")
+		else if (this.strTypeCode = "SubString")
 		{
-			strSubStr := "SubStr(Clipboard, "
-			if (this.intSubStrFromType = 1) ; FromStart
-				strSubStr .= "1"
-			else if (this.intSubStrFromType = 2) ; FromPosition
-				strSubStr .= this.intSubStrFromPosition
-			else if (this.intSubStrFromType = 3) ; FromBeginText
+			strSubString := "SubStr(Clipboard, "
+			if (this.intSubStringFromType = 1) ; FromStart
+				strSubString .= "1"
+			else if (this.intSubStringFromType = 2) ; FromPosition
+				strSubString .= this.intSubStringFromPosition
+			else if (this.intSubStringFromType = 3) ; FromBeginText
 			{
-				strCodeStart := "InStr(Clipboard, """ . this.strSubStrFromText . """) + " . this.intSubStrFromPlusMinus ; used to substract from "to" position
-				strSubStr .= strCodeStart
+				strCodeStart := "InStr(Clipboard, """ . this.strSubStringFromText . """) + " . this.intSubStringFromPlusMinus ; used to substract from "to" position
+				strSubString .= strCodeStart
 			}
-			else if (this.intSubStrFromType = 4) ; FromEndText
+			else if (this.intSubStringFromType = 4) ; FromEndText
 			{
-				strCodeStart := "InStr(Clipboard, """ . this.strSubStrFromText . """) + StrLen(""" . this.strSubStrFromText . """) + " . this.intSubStrFromPlusMinus ; used to substract from "to" position
-				strSubStr .= strCodeStart
+				strCodeStart := "InStr(Clipboard, """ . this.strSubStringFromText . """) + StrLen(""" . this.strSubStringFromText . """) + " . this.intSubStringFromPlusMinus ; used to substract from "to" position
+				strSubString .= strCodeStart
 			}
 			
-			if (this.intSubStrToType <> 1)
-				strSubStr .= ", "
+			if (this.intSubStringToType <> 1)
+				strSubString .= ", "
 			
-			; if this.intSubStrToType = 1 ToEnd, add nothing
-			if (this.intSubStrToType = 2) ; ToLength
-				strSubStr .= this.intSubStrToLength
-			else if (this.intSubStrToType = 3) ; ToBeforeEnd
-				strSubStr .= this.intSubStrToLength ; intSubStrToLength already negative
-			else if (this.intSubStrToType = 4) ; ToBeginText
-				strSubStr .= "InStr(Clipboard, """ . this.strSubStrToText . """) + " . this.intSubStrToPlusMinus . " - (" . strCodeStart . ")"
-			else if (this.intSubStrToType = 5) ; ToEndText
-				strSubStr .= "InStr(Clipboard, """ . this.strSubStrToText . """) + StrLen(""" . this.strSubStrToText . """) + " . this.intSubStrToPlusMinus . " - (" . strCodeStart . ")"
-			strSubStr .= ")"
+			; if this.intSubStringToType = 1 ToEnd, add nothing
+			if (this.intSubStringToType = 2) ; ToLength
+				strSubString .= this.intSubStringToLength
+			else if (this.intSubStringToType = 3) ; ToBeforeEnd
+				strSubString .= this.intSubStringToLength ; intSubStringToLength already negative
+			else if (this.intSubStringToType = 4) ; ToBeginText
+				strSubString .= "InStr(Clipboard, """ . this.strSubStringToText . """) + " . this.intSubStringToPlusMinus . " - (" . strCodeStart . ")"
+			else if (this.intSubStringToType = 5) ; ToEndText
+				strSubString .= "InStr(Clipboard, """ . this.strSubStringToText . """) + StrLen(""" . this.strSubStringToText . """) + " . this.intSubStringToPlusMinus . " - (" . strCodeStart . ")"
+			strSubString .= ")"
 			
-			if (this.blnSubStrRepeat)
+			if (this.blnRepeat)
 			{
-				strSubStr := StrReplace(strSubStr , "Clipboard", "A_LoopField")
+				strSubString := StrReplace(strSubString , "Clipboard", "A_LoopField")
 				strCode .= "strTemp := """"`n"
 					. "Loop, Parse, Clipboard, ``n`n"
 					; . "`tstrTemp .= SubStr(A_LoopField, " . intStartingPosition . (StrLen(intLength) ? "," . intLength : "") . ") . " . """``n""`n"
-					. "`tstrTemp .= " . strSubStr . " . ""``n""`n"
+					. "`tstrTemp .= " . strSubString . " . ""``n""`n"
 					. "Clipboard := SubStr(strTemp, 1, -1) `; remove last eol"
 				}
 			else
-				strCode .= "Clipboard := " . strSubStr
+				strCode .= "Clipboard := " . strSubString
 		}
 		else if InStr("Prefix Suffix", this.strTypeCode)
-			if (this.blnSubStrRepeat)
+			if (this.blnRepeat)
 				strCode .= "strTemp := """"`n"
 					. "Loop, Parse, Clipboard, ``n`n"
 					. "`tstrTemp .=  """ . (this.strTypeCode = "Prefix" ? this.strPrefix : "") . """ . A_LoopField . """ . (this.strTypeCode = "Suffix" ? this.strSuffix : "") . "``n""`n"

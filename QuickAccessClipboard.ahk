@@ -34,8 +34,35 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
-Version ALPHA: 0.0.7 (2022-01-??)
-
+Version ALPHA: 0.0.7 (2022-01-05)
+ 
+Options
+- add "Options" submenu to menu bar with item to "Select mouse hotkey", "Select keyboard hotkeys", "Run at statup" options and "Edit QAC settings file" (with reminder to restart the app after saving changes to the ini file)
+- add "Select hotkey" dialog box for mouse and keyboard hotkeys
+- display the editor at startup if the option "DisplayEditorAtStartup" is enabled in ini file
+- remove editor dark mode option (need improvements) and run as admin (not ready)
+ 
+Rules
+- add rule type "Convert format" with only one subtype "Text format" for now
+- add "Whole word only" and "Case sensitive" options for "Replace" rule type
+- reject semi-colon in rule names (ini file restriction)
+- in "Add/Edit rule" help for rules of type AutoHotkey, add links to AHK doc pages
+- add "Undo last rule change" button and menu item
+- add radio buttons to see "Rules" or "Groups" of rules in "Available" and "Selected" lists (groups not implemented at this time)
+- add a button to "Add group" (disabled)
+ 
+Settings file
+- in ini file, save options values in three sections "General", "Launch" and "EditorWindow"; for values not in a group, save to section "Internal"
+- at launch, add default rules to ini file if "Rules" section does not exist and add default values for options if values does not exist in ini file
+- add "Rules-index" section to ini file with the value "Rules" listing available rules
+- for Undo feature, maintain "Rules-backup" section and "Rules-backup" value in "Rules-index" section
+ 
+Various
+- when showing the Editor, position the window on the active monitor
+- set default temporary folder to %temp% for setup installation and "<QAC folder>\Temp" for portable installation
+- add missing menu bar menus items to tray menu
+- make the tray menu item "Editor" the default item and require only one left mouse button click to trigger it
+- add "Check for update" to "Help" menu
 
 Version ALPHA: 0.0.6 (2021-12-29)
  
@@ -858,7 +885,8 @@ return
 BuildTrayMenu:
 ;------------------------------------------------------------
 
-Menu, Tray, Add, % o_L["MenuEditor"], GuiShowFromTray
+Menu, Tray, Add, % o_L["MenuEditor"] Default, GuiShowFromTray
+Menu, Tray, Click, 1 ; require only one left mouse button click to open the default item
 if (o_Settings.Launch.intShowMenuBar.IniValue > 1) ; 1 Customize menu bar, 2 System menu, 3 both
 {
 	Menu, Tray, Add

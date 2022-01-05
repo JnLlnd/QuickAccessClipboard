@@ -1092,27 +1092,33 @@ if (o_Settings.Launch.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar, 2 Sy
 
 Gui, 1:Font, s8 w600, Verdana
 Gui, 1:Add, Text, x40 y10, % o_L["GuiRulesAvailable"]
+Gui, 1:Font, s8 w400
+Gui, 1:Add, Radio, yp x+10 vf_intAvailableRuleOrGroups gGuiAvailableRulesOrGroupsChanged Checked, % o_L["GuiRulesLower"]
+g_aaToolTipsMessages["Button1"] := o_L["GuiAvailableRulesTip"]
+Gui, 1:Add, Radio, yp x+1 gGuiAvailableRulesOrGroupsChanged disabled,  % o_L["GuiGroupsLower"]
+g_aaToolTipsMessages["Button2"] := o_L["GuiAvailableGroupsTip"]
+Gui, 1:Font, s8 w600, Verdana
 Gui, 1:Add, Text, x564 y10, % o_L["GuiSelected"]
 Gui, 1:Font, s8 w400
-Gui, 1:Add, Radio, yp x+10 vf_intSelectRuleOrGroups gGuiSelectRulesOrGroupsChanged Checked, % o_L["GuiRulesLower"]
-g_aaToolTipsMessages["Button1"] := o_L["GuiSelectedRulesTip"]
-Gui, 1:Add, Radio, yp x+1 gGuiSelectRulesOrGroupsChanged disabled,  % o_L["GuiGroupsLower"]
-g_aaToolTipsMessages["Button2"] := o_L["GuiSelectedGroupsTip"]
+Gui, 1:Add, Radio, yp x+10 vf_intSelectRuleOrGroups gGuiSelectedRulesOrGroupsChanged Checked, % o_L["GuiRulesLower"]
+g_aaToolTipsMessages["Button3"] := o_L["GuiSelectedRulesTip"]
+Gui, 1:Add, Radio, yp x+1 gGuiSelectedRulesOrGroupsChanged disabled,  % o_L["GuiGroupsLower"]
+g_aaToolTipsMessages["Button4"] := o_L["GuiSelectedGroupsTip"]
 
 Gui, 1:Add, Text, x10 y+10 Section
 
 Gui, Font, s9, Arial
 ; Unicode chars: https://www.fileformat.info/info/unicode/category/So/list.htm
 Gui, 1:Add, Button, x10 ys+30 w24 vf_btnRuleAdd gGuiAddRuleSelectType, % chr(0x2795) ; or chr(0x271B)
-g_aaToolTipsMessages["Button3"] := o_L["MenuRuleAdd"]
+g_aaToolTipsMessages["Button4"] := o_L["MenuRuleAdd"]
 Gui, 1:Add, Button, ys+60 x10 w24 vf_btnRuleEdit gGuiRuleEdit, % chr(0x2328)
-g_aaToolTipsMessages["Button4"] := o_L["MenuRuleEdit"]
+g_aaToolTipsMessages["Button6"] := o_L["MenuRuleEdit"]
 Gui, 1:Add, Button, ys+90 x10 w24 vf_btnRuleRemove gGuiRuleRemove, % chr(0x2796)
-g_aaToolTipsMessages["Button5"] := o_L["MenuRuleRemove"]
+g_aaToolTipsMessages["Button7"] := o_L["MenuRuleRemove"]
 Gui, 1:Add, Button, ys+120 x10 w24 vf_btnRuleCopy gGuiRuleCopy, % chr(0x1F5D7) ; or 0x2750
-g_aaToolTipsMessages["Button6"] := o_L["MenuRuleCopy"]
+g_aaToolTipsMessages["Button8"] := o_L["MenuRuleCopy"]
 Gui, 1:Add, Button, % "ys+173 x10 w24 vf_btnRuleUndo gGuiRuleUndo " . (g_strRulesBackupExist ? "" : "Disabled"), % chr(0x238C) ; or 0x2750
-g_aaToolTipsMessages["Button7"] := o_L["MenuRuleUndo"]
+g_aaToolTipsMessages["Button9"] := o_L["MenuRuleUndo"]
 Gui, Font
 
 Gui, 1:Add, ListView
@@ -1123,11 +1129,11 @@ Gui, Font, s9, Arial
 ; Unicode chars: https://www.fileformat.info/info/unicode/category/So/list.htm
 ; Gui, 1:Add, Button, ys+30 x535 w24 vf_btnRuleSelect gGuiRuleSelect, % chr(0x25BA)
 Gui, 1:Add, Button, ys+30 xs+496 w24 vf_btnRuleSelect gGuiRuleSelect, % chr(0x25BA)
-g_aaToolTipsMessages["Button8"] := o_L["MenuRuleSelect"]
+g_aaToolTipsMessages["Button10"] := o_L["MenuRuleSelect"]
 Gui, 1:Add, Button, ys+60 xs+496 w24 vf_btnRuleDeselect gGuiRuleDeselect, % chr(0x25C4)
-g_aaToolTipsMessages["Button9"] := o_L["MenuRuleDeselect"]
+g_aaToolTipsMessages["Button11"] := o_L["MenuRuleDeselect"]
 Gui, 1:Add, Button, ys+90 xs+496 w24 vf_btnRuleDeslectAll gGuiRuleDeselectAll, % chr(0x232B)
-g_aaToolTipsMessages["Button10"] := o_L["MenuRuleDeselectAll"]
+g_aaToolTipsMessages["Button12"] := o_L["MenuRuleDeselectAll"]
 Gui, Font
 
 Gui, 1:Add, ListView
@@ -1135,7 +1141,7 @@ Gui, 1:Add, ListView
 	, % o_L["DialogRuleName"] ; SysHeader321 / SysListView321
 
 Gui, 1:Add, Button, ys+30 xs+205 w24 vf_btnRuleAddGroup gGuiAddRuleGroup Disabled, % chr(0x2795) ; or chr(0x271B)
-g_aaToolTipsMessages["Button11"] := o_L["MenuRuleGroupAdd"]
+g_aaToolTipsMessages["Button13"] := o_L["MenuRuleGroupAdd"]
 
 Gosub, LoadRules
 
@@ -1306,7 +1312,8 @@ return
 
 
 ;------------------------------------------------------------
-GuiSelectRulesOrGroupsChanged:
+GuiAvailableRulesOrGroupsChanged:
+GuiSelectedRulesOrGroupsChanged:
 ;------------------------------------------------------------
 
 return

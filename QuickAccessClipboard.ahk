@@ -34,6 +34,11 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
+Version ALPHA: 0.0.7.1 (2022-01-06)
+- fix bug with "Add" button tooltip
+- re-enable timeout in QACrules (default timeout after 60 seconds)
+- fix bug in rules of type Replace if search text included reserved regex characters needing to be escaped
+ 
 Version ALPHA: 0.0.7 (2022-01-05)
  
 Options
@@ -742,10 +747,10 @@ for intIndex, strType in saRuleTypes
 	strLabels .= o_L["Type" . strType] . "|" ; "TypeChangeCase", etc.
 
 	if (strType = "AutoHotkey")
-		strHelp .=  L(o_L["Type" . strType . "Help"], "https://www.autohotkey.com/docs/AutoHotkey.htm"
+		strHelp .=  L(o_L["TypeAutoHotkeyHelp"], "https://www.autohotkey.com/docs/AutoHotkey.htm"
 			, "https://www.autohotkey.com/docs/Variables.htm", "https://www.autohotkey.com/docs/commands/SubStr.htm"
 			, "https://www.autohotkey.com/docs/commands/InStr.htm", "https://www.autohotkey.com/docs/commands/Loop.htm"
-			, "https://www.autohotkey.com/docs/commands/LoopParse.htm")
+			, "https://www.autohotkey.com/docs/commands/IfExpression.htm")
 	else
 		strHelp .=  o_L["Type" . strType . "Help"]
 	strHelp .= "|"
@@ -1011,7 +1016,7 @@ if !FileExist(g_strDiagFile)
 }
 
 FileRead, strIniFileContent, % o_Settings.strIniFile
-strIniFileContent := StrReplace(strIniFileContent, """", """""")
+strIniFileContent := DoubleDoubleQuotes(strIniFileContent)
 Diag("IniFile", "`n""" . strIniFileContent . """`n", "")
 FileAppend, `n, %g_strDiagFile% ; required when the last line of the existing file ends with "
 
@@ -1383,7 +1388,7 @@ strTop =
 	#SingleInstance force
 	#NoTrayIcon
 	
-	global g_intLastTick := A_TickCount ; initial timeout delay after rules are enabled
+	global g_intLastTick ; initial timeout delay after rules are enabled
 	global g_stTargetAppTitle := `"%strGuiTitle%`"
 	
 	Gosub, OnClipboardChangeInit
@@ -1453,7 +1458,7 @@ strTop =
 		{
 			strRule := "Rule" . saData[2]
 			`%strRule`%(1)
-			`; return 1 ; success
+			return 1 ; success
 		}
 	}
 	;------------------------------------------------------------
@@ -1482,6 +1487,8 @@ blnRuleEnabled := LV_GetCount() ; used to enable CheckTimeOut or not
 
 strBottom =
 	(LTrim Join`r`n
+	
+	g_intLastTick := A_TickCount ; set timeout counter
 	
 	return ; end of OnClipboardChangeInit
 	;-----------------------------------------------------------
@@ -4255,6 +4262,15 @@ EscapeRegexString(strRegEx)
 ;------------------------------------------------------------
 
 
+;------------------------------------------------------------
+DoubleDoubleQuotes(str)
+;------------------------------------------------------------
+{
+	return StrReplace(str, """", """""")
+}
+;------------------------------------------------------------
+
+
 ;========================================================================================================================
 ; END !_090_VARIOUS_FUNCTIONS:
 ;========================================================================================================================
@@ -5520,7 +5536,7 @@ class Rule
 	{
 		; begin rule
 		strCode := "Rule" . this.intID . "(strType) `; " . this.strName . " (" . this.strTypeCode . ")`n{`n"
-		strCode .= "`; MsgBox, Execute QACrule: %A_ThisFunc%`n"
+		; strCode .= "`; MsgBox, Execute QACrule: %A_ThisFunc%`n"
 		strCode .= "if (strType = 1) `; text`n{`n"
 		
 		; strCode .= "`; strBefore := Clipboard`n"
@@ -5530,10 +5546,12 @@ class Rule
 			strCode .= "Clipboard := Clipboard"
 		else if (this.strTypeCode = "Replace")
 		{
-			strFind := EscapeRegexString(this.strFind) ; escape regex characters before adding \b or i) options
+			strFind := DoubleDoubleQuotes(this.strFind) ; double double-quotes inside search string
+			strFind := EscapeRegexString(strFind) ; escape regex characters before adding \b or i) options
 			strFind := (this.blnReplaceWholeWord ? "\b" . strFind . "\b" : strFind) ; \b...\b for whole word boundries
 			strFind := (this.blnReplaceCaseSensitive ? "" : "i)") . strFind ; by default, regex are case-sensitive, changed with "i)"
-			strCode .= "Clipboard := RegExReplace(Clipboard, """ . strFind . """, """ . this.strReplace . """)"
+			strCode .= "Clipboard := RegExReplace(Clipboard, """ . strFind . """, """ 
+				. DoubleDoubleQuotes(this.strReplace) . """)" ; double double-quotes inside replacement string
 		}
 		else if (this.strTypeCode = "AutoHotkey")
 			strCode .= this.strCode
@@ -5541,19 +5559,14 @@ class Rule
 		{
 			strSubString := "SubStr(Clipboard, "
 			if (this.intSubStringFromType = 1) ; FromStart
-				strSubString .= "1"
+				strCodeStart := "1"
 			else if (this.intSubStringFromType = 2) ; FromPosition
-				strSubString .= this.intSubStringFromPosition
+				strCodeStart .= this.intSubStringFromPosition
 			else if (this.intSubStringFromType = 3) ; FromBeginText
-			{
-				strCodeStart := "InStr(Clipboard, """ . this.strSubStringFromText . """) + " . this.intSubStringFromPlusMinus ; used to substract from "to" position
-				strSubString .= strCodeStart
-			}
+				strCodeStart := "InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringFromText) . """) + " . this.intSubStringFromPlusMinus ; used to substract from "to" position
 			else if (this.intSubStringFromType = 4) ; FromEndText
-			{
-				strCodeStart := "InStr(Clipboard, """ . this.strSubStringFromText . """) + StrLen(""" . this.strSubStringFromText . """) + " . this.intSubStringFromPlusMinus ; used to substract from "to" position
-				strSubString .= strCodeStart
-			}
+				strCodeStart := "InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringFromText) . """) + StrLen(""" . DoubleDoubleQuotes(this.strSubStringFromText) . """) + " . this.intSubStringFromPlusMinus ; used to substract from "to" position
+			strSubString .= strCodeStart
 			
 			if (this.intSubStringToType <> 1)
 				strSubString .= ", "
@@ -5564,9 +5577,9 @@ class Rule
 			else if (this.intSubStringToType = 3) ; ToBeforeEnd
 				strSubString .= this.intSubStringToLength ; intSubStringToLength already negative
 			else if (this.intSubStringToType = 4) ; ToBeginText
-				strSubString .= "InStr(Clipboard, """ . this.strSubStringToText . """) + " . this.intSubStringToPlusMinus . " - (" . strCodeStart . ")"
+				strSubString .= "InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringToText) . """) + " . this.intSubStringToPlusMinus . " - (" . strCodeStart . ")"
 			else if (this.intSubStringToType = 5) ; ToEndText
-				strSubString .= "InStr(Clipboard, """ . this.strSubStringToText . """) + StrLen(""" . this.strSubStringToText . """) + " . this.intSubStringToPlusMinus . " - (" . strCodeStart . ")"
+				strSubString .= "InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringToText) . """) + StrLen(""" . DoubleDoubleQuotes(this.strSubStringToText) . """) + " . this.intSubStringToPlusMinus . " - (" . strCodeStart . ")"
 			strSubString .= ")"
 			
 			if (this.blnRepeat)
@@ -5591,6 +5604,7 @@ class Rule
 				strCode .= "Clipboard := """ . (this.strTypeCode = "Prefix" ? this.strPrefix : "") . """ . Clipboard . """ . (this.strTypeCode = "Suffix" ? this.strSuffix : "") . """"
 		
 		strCode .= "`n"
+		strCode .= "g_intLastTick := A_TickCount `; reset timeout counter`n"
 		strCode .= "Sleep, 50`n"
 		; strCode .= "`; strAfter := Clipboard`n"
 		; strCode .= "`; MsgBox, Before:``n%strBefore%``n``nAfter:``n%strAfter%"

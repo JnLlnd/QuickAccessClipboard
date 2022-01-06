@@ -214,7 +214,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.7
+;@Ahk2Exe-SetVersion 0.0.7.1
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -284,7 +284,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.7" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.7.1" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -377,6 +377,7 @@ global g_strEol := "€ö¦" ; used to replace end-of-line in AutoHotkey rules in in
 global g_strTab := "¬ã³" ; used to replace tab in AutoHotkey rules in ini file
 global g_aaToolTipsMessages := Object() ; messages to display by ToolTip when mouse is over selected buttons in Settings
 global g_strRulesBackupExist := StrLen(o_Settings.ReadIniSection("Rules-backup")) ; used in BuildGui and BuildGuiMenuBar
+global g_blnRulesRemovedByTimeOut ; to define what tooltip display after QACrules update
 
 ;---------------------------------
 ; Init language
@@ -1138,7 +1139,7 @@ Gui, 1:Add, Text, x10 y+10 Section
 Gui, Font, s9, Arial
 ; Unicode chars: https://www.fileformat.info/info/unicode/category/So/list.htm
 Gui, 1:Add, Button, x10 ys+30 w24 vf_btnRuleAdd gGuiAddRuleSelectType, % chr(0x2795) ; or chr(0x271B)
-g_aaToolTipsMessages["Button4"] := o_L["MenuRuleAdd"]
+g_aaToolTipsMessages["Button5"] := o_L["MenuRuleAdd"]
 Gui, 1:Add, Button, ys+60 x10 w24 vf_btnRuleEdit gGuiRuleEdit, % chr(0x2328)
 g_aaToolTipsMessages["Button6"] := o_L["MenuRuleEdit"]
 Gui, 1:Add, Button, ys+90 x10 w24 vf_btnRuleRemove gGuiRuleRemove, % chr(0x2796)
@@ -1382,11 +1383,12 @@ strTop =
 	#SingleInstance force
 	#NoTrayIcon
 	
-	`; (removed - cause bug preventing calling rules on demand) global g_intLastTick := A_TickCount ; initial timeout delay after rules are enabled
+	global g_intLastTick := A_TickCount ; initial timeout delay after rules are enabled
 	global g_stTargetAppTitle := `"%strGuiTitle%`"
 	
 	Gosub, OnClipboardChangeInit
-	`; (removed - cause bug preventing calling rules on demand) SetTimer, CheckTimeOut, 2000
+	if RuleEnabled()
+		SetTimer, CheckTimeOut, 2000
 	
 	; Respond to SendMessage sent by QAC requesting execution of a rule
 	OnMessage(0x4a, "RECEIVE_QACMAIN")
@@ -1402,11 +1404,8 @@ strTop =
 
 	if ((A_TickCount - g_intLastTick) > %intTimeoutMs%)
 	{
-		ToolTip, ~1~
 		; send message to main app to uncheck rules checkboxes
 		intResult := Send_WM_COPYDATA("rules_disabled", g_stTargetAppTitle)
-		Sleep, 2000
-		ExitApp
 	}
 
 	return
@@ -1478,16 +1477,27 @@ loop, Parse, % "f_lvRulesSelected|f_lvRulesAvailable", |
 	}
 }
 
+Gui, 1:ListView, f_lvRulesSelected
+blnRuleEnabled := LV_GetCount() ; used to enable CheckTimeOut or not
+
 strBottom =
 	(LTrim Join`r`n
 	
 	return ; end of OnClipboardChangeInit
 	;-----------------------------------------------------------
 
+	;-----------------------------------------------------------
+	RuleEnabled()
+	;-----------------------------------------------------------
+	{
+		return %blnRuleEnabled% ; used to enable CheckTimeOut or not
+	}
+	;-----------------------------------------------------------
+
 
 ) ; leave the 2 last extra lines above
 
-strSource := StrReplace(strTop, "~1~", L(o_L["RulesDisabled"], g_strAppNameText, o_Settings.Launch.intRulesTimeoutSecs.IniValue)) . strOnClipboardChange . strBottom
+strSource := strTop . strOnClipboardChange . strBottom
 
 ; add rules code
 for strName, aaRule in g_aaRulesByName
@@ -1496,10 +1506,19 @@ for strName, aaRule in g_aaRulesByName
 ; save AHK script file QACrules.ahk
 FileAppend, %strSource%, %g_strRulesPathNameNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
 
-ToolTip, % L(o_L["RulesUpdated"], g_strAppNameText)
+if (g_blnRulesRemovedByTimeOut)
+{
+	ToolTip, % L(o_L["RulesRemoved"], g_strAppNameText), , , 3
+	SetTimer, RemoveToolTip3, -2000 ; run once in 2 seconds
+}
+else
+{
+	ToolTip, % L(o_L["RulesUpdated"], g_strAppNameText), , , 2
+	SetTimer, RemoveToolTip2, -2000 ; run once in 2 seconds
+}
+
 ; run the AHK runtime QACrules.exe that will call the script having the same name QACrules.ahk
 Run, %g_strRulesPathNameNoExt%.exe, , , strQacRulesPID
-SetTimer, RemoveToolTip, -2000 ; run once in 2 seconds
 
 strTop := ""
 strOnClipboardChange := ""
@@ -3384,10 +3403,12 @@ return
 
 
 ;------------------------------------------------------------
-RemoveToolTip:
+RemoveToolTip1:
+RemoveToolTip2:
+RemoveToolTip3:
 ;------------------------------------------------------------
 
-ToolTip
+ToolTip, , , , % StrReplace(A_ThisLabel, "RemoveToolTip")
 
 return
 ;------------------------------------------------------------
@@ -4221,6 +4242,19 @@ DecodeAutoHokeyCodeFromIni(str)
 ;------------------------------------------------------------
 
 
+;------------------------------------------------------------
+EscapeRegexString(strRegEx)
+; characters that need to be escaped in recular expressions: \.*?+[{|()^$ (https://www.autohotkey.com/docs/misc/RegEx-QuickRef.htm)
+;------------------------------------------------------------
+{
+	Loop, parse, % "\.*?+[{|()^$"
+		strRegEx := StrReplace(strRegEx, A_LoopField, "\" . A_LoopField)
+	
+	return strRegEx
+}
+;------------------------------------------------------------
+
+
 ;========================================================================================================================
 ; END !_090_VARIOUS_FUNCTIONS:
 ;========================================================================================================================
@@ -4266,7 +4300,7 @@ WM_MOUSEMOVE(wParam, lParam)
 	*/
 	if !InStr(s_strControl, "Button")
 	{
-		ToolTip ; turn ToolTip off
+		ToolTip, , , , 1 ; turn ToolTip off
 		return
 	}
 	DllCall("SetCursor", "UInt", g_objHandCursor)
@@ -4275,9 +4309,9 @@ WM_MOUSEMOVE(wParam, lParam)
 	if (s_strControl <> s_strControlPrev) ;  prevent flicker caused by repeating tooltip when mouse moving over the same control
 		and StrLen(g_aaToolTipsMessages[s_strControl])
 	{
-		ToolTip, % g_aaToolTipsMessages[s_strControl] ; display tooltip or remove tooltip if no message for this control
+		ToolTip, % g_aaToolTipsMessages[s_strControl], , , 1  ; display tooltip or remove tooltip if no message for this control
 		if StrLen(g_aaToolTipsMessages[s_strControl])
-			SetTimer, RemoveToolTip, -2500 ; will remove tooltip if not removed by mouse going hovering elsewhere (required if window become inactive)
+			SetTimer, RemoveToolTip1, -2500 ; will remove tooltip if not removed by mouse going hovering elsewhere (required if window become inactive)
 	}
 
 	return
@@ -4330,6 +4364,9 @@ RECEIVE_QACRULES(wParam, lParam)
 			Gosub, GuiRuleDeselectAll
 			; disable because rules were already removed by QACrules
 			GuiControl, Disable, f_btnGuiApplyRules ; do not Gosub, DisableApplyRulesAndCancel to leave Save and Close unchanged
+			g_blnRulesRemovedByTimeOut := true
+			Gosub, LoadRules
+			g_blnRulesRemovedByTimeOut := false
 		}
 		return 1 ; success
 	}
@@ -5486,14 +5523,15 @@ class Rule
 		strCode .= "`; MsgBox, Execute QACrule: %A_ThisFunc%`n"
 		strCode .= "if (strType = 1) `; text`n{`n"
 		
-		strCode .= "`; strBefore := Clipboard`n"
+		; strCode .= "`; strBefore := Clipboard`n"
 		if (this.strTypeCode = "ChangeCase")
 			strCode .= "Clipboard := RegExReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
 		if (this.strTypeCode = "ConvertFormat") ; only Text format is supported
 			strCode .= "Clipboard := Clipboard"
 		else if (this.strTypeCode = "Replace")
 		{
-			strFind := (this.blnReplaceWholeWord ? "\b" . this.strFind . "\b" : this.strFind) ; \b...\b for whole word boundries
+			strFind := EscapeRegexString(this.strFind) ; escape regex characters before adding \b or i) options
+			strFind := (this.blnReplaceWholeWord ? "\b" . strFind . "\b" : strFind) ; \b...\b for whole word boundries
 			strFind := (this.blnReplaceCaseSensitive ? "" : "i)") . strFind ; by default, regex are case-sensitive, changed with "i)"
 			strCode .= "Clipboard := RegExReplace(Clipboard, """ . strFind . """, """ . this.strReplace . """)"
 		}
@@ -5554,8 +5592,8 @@ class Rule
 		
 		strCode .= "`n"
 		strCode .= "Sleep, 50`n"
-		strCode .= "`; strAfter := Clipboard`n"
-		strCode .= "`; MsgBox, %strBefore%``n%strAfter%"
+		; strCode .= "`; strAfter := Clipboard`n"
+		; strCode .= "`; MsgBox, Before:``n%strBefore%``n``nAfter:``n%strAfter%"
 		
 		; end rule
 		strCode .= "`n}`n}`n`n"

@@ -1557,6 +1557,7 @@ ClipboardEditorAlwaysOnTopChanged:
 Gui, 1:Submit, NoHide
 
 WinSet, AlwaysOnTop, % (f_blnAlwaysOnTop ? "On" : "Off"), ahk_id %g_strGui1Hwnd% ; do not use default Toogle for safety
+o_Settings.EditorWindow.blnAlwaysOnTop.IniValue := f_blnAlwaysOnTop
 
 return
 ;------------------------------------------------------------
@@ -1568,6 +1569,7 @@ ClipboardEditorUseTabChanged:
 Gui, 1:Submit, NoHide
 
 GuiControl, % (f_blnUseTab ? "+" : "-") . "WantTab", f_strClipboardEditor
+o_Settings.EditorWindow.blnUseTab.IniValue := f_blnUseTab
 
 return
 ;------------------------------------------------------------
@@ -1616,6 +1618,9 @@ else
 	Gui, 1:Font, % "s" . f_intFontSize
 GuiControl, Font, f_strClipboardEditor
 Gui, 1:Font
+
+o_Settings.EditorWindow.blnFixedFont.IniValue := f_blnFixedFont
+o_Settings.EditorWindow.intFontSize.IniValue := f_intFontSize
 
 return
 ;------------------------------------------------------------
@@ -1987,7 +1992,7 @@ if (aaEditedRule.strTypeCode = "SubString")
 	else if (f_blnRadioSubStringFromEndText)
 		saValues[1] := 4
 	saValues[2] := (f_intRadioSubStringFromPosition ? f_intRadioSubStringFromPosition : "") ; intSubStringFromPosition, if from f_blnRadioSubStringFromPosition is true
-	saValues[3] := f_strRadioSubStringFromText ; strSubStringFromText, if from f_blnRadioSubStringFromBeginText or f_blnRadioSubStringFromEndText is true
+	saValues[3] := EncodeForIni(f_strRadioSubStringFromText) ; strSubStringFromText, if from f_blnRadioSubStringFromBeginText or f_blnRadioSubStringFromEndText is true
 	saValues[4] := f_intSubStringFromPlusMinus ; intSubStringFromPlusMinus, if from f_blnRadioSubStringFromBeginText or f_blnRadioSubStringFromEndText is true
 
 	; int, type of "to" value, intSubStringToType
@@ -2002,7 +2007,7 @@ if (aaEditedRule.strTypeCode = "SubString")
 	else if (f_blnRadioSubStringToEndText)
 		saValues[5] := 5
 	saValues[6] := (f_blnRadioSubStringLength ? f_intSubStringCharacters : (f_blnRadioSubStringToBeforeEnd ? -f_intSubStringCharacters : "")) ; intSubStringToLength, positive if length from FromPosition or negative if length from end
-	saValues[7] := f_strRadioSubStringToText ; strSubStringToText, if from f_blnRadioSubStringToBeginText or f_blnRadioSubStringToEndText is true
+	saValues[7] := EncodeForIni(f_strRadioSubStringToText) ; strSubStringToText, if from f_blnRadioSubStringToBeginText or f_blnRadioSubStringToEndText is true
 	saValues[8] := f_intSubStringToPlusMinus ; intSubStringToPlusMinus, if from f_blnRadioSubStringToBeginText or f_blnRadioSubStringToEndText is true
 
 	saValues[9] := f_blnRepeat ; blnRepeat, execute rule on each line of the Clipboard
@@ -5497,6 +5502,8 @@ class Rule
 		
 		; update rules index in ini file
 		IniRead, strRulesList, % o_Settings.strIniFile, Rules-index, Rules
+		if StrLen(strPreviousName)
+			strRulesList := StrReplace(strRulesList, ";" . strPreviousName . ";", ";")
 		strRulesList .= this.strName . ";"
 		IniWrite, %strRulesList%, % o_Settings.strIniFile, Rules-index, Rules
 	}
@@ -5547,7 +5554,7 @@ class Rule
 		else if (this.strTypeCode = "Replace")
 		{
 			strFind := DoubleDoubleQuotes(this.strFind) ; double double-quotes inside search string
-			strFind := EscapeRegexString(strFind) ; escape regex characters before adding \b or i) options
+			strFind := EscapeRegexString(strFind) ; escape regex characters "\.*?+[{|()^$" with "\" before adding \b or i) options
 			strFind := (this.blnReplaceWholeWord ? "\b" . strFind . "\b" : strFind) ; \b...\b for whole word boundries
 			strFind := (this.blnReplaceCaseSensitive ? "" : "i)") . strFind ; by default, regex are case-sensitive, changed with "i)"
 			strCode .= "Clipboard := RegExReplace(Clipboard, """ . strFind . """, """ 

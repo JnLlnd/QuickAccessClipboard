@@ -1745,7 +1745,7 @@ GuiAddRuleSelectTypeRadioButtonChanged:
 Gui, 2:Submit, NoHide
 
 g_intAddRuleType := StrReplace(A_GuiControl, "f_intRadioRuleType")
-GuiControl, , f_lblAddRuleTypeHelp, % g_saRuleTypesOrder[g_intAddRuleType].strTypeHelp
+GuiControl, , f_lblAddRuleTypeHelp, % L(g_saRuleTypesOrder[g_intAddRuleType].strTypeHelp, o_L["TypeEncodingHelp"])
 
 if (A_GuiEvent = "DoubleClick")
 	Gosub, GuiAddRuleSelectTypeContinue
@@ -1816,7 +1816,7 @@ Gui, 2:Add, Edit, w400 vf_strNotes, % aaEditedRule.strNotes
 Gui, 2:Font, w600
 Gui, 2:Add, Text, y+10 w400, % aaEditedRule.strTypeLabel
 Gui, 2:Font
-Gui, 2:Add, Link, % "y+2 w" . (aaEditedRule.strTypeCode = "AutoHotkey" ? 900 : 400), % aaEditedRule.strTypeHelp
+Gui, 2:Add, Link, % "y+2 w" . (aaEditedRule.strTypeCode = "AutoHotkey" ? 900 : 400), % L(aaEditedRule.strTypeHelp, o_L["TypeEncodingHelp"])
 
 if (aaEditedRule.strTypeCode = "ChangeCase")
 	
@@ -2663,6 +2663,8 @@ else ; Clipboard contains text (g_intClipboardContentType = 1 or StrLen(Clipboar
 g_strCliboardBackup := ClipboardAll ; not used...
 GuiControl, , f_strClipboardEditor, %Clipboard%
 SB_SetText(strContent, 1)
+
+Gosub, ClipboardEditorSeeInvisibleChanged
 
 strContent := ""
 

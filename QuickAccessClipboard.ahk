@@ -1780,8 +1780,8 @@ GuiRuleEdit:
 GuiRuleCopy:
 ;------------------------------------------------------------
 Gui, 1:Submit, NoHide
-strAction := StrReplace(A_ThisLabel, "GuiRule")
 
+strAction := StrReplace(A_ThisLabel, "GuiRule")
 if (strAction = "Add")
 	Gosub, 2GuiClose ; to avoid flashing Gui 1:
 
@@ -2633,6 +2633,7 @@ Gui, 1:Submit, NoHide
 g_saRulesBackupSelectedOrder := Object()
 g_saRulesBackupSelectedByName := Object()
 
+Gui, 1:Default
 Gui, 1:ListView, f_lvRulesSelected
 loop, % LV_GetCount()
 {

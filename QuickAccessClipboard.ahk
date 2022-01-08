@@ -35,9 +35,13 @@ HISTORY
 =======
 
 Version ALPHA: 0.0.7.1 (2022-01-06)
-- fix bug with "Add" button tooltip
-- re-enable timeout in QACrules (default timeout after 60 seconds)
-- fix bug in rules of type Replace if search text included reserved regex characters needing to be escaped
+- reenable timeout in QACrules (default timeout after 60 seconds without executing a rule); refactor interactions between QAC and QACrules
+- fix bug with add button tooltip
+- manage 3 sets of tooltips: 1) buttons, 2) rules updated and 3) rules removed
+- escape reserved regex characters in rules of type Replace; escape double-quotes in string values of SubString rules
+- fix bug restoring editor's checkbox options
+- fix bugs encoding for ini text values in rules of type SubString, doubling rule names in rules index and not showing invisible characters after Clipboard uddate
+- review help text for AutoHotkey type; update help text about encoding tab and eol for types using text fields
  
 Version ALPHA: 0.0.7 (2022-01-05)
  

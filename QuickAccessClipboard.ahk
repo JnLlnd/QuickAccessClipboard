@@ -873,7 +873,6 @@ if (A_IsAdmin and o_Settings.Launch.blnRunAsAdmin.IniValue)
 	Menu, Tray, Icon, % o_JLicons.strFileLocation, % (g_strCurrentBranch <> "prod" ? 68 : 67), 1
 else
 	; 70 is iconQACbeta, 71 is iconQACdev and 66 is iconQAC, last 1 to freeze icon during pause or suspend
-	; Menu, Tray, Icon, % o_JLicons.strFileLocation, % (g_strCurrentBranch <> "prod" ? (g_strCurrentBranch = "beta" ? 70 : 71) : 66), 1
 	Menu, Tray, Icon, % o_JLicons.strFileLocation, % (g_strCurrentBranch <> "prod" ? (g_strCurrentBranch = "beta" ? 70 : 71) : 66), 1
 
 g_blnTrayIconError := ErrorLevel or g_blnTrayIconError
@@ -881,8 +880,7 @@ Menu, Tray, UseErrorLevel, Off
 
 ;@Ahk2Exe-IgnoreBegin
 ; Start of code for developement phase only - won't be compiled
-; Menu, Tray, Icon, % o_JLicons.strFileLocation, % (A_IsAdmin ? 69 : 71), 1 ; 69 is iconQACadminDev and 71 is iconQACdev, last 1 to freeze icon during pause or suspend
-Menu, Tray, Icon, % o_JLicons.strFileLocation, 71, 1 ; 69 is iconQACadminDev and 71 is iconQACdev, last 1 to freeze icon during pause or suspend
+Menu, Tray, Icon, % o_JLicons.strFileLocation, 51, 1 ; 51 is iconPaste
 Menu, Tray, Standard
 ; / End of code for developement phase only - won't be compiled
 ;@Ahk2Exe-IgnoreEnd
@@ -1298,7 +1296,7 @@ Gosub, EnableApplyRulesAndCancel
 
 if (A_ThisLabel = "GuiRuleDeselectAll")
 {
-	Gosub, GuiLoadRulesAvailable
+	Gosub, GuiLoadRulesAvailableAll
 	return
 }
 ; else
@@ -1414,7 +1412,7 @@ strTop =
 	if ((A_TickCount - g_intLastTick) > %intTimeoutMs%)
 	{
 		; send message to main app to uncheck rules checkboxes
-		intResult := Send_WM_COPYDATA("rules_disabled", g_stTargetAppTitle)
+		intResult := Send_WM_COPYDATA("disable_rules", g_stTargetAppTitle)
 	}
 
 	return
@@ -2031,8 +2029,9 @@ if (strAction <> "Edit" and g_aaRulesByName.HasKey(f_strName)) ; when adding or 
 }
 
 Gosub, BackupRules
+Gosub, BackupSelectedRules
 aaEditedRule.SaveRule(strAction, saValues, strPreviousName)
-Gosub, LoadRules
+Gosub, LoadRulesKeepSelected
 
 loop, 9 ; delete form values because Gui:Destroy does not
 	GuiControl, , f_varValue%A_Index%
@@ -2055,17 +2054,18 @@ Gui, 1:ListView, f_lvRulesAvailable
 if !GetLVPosition(intPosition, o_L["GuiSelectRuleRemove"])
 	return
 
-LV_GetText(strName, intPosition, 1)
+LV_GetText(strNameRemove, intPosition, 1)
 
-MsgBox, 52, % o_L["MenuRuleRemove"] . " - " . g_strAppNameText, % L(o_L["DialogRuleRemove"], strName)
+MsgBox, 52, % o_L["MenuRuleRemove"] . " - " . g_strAppNameText, % L(o_L["DialogRuleRemove"], strNameRemove)
 IfMsgBox, No
 	return
 
 Gosub, BackupRules
-g_aaRulesByName[strName].DeleteRule()
-Gosub, LoadRules
+Gosub, BackupSelectedRules
+g_aaRulesByName[strNameRemove].DeleteRule()
+Gosub, LoadRulesKeepSelected
 
-strName := ""
+strNameRemove := ""
 
 return
 ;------------------------------------------------------------
@@ -2097,7 +2097,7 @@ o_Settings.DeleteIniSection("Rules-backup")
 o_Settings.WriteIniValue(o_Settings.ReadIniValue("Rules-backup", "", "Rules-index"), "Rules-index", "Rules")
 o_Settings.DeleteIniValue("Rules-index", "Rules-backup")
 
-Gosub, LoadRules
+Gosub, LoadRulesKeepSelected
 GuiControl, 1:Disable, f_btnRuleUndo
 Menu, menuBarRule, Disable, % o_L["MenuRuleUndo"]
 
@@ -2107,12 +2107,17 @@ return
 
 ;------------------------------------------------------------
 LoadRules:
+LoadRulesKeepSelected:
 ;------------------------------------------------------------
 
+if (A_ThisLabel = "LoadRulesKeepSelected")
+	a := a
 Gui, 1:Default
 Gosub, LoadRulesFromIni ; reload rules
 Gosub, BuildRulesMenu ; rebuild rules menu
-Gosub, GuiLoadRulesAvailable ; update Available rules listview
+Gosub, % (A_ThisLabel = "LoadRulesKeepSelected"
+	? "GuiLoadRulesAvailableKeepSelected" ; update Available rules listview and keep Selected rules listview
+	: "GuiLoadRulesAvailableAll") ; update Available rules listview and empty Selected rules listview
 Gosub, LaunchQACrules ; relaunch QACrules
 
 return
@@ -2183,17 +2188,23 @@ return
 
 
 ;------------------------------------------------------------
-GuiLoadRulesAvailable:
+GuiLoadRulesAvailableAll:
+GuiLoadRulesAvailableKeepSelected:
 ;------------------------------------------------------------
 
 Gui, 1:ListView, f_lvRulesAvailable
 LV_Delete()
 for strName, aaRule in g_aaRulesByName
-	aaRule.ListViewAdd("f_lvRulesAvailable")
+	if !(A_ThisLabel = "GuiLoadRulesAvailableKeepSelected" and g_saRulesBackupSelectedByName.HasKey(strName))
+		aaRule.ListViewAdd("f_lvRulesAvailable")
+
 LV_ModifyCol()
 
-Gui, 1:ListView, f_lvRulesSelected
-LV_Delete()
+if (A_ThisLabel = "GuiLoadRulesAvailableAll")
+{
+	Gui, 1:ListView, f_lvRulesSelected
+	LV_Delete()
+}
 
 strName := ""
 aaRule := ""
@@ -2468,23 +2479,7 @@ if (!blnShiftPressed and (EditorUnsaved() or RulesNotApplied()))
 }
 
 if RulesNotApplied()
-{
-	Gui, 1:ListView, f_lvRulesSelected
-	LV_Delete() ; delete all rows
-	for intIndex, strName in g_saRulesBackupSelectedOrder
-		g_aaRulesByName[strName].ListViewAdd("f_lvRulesSelected")
-	
-	Gui, 1:ListView, f_lvRulesAvailable
-	LV_Delete() ; delete all rows
-	for strName, aaRule in g_aaRulesByName
-		if !g_saRulesBackupSelectedByName.HasKey(strName)
-			aaRule.ListViewAdd("f_lvRulesAvailable") 
-	
-	g_saRulesBackupSelectedOrder := ""
-	g_saRulesBackupSelectedByName := ""
-	intIndex := ""
-	strName := ""
-}
+	Gosub, RestoreSelectedRules
 
 Gosub, DisableSaveAndCancel
 Gosub, DisableApplyRulesAndCancel
@@ -2645,6 +2640,33 @@ loop, % LV_GetCount()
 	g_saRulesBackupSelectedOrder.Push(strName)
 	g_saRulesBackupSelectedByName[strName] := "foo"
 }
+
+strName := ""
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+RestoreSelectedRules:
+;------------------------------------------------------------
+
+Gui, 1:ListView, f_lvRulesSelected
+LV_Delete() ; delete all rows
+for intIndex, strName in g_saRulesBackupSelectedOrder
+	g_aaRulesByName[strName].ListViewAdd("f_lvRulesSelected")
+
+Gui, 1:ListView, f_lvRulesAvailable
+LV_Delete() ; delete all rows
+for strName, aaRule in g_aaRulesByName
+	if !g_saRulesBackupSelectedByName.HasKey(strName) ; load in Available only if rule is not in Selected
+		aaRule.ListViewAdd("f_lvRulesAvailable") 
+
+g_saRulesBackupSelectedOrder := ""
+g_saRulesBackupSelectedByName := ""
+intIndex := ""
+strName := ""
+
 return
 ;------------------------------------------------------------
 
@@ -4383,7 +4405,7 @@ RECEIVE_QACRULES(wParam, lParam)
 	intStringAddress := NumGet(lParam + 2*A_PtrSize) ; Retrieves the CopyDataStruct's lpData member.
 	strCopyOfData := StrGet(intStringAddress) ; Copy the string out of the structure.
 	
-	if (strCopyOfData = "rules_disabled")
+	if (strCopyOfData = "disable_rules")
 	{
 		GuiControlGet, blnApplyRulesEnabled, 1:Enabled, f_btnGuiApplyRules
 		if !(blnApplyRulesEnabled) ; do not remove selected items if changes are in progress

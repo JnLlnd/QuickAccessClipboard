@@ -34,6 +34,10 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
+Version ALPHA: 0.0.7.3 (2022-01-13)
+- apply rules each time a rule is selected or deselected
+- when centering a secondary dialog box on top of the primary window, take into account the border of the reference window
+
 Version ALPHA: 0.0.7.2 (2022-01-08)
 - change tray icon when in the developemnt environment;
 - keep selected rules after saving new/edited rule or deleting rule;
@@ -228,7 +232,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.7.2
+;@Ahk2Exe-SetVersion 0.0.7.3
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -298,7 +302,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.7.2" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.7.3" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -1070,8 +1074,8 @@ Menu, menuBarRule, Add
 Menu, menuBarRule, Add, % o_L["MenuRuleSelect"], GuiRuleSelect
 Menu, menuBarRule, Add, % o_L["MenuRuleDeselect"], GuiRuleDeselect
 Menu, menuBarRule, Add, % o_L["MenuRuleDeselectAll"], GuiRuleDeselectAll
-Menu, menuBarRule, Add
-Menu, menuBarRule, Add, % o_L["GuiApplyRules"], GuiApplyRules
+; Menu, menuBarRule, Add
+; Menu, menuBarRule, Add, % o_L["GuiApplyRules"], GuiApplyRules
 
 Menu, menuBarOptions, Add, % o_L["MenuSelectHotkeyMouse"], GuiSelectHotkeyMouse
 Menu, menuBarOptions, Add, % o_L["MenuSelectHotkeyKeyboard"], GuiSelectHotkeyKeyboard
@@ -1190,14 +1194,16 @@ Gosub, LoadRules
 o_LvRowsHandle := New LV_Rows(Hwndg_strRulesSelectedHwnd)
 o_LvRowsHandle.SetHwnd(Hwndg_strRulesSelectedHwnd)
 
+/*
 Gui, 1:Font, s8 w600, Verdana
 Gui, 1:Add, Button, x10 ys+205 vf_btnGuiApplyRules gGuiApplyRules h25 Disabled, % o_L["GuiApplyRules"]
 ; GuiCenterButtons(g_strGui1Hwnd, , , , 565, 20, "f_btnGuiApplyRules")
 GuiCenterButtons(g_strGui1Hwnd, , , , 525, 20, "f_btnGuiApplyRules")
 Gui, 1:Font ; reset default font
+*/
 
 Gui, 1:Font, s8 w600, Verdana
-Gui, 1:Add, Text, x20 y+5, % o_L["MenuEditor"]
+Gui, 1:Add, Text, x20 y+160, % o_L["MenuEditor"]
 Gui, 1:Font
 
 Gui, 1:Add, Text, x10
@@ -1300,22 +1306,24 @@ GuiRuleDeselectAll:
 Gosub, EnableApplyRulesAndCancel
 
 if (A_ThisLabel = "GuiRuleDeselectAll")
-{
+
 	Gosub, GuiLoadRulesAvailableAll
-	return
+
+else
+{
+	Gui, 1:ListView, % (A_ThisLabel = "GuiRuleSelect" ? "f_lvRulesAvailable" : "f_lvRulesSelected")
+
+	if !GetLVPosition(intPosition, (A_ThisLabel = "GuiRuleSelect" ? o_L["GuiSelectRuleSelect"] : o_L["GuiSelectRuleDeselect"]))
+		return
+
+	LV_GetText(strName, intPosition, 1)
+	LV_Delete(intPosition)
+
+	Gui, 1:ListView, % (A_ThisLabel = "GuiRuleDeselect" ? "f_lvRulesAvailable" : "f_lvRulesSelected")
+	g_aaRulesByName[strName].ListViewAdd((A_ThisLabel = "GuiRuleDeselect" ? "f_lvRulesAvailable" : "f_lvRulesSelected"), "Select")
 }
-; else
 
-Gui, 1:ListView, % (A_ThisLabel = "GuiRuleSelect" ? "f_lvRulesAvailable" : "f_lvRulesSelected")
-
-if !GetLVPosition(intPosition, (A_ThisLabel = "GuiRuleSelect" ? o_L["GuiSelectRuleSelect"] : o_L["GuiSelectRuleDeselect"]))
-	return
-
-LV_GetText(strName, intPosition, 1)
-LV_Delete(intPosition)
-
-Gui, 1:ListView, % (A_ThisLabel = "GuiRuleDeselect" ? "f_lvRulesAvailable" : "f_lvRulesSelected")
-g_aaRulesByName[strName].ListViewAdd((A_ThisLabel = "GuiRuleDeselect" ? "f_lvRulesAvailable" : "f_lvRulesSelected"), "Select")
+Gosub, GuiApplyRules
 
 intPosition := ""
 intOrder := ""
@@ -3666,16 +3674,20 @@ CalculateTopGuiPosition(g_strTopHwnd, g_strRefHwnd, ByRef intTopGuiX, ByRef intT
 ;------------------------------------------------------------
 {
 	WinGetPos, intRefGuiX, intRefGuiY, intRefGuiW, intRefGuiH, ahk_id %g_strRefHwnd%
+	SysGet, intWindowBorderWidth, 32 ; width of window border
+	SysGet, intWindowBorderHeight, 33 ; height of window border
+	; to take into account window border
+	intRefGuiX += intWindowBorderWidth
+	intRefGuiY += intWindowBorderHeight
+
 	intRefGuiCenterX := intRefGuiX + (intRefGuiW // 2)
 	intRefGuiCenterY := intRefGuiY + (intRefGuiH // 2)
 
 	WinGetPos, , , intTopGuiW, intTopGuiH, ahk_id %g_strTopHwnd%
-	intTopGuiX := intRefGuiCenterX - (intTopGuiW // 2) + 5 ; + 5 correction from trial/error
+	intTopGuiX := intRefGuiCenterX - (intTopGuiW // 2)
 	intTopGuiY := intRefGuiCenterY - (intTopGuiH // 2)
 	
 	SysGet, arrCurrentMonitor, Monitor, % GetActiveMonitorForPosition(intRefGuiX, intRefGuiY, intNbMonitors)
-
-	; ###_V(A_ThisFunc, v, g_strRefHwnd, intWindowX, intWindowY, GetActiveMonitorForPosition(intWindowX, intWindowY, intNbMonitors))
 	intTopGuiX := (intTopGuiX < arrCurrentMonitorLeft ? arrCurrentMonitorLeft : intTopGuiX)
 	intTopGuiY := (intTopGuiY < arrCurrentMonitorTop ? arrCurrentMonitorTop : intTopGuiY)
 }

@@ -1061,6 +1061,8 @@ if (g_strCurrentBranch <> "prod")
 	Menu, menuBarFile, Add, Debug QACrules.ahk (beta only), OpenQacRulesFile
 	Menu, menuBarFile, Add
 }
+Menu, menuBarFile, Add, % L(o_L["MenuReload"], g_strAppNameText), CleanUpBeforeReload
+Menu, menuBarFile, Add
 Menu, menuBarFile, Add, % L(o_L["MenuExitApp"], g_strAppNameText), GuiCloseCancelAndExitApp
 
 Menu, menuBarRule, Add, % o_L["MenuRuleAdd"], GuiAddRuleSelectType
@@ -2394,6 +2396,7 @@ return
 
 ;-----------------------------------------------------------
 CleanUpBeforeExit:
+CleanUpBeforeReload:
 ;-----------------------------------------------------------
 Gui, 1:Submit, NoHide
 
@@ -2423,7 +2426,10 @@ DllCall("LockWindowUpdate", Uint, 0)  ; 0 to unlock the window
 
 FileRemoveDir, %g_strTempDir%, 1 ; Remove all files and subdirectories
 
-ExitApp
+if (A_ThisLabel = "CleanUpBeforeExit")
+	ExitApp
+else
+	Reload
 ;-----------------------------------------------------------
 
 

@@ -35,6 +35,7 @@ this["DialogChangeHotkeyPopup"] := "This is a popup menu hotkey.`n`nDo you want 
 this["DialogChangeHotkeyRight"] := "Right"
 this["DialogChangeHotkeyTitle"] := "Change shortcut - ~1~ ~2~"
 this["DialogClipboardDisconnected"] := "Clipboard disconnected"
+this["DialogClipboardSynchronized"] := "Clipboard synchronized"
 this["DialogContinue"] := "Continue"
 this["DialogConvertFormatText"] := "Text format"
 this["DialogCopy"] := "Copy"

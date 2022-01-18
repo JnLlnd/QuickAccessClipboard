@@ -381,6 +381,7 @@ global o_L := new Language
 ; Init global variables
 
 global g_strDiagFile := A_WorkingDir . "\" . g_strAppNameFile . "-DIAG.txt"
+global g_strMainGui ; gui to enable after a secondary window is closed
 
 ; Rules
 global g_aaRulesByName ; object initialized when loading rules
@@ -522,6 +523,7 @@ else
 if (blnStartup) ; both setup and portable
 {
 	Menu, Tray, Check, % o_L["MenuRunAtStartup"]
+	Menu, menuBarRulesOptions, Check, % o_L["MenuRunAtStartup"]
 	Menu, menuBarEditorOptions, Check, % o_L["MenuRunAtStartup"]
 }
 
@@ -932,7 +934,7 @@ BuildTrayMenu:
 ;------------------------------------------------------------
 
 Menu, Tray, Add, % o_L["MenuEditor"] Default, GuiShowEditorFromTray
-Menu, Tray, Add, % o_L["MenuRules"] Default, GuiShowRulesFromTray
+Menu, Tray, Add, % o_L["MenuRules"], GuiShowRulesFromTray
 Menu, Tray, Click, 1 ; require only one left mouse button click to open the default item
 if (o_Settings.Launch.intShowMenuBar.IniValue > 1) ; 1 Customize menu bar, 2 System menu, 3 both
 {
@@ -945,7 +947,7 @@ if (o_Settings.Launch.intShowMenuBar.IniValue > 1) ; 1 Customize menu bar, 2 Sys
 }
 Menu, Tray, Add
 Menu, Tray, Add, % o_L["MenuSuspendHotkeys"], ToggleSuspendHotkeys
-Menu, Tray, Add, % o_L["MenuRunAtStartup"], ToggleRunAtStartup ; function ToggleRunAtStartup replaces RunAtStartup
+Menu, Tray, Add, % o_L["MenuRunAtStartup"], ToggleRunAtStartup
 Menu, Tray, Add, % L(o_L["MenuExitApp"], g_strAppNameText), RulesCloseAndExitApp
 ;@Ahk2Exe-IgnoreBegin
 ; Start of code for developement phase only - won't be compiled
@@ -1081,7 +1083,6 @@ BuildRulesMenuBar:
 ; see https://docs.microsoft.com/fr-fr/windows/desktop/uxguide/cmd-menus
 ;------------------------------------------------------------
 
-Menu, menuBarRulesFile, Add, % o_L["GuiSaveEditor"] . "`tCtrl+S", EditorCtrlS
 Menu, menuBarRulesFile, Add, % o_L["GuiClose"] . "`tEsc", RulesClose
 Menu, menuBarRulesFile, Add
 Menu, menuBarRulesFile, Add, % o_L["MenuOpenWorkingDirectory"], OpenWorkingDirectory
@@ -1106,11 +1107,9 @@ Menu, menuBarRulesRule, Add
 Menu, menuBarRulesRule, Add, % o_L["MenuRuleSelect"], GuiRuleSelect
 Menu, menuBarRulesRule, Add, % o_L["MenuRuleDeselect"], GuiRuleDeselect
 Menu, menuBarRulesRule, Add, % o_L["MenuRuleDeselectAll"], GuiRuleDeselectAll
-; Menu, menuBarRulesRule, Add
-; Menu, menuBarRulesRule, Add, % o_L["GuiApplyRules"], GuiApplyRules
 
-Menu, menuBarRulesOptions, Add, % o_L["MenuSelectRulesHotkeyKeyboard"], GuiSelectShortcut1
-Menu, menuBarRulesOptions, Add, % o_L["MenuSelectRulesHotkeyMouse"], GuiSelectShortcut2
+Menu, menuBarRulesOptions, Add, % o_L["MenuSelectRulesHotkeyMouse"], GuiSelectShortcut1
+Menu, menuBarRulesOptions, Add, % o_L["MenuSelectRulesHotkeyKeyboard"], GuiSelectShortcut2
 Menu, menuBarRulesOptions, Add
 Menu, menuBarRulesOptions, Add, % o_L["MenuRunAtStartup"], ToggleRunAtStartup
 Menu, menuBarRulesOptions, Add
@@ -1121,7 +1120,6 @@ Menu, menuBarRulesHelp, Add, % L(o_L["MenuAbout"], g_strAppNameText), GuiAboutRu
 
 Menu, menuBarRulesMain, Add, % o_L["MenuFile"], :menuBarRulesFile
 Menu, menuBarRulesMain, Add, % o_L["MenuRule"], :menuBarRulesRule
-Menu, menuBarRulesMain, Add, % o_L["GuiApplyRule"], :menuRules
 Menu, menuBarRulesMain, Add, % o_L["MenuOptions"], :menuBarRulesOptions
 Menu, menuBarRulesMain, Add, % o_L["MenuHelp"], :menuBarRulesHelp
 
@@ -1162,8 +1160,8 @@ Menu, menuBarEditorRule, Add, % o_L["MenuRuleDeselectAll"], GuiRuleDeselectAll
 ; Menu, menuBarEditorRule, Add
 ; Menu, menuBarEditorRule, Add, % o_L["GuiApplyRules"], GuiApplyRules
 
-Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyKeyboard"], GuiSelectShortcut3
-Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyMouse"], GuiSelectShortcut4
+Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyMouse"], GuiSelectShortcut3
+Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyKeyboard"], GuiSelectShortcut4
 Menu, menuBarEditorOptions, Add
 Menu, menuBarEditorOptions, Add, % o_L["MenuRunAtStartup"], ToggleRunAtStartup
 Menu, menuBarEditorOptions, Add
@@ -1892,6 +1890,7 @@ aaGuiControl := ""
 intX := ""
 intY := ""
 arrPos := ""
+strGui := ""
 
 return
 ;------------------------------------------------------------
@@ -1988,7 +1987,7 @@ if (strAction = "Add")
 
 Gui, Rules:ListView, f_lvRulesAvailable
 if !GetLVPosition(intPosition, (strAction <> "Add" ? o_L["GuiSelectRuleEdit"] : "")) ; no error message if adding
-	and (strAction = "Edit")
+	and InStr("Edit|Copy", strAction)
 	return
 else
 	LV_GetText(strName, intPosition, 1)
@@ -2422,16 +2421,15 @@ ShowGui2AndDisableGuiEditor:
 ;------------------------------------------------------------
 Gui, 2:Submit, NoHide
 
-strGui := StrReplace(A_ThisLabel, "ShowGui2AndDisableGui")
+g_strMainGui := StrReplace(A_ThisLabel, "ShowGui2AndDisableGui")
 
-CalculateTopGuiPosition(g_strGui2Hwnd, g_int%strGui%Hwnd, intX, intY)
+CalculateTopGuiPosition(g_strGui2Hwnd, g_int%g_strMainGui%Hwnd, intX, intY)
 Gui, 2:Show, AutoSize x%intX% y%intY%
 
-Gui, %strGui%:+Disabled
+Gui, %g_strMainGui%:+Disabled
 if (f_blnAlwaysOnTop)
-	WinSet, AlwaysOnTop, Off, % QACGuiTitle(strGui)
+	WinSet, AlwaysOnTop, Off, % QACGuiTitle(g_strMainGui)
 
-strGui := ""
 intX := ""
 intY := ""
 
@@ -2723,6 +2721,8 @@ if (A_ThisLabel = "EditorCancel")
 else
 	Gui, Cancel ; hide the window
 
+strGui := ""
+
 return
 ;------------------------------------------------------------
 
@@ -2753,7 +2753,15 @@ return
 ;------------------------------------------------------------
 Gui, 2:Submit, NoHide
 
-Gui, -Disabled ; ##### check Default Gui
+if StrLen(g_strMainGui) ; detect main window to enable after closing SelectShortcut()
+{
+	Gui, %g_strMainGui%:Default
+	g_strMainGui := ""
+}
+else
+	###_V("Debugging flag (please report this)", "*g_strMainGui", g_strMainGui, "*A_DefaultGui", A_DefaultGui) ; #####
+
+Gui, -Disabled
 Gui, 2:Destroy
 if (WinExist("A") <> g_intEditorHwnd)
 	WinActivate, ahk_id %g_intEditorHwnd%
@@ -2969,16 +2977,16 @@ return
 ;========================================================================================================================
 
 ;------------------------------------------------------------
-GuiSelectShortcut1:
-GuiSelectShortcut2:
-GuiSelectShortcut3:
-GuiSelectShortcut4:
+GuiSelectShortcut1: ; RulesHotkeyMouse
+GuiSelectShortcut2: ; RulesHotkeyKeyboard
+GuiSelectShortcut3: ; EditorHotkeyMouse
+GuiSelectShortcut4: ; EditorHotkeyKeyboard
 ;------------------------------------------------------------
 
 o_PopupHotkeys.BackupPopupHotkeys()
 
 intHotkeyIndex := StrReplace(A_ThisLabel, "GuiSelectShortcut")
-intHotkeyType := (InStr(A_ThisLabel, "Mouse") ? 1 : 2) ; 2 Keyboard
+intHotkeyType := (Mod(intHotkeyIndex, 2) ? 1 : 2) ; if intHotkeyIndex is odd 1 Mouse, else 2 Keyboard
 
 if (intHotkeyIndex <= 2)
 	Gui, Rules:Default
@@ -2991,7 +2999,7 @@ o_PopupHotkeys.SA[intHotkeyIndex].P_strAhkHotkey := SelectShortcut(o_PopupHotkey
 
 if StrLen(o_PopupHotkeys.SA[intHotkeyIndex].P_strAhkHotkey) ; empty if SelectShortcut was cancelled
 {
-	o_Settings.EditorWindow["str" . o_PopupHotkeys.SA[intHotkeyIndex].AA.strPopupHotkeyInternalName].WriteIni(o_PopupHotkeys.SA[intHotkeyIndex].P_strAhkHotkey)
+	o_Settings.Hotkeys["str" . o_PopupHotkeys.SA[intHotkeyIndex].AA.strPopupHotkeyInternalName].WriteIni(o_PopupHotkeys.SA[intHotkeyIndex].P_strAhkHotkey)
 	o_PopupHotkeys.EnablePopupHotkeys()
 }
 
@@ -3024,11 +3032,13 @@ SelectShortcut(P_strActualShortcut, P_strShortcutName, P_intShortcutType, P_strD
 	
 	o_HotkeyActual := new Triggers.HotkeyParts(P_strActualShortcut) ; global
 
-	strMainGui := A_DefaultGui 
+	g_strMainGui := A_DefaultGui
+	SS_strMainHwnd := g_int%g_strMainGui%Hwnd
+	
 	SS_strGuiTitle := L(o_L["DialogChangeHotkeyTitle"], g_strAppNameText, g_strAppVersion)
 	Gui, 2:New, +Hwndg_strGui2Hwnd, %SS_strGuiTitle%
 	Gui, 2:Default
-	Gui, +Owner%strMainGui%
+	Gui, +Owner%g_strMainGui%
 	Gui, +OwnDialogs
 	
 	if (g_blnUseColors)
@@ -3109,11 +3119,10 @@ SelectShortcut(P_strActualShortcut, P_strShortcutName, P_intShortcutType, P_strD
 
 	Gui, Add, Text
 	GuiControl, Focus, f_btnChangeShortcutOK
-	CalculateTopGuiPosition(g_strGui2Hwnd, g_intEditorHwnd, SS_intX, SS_intY)
+	CalculateTopGuiPosition(g_strGui2Hwnd, SS_strMainHwnd, SS_intX, SS_intY)
 	Gui, Show, AutoSize x%SS_intX% y%SS_intY%
 
-	Gui, %strMainGui%:Default
-	Gui, +Disabled
+	Gui, %g_strMainGui%:+Disabled
 	WinWaitClose, %SS_strGuiTitle% ; waiting for Gui to close
 	
 	; Clean-up function global variables
@@ -3143,6 +3152,7 @@ SelectShortcut(P_strActualShortcut, P_strShortcutName, P_intShortcutType, P_strD
 	SS_intY := ""
 	SS_strGuiTitle := ""
 	SS_aaL := ""
+	SS_strMainHwnd := ""
 
 	return SS_strNewShortcut ; returning value
 	
@@ -3431,6 +3441,7 @@ aaL := ""
 intWidth := ""
 intWidthHalf :=
 intXCol2 := ""
+strGui := ""
 
 return
 ;------------------------------------------------------------
@@ -3610,6 +3621,7 @@ ToggleRunAtStartup(blnForce := -1)
 	blnValueAfter := (blnForce = -1 ? !blnValueBefore : blnForce)
 
 	Menu, Tray, % (blnValueAfter ? "Check" : "Uncheck"), % o_L["MenuRunAtStartup"]
+	Menu, menuBarRulesOptions, % (blnValueAfter ? "Check" : "Uncheck"), % o_L["MenuRunAtStartup"]
 	Menu, menuBarEditorOptions, % (blnValueAfter ? "Check" : "Uncheck"), % o_L["MenuRunAtStartup"]
 	
 	if (g_blnPortableMode)

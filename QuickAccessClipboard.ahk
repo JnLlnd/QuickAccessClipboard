@@ -382,26 +382,31 @@ global o_L := new Language
 
 global g_strDiagFile := A_WorkingDir . "\" . g_strAppNameFile . "-DIAG.txt"
 
+; Rules
 global g_aaRulesByName ; object initialized when loading rules
 global g_saRulesOrder ; object initialized when loading rules
 
-global g_intEditorDefaultWidth := 640
-global g_intEditorDefaultHeight := 320
-global g_saEditorControls := Object() ; to build Editor gui
-global g_intEditorHwnd ; editor window ID
-global g_strEditorControlHwnd ; editor control ID
-global g_strCliboardBackup ; not used...
-global g_intClipboardContentType ; updated by ClipboardContentChanged()
-
-global g_intRulesDefaultWidth := 801
-global g_intRulesDefaultHeight := 590
+; Rules Manager
+global g_intRulesDefaultWidth := 700
+global g_intRulesDefaultHeight := 375
 global g_saRulesControls := Object() ; to build Rules gui
+global g_aaRulesControlsByName := Object() ; to build Rules gui
 global g_intRulesHwnd ; rules window ID
 global g_saRulesBackupSelectedOrder ; backup of selected rules
 global g_saRulesBackupSelectedByName ; backup of selected rules
 global g_blnUndoRulesBackupExist := StrLen(o_Settings.ReadIniSection("Rules-backup")) ; used in BuildGuiEditor and BuildEditorMenuBar
 global g_aaRulesToolTipsMessages := Object() ; messages to display by ToolTip when mouse is over selected buttons in Settings
 global g_blnRulesRemovedByTimeOut ; to define what tooltip display after QACrules update
+
+; Editor
+global g_intEditorDefaultWidth := 640
+global g_intEditorDefaultHeight := 320
+global g_saEditorControls := Object() ; to build Editor gui
+global g_aaEditorControlsByName := Object() ; to build Editor gui
+global g_intEditorHwnd ; editor window ID
+global g_strEditorControlHwnd ; editor control ID
+global g_strCliboardBackup ; not used...
+global g_intClipboardContentType ; updated by ClipboardContentChanged()
 
 global g_strPipe := "Ð¡þ€" ; used to replace pipe in ini file
 global g_strEol := "€ö¦" ; used to replace end-of-line in AutoHotkey rules in ini file
@@ -550,8 +555,8 @@ Hotkey, If, WinActive(QACGuiTitle("Editor"))
 
 Hotkey, If
 
-; if (o_Settings.RulesWindow.blnDisplayRulesAtStartup.IniValue)
-	; Gosub, GuiShowRules
+if (o_Settings.RulesWindow.blnDisplayRulesAtStartup.IniValue)
+	Gosub, GuiShowRules
 if (o_Settings.EditorWindow.blnDisplayEditorAtStartup.IniValue)
 	Gosub, GuiShowEditor
 
@@ -1181,7 +1186,21 @@ return
 InitRulesControls:
 ;------------------------------------------------------------
 
-InsertGuiControlPos(g_saRulesControls, "###", 20, 130)
+InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_btnRulesClose",			0, 		-60) ; 0 set during build
+
+InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_btnRuleUndo", 			10, 	-95)
+
+InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_btnRuleSelect", 			-264, 	60, , true)
+InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_btnRuleDeselect", 		-264, 	90, , true)
+InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_btnRuleDeslectAll", 		-264, 	120, , true)
+
+InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_lblSelected", 			-232, 	10)
+InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_lvRulesSelected", 		-232, 	36)
+
+InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_intSelectRuleOrGroups1",		0, 10) ; 0 set during build
+InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_intSelectRuleOrGroups2", 	0, 10) ; 0 set during build
+
+InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_btnRuleAddGroup", 		-33, 60)
 
 return
 ;------------------------------------------------------------
@@ -1191,17 +1210,17 @@ return
 InitEditorControls:
 ;------------------------------------------------------------
 
-InsertGuiControlPos(g_saEditorControls, "f_strClipboardEditor",	10, 130)
-InsertGuiControlPos(g_saEditorControls, "f_btnEditorSave",		0,  -70, , true)
-InsertGuiControlPos(g_saEditorControls, "f_btnEditorCancel",	0,  -70, , true)
-InsertGuiControlPos(g_saEditorControls, "f_btnEditorClose",		0,  -70, , true)
+InsertGuiControlPos(g_saEditorControls, g_aaEditorControlsByName, "f_strClipboardEditor",	10, 130)
+InsertGuiControlPos(g_saEditorControls, g_aaEditorControlsByName, "f_btnEditorSave",		0,  -70, , true) ; 0 set during build
+InsertGuiControlPos(g_saEditorControls, g_aaEditorControlsByName, "f_btnEditorCancel",		0,  -70, , true) ; 0 set during build
+InsertGuiControlPos(g_saEditorControls, g_aaEditorControlsByName, "f_btnEditorClose",		0,  -70, , true) ; 0 set during build
 
 return
 ;------------------------------------------------------------
 
 
 ;------------------------------------------------------------
-InsertGuiControlPos(saControls, strControlName, intX, intY, blnCenter := false, blnDraw := false)
+InsertGuiControlPos(saControls, aaControls, strControlName, intX, intY, blnCenter := false, blnDraw := false)
 ;------------------------------------------------------------
 {
 	aaGuiControl := Object()
@@ -1212,6 +1231,7 @@ InsertGuiControlPos(saControls, strControlName, intX, intY, blnCenter := false, 
 	aaGuiControl.Draw := blnDraw
 	
 	saControls.Push(aaGuiControl)
+	aaControls[strControlName] := aaGuiControl
 }
 ;------------------------------------------------------------
 
@@ -1226,24 +1246,29 @@ if (o_Settings.Launch.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar, 2 Sy
 
 Gui, Font, s10 w600, Arial
 Gui, Add, Text, x40 y10, % o_L["GuiRulesAvailable"]
-Gui, Font, s8 w400
-Gui, Add, Radio, yp x+10 vf_intAvailableRuleOrGroups gGuiAvailableRulesOrGroupsChanged Checked, % o_L["GuiRulesLower"]
+Gui, Font, s9 w400
+Gui, Add, Radio, yp+2 x+10 vf_intAvailableRuleOrGroups gGuiAvailableRulesOrGroupsChanged Checked, % o_L["GuiRulesLower"]
 g_aaRulesToolTipsMessages["Button1"] := o_L["GuiAvailableRulesTip"]
 Gui, Add, Radio, yp x+1 gGuiAvailableRulesOrGroupsChanged disabled,  % o_L["GuiGroupsLower"]
 g_aaRulesToolTipsMessages["Button2"] := o_L["GuiAvailableGroupsTip"]
-Gui, Font, s10 w600, Arial
-Gui, Add, Text, x564 y10, % o_L["GuiSelected"]
-Gui, Font, s8 w400
-Gui, Add, Radio, yp x+10 vf_intSelectRuleOrGroups gGuiSelectedRulesOrGroupsChanged Checked, % o_L["GuiRulesLower"]
-g_aaRulesToolTipsMessages["Button3"] := o_L["GuiSelectedRulesTip"]
-Gui, Add, Radio, yp x+1 gGuiSelectedRulesOrGroupsChanged disabled,  % o_L["GuiGroupsLower"]
-g_aaRulesToolTipsMessages["Button4"] := o_L["GuiSelectedGroupsTip"]
 
+Gui, Font, s10 w600, Arial
+Gui, Add, Text, vf_lblSelected x564 y10, % o_L["GuiSelected"]
+Gui, Font, s9 w400
+
+Gui, Add, Radio, yp+2 x+10 vf_intSelectRuleOrGroups1 gGuiSelectedRulesOrGroupsChanged Checked, % o_L["GuiRulesLower"]
+g_aaRulesToolTipsMessages["Button3"] := o_L["GuiSelectedRulesTip"]
+Gui, Add, Radio, yp x+1 vf_intSelectRuleOrGroups2 gGuiSelectedRulesOrGroupsChanged disabled,  % o_L["GuiGroupsLower"]
+g_aaRulesToolTipsMessages["Button4"] := o_L["GuiSelectedGroupsTip"]
+GuiControlGet, arrPosA, Pos, f_lblSelected
+g_aaRulesControlsByName["f_intSelectRuleOrGroups1"].X := g_aaRulesControlsByName["f_lblSelected"].X + arrPosAW + 10
+GuiControlGet, arrPos, Pos, f_intSelectRuleOrGroups1
+g_aaRulesControlsByName["f_intSelectRuleOrGroups2"].X := g_aaRulesControlsByName["f_intSelectRuleOrGroups1"].X + arrPosW + 3
 Gui, Add, Text, x10 y+10 Section
 
 Gui, Font, s9, Arial
 ; Unicode chars: https://www.fileformat.info/info/unicode/category/So/list.htm
-Gui, Add, Button, x10 ys+30 w24 vf_btnRuleAdd gGuiAddRuleSelectType, % chr(0x2795) ; or chr(0x271B)
+Gui, Add, Button, x10 ys+24 w24 vf_btnRuleAdd gGuiAddRuleSelectType, % chr(0x2795) ; or chr(0x271B)
 g_aaRulesToolTipsMessages["Button5"] := o_L["MenuRuleAdd"]
 Gui, Add, Button, ys+60 x10 w24 vf_btnRuleEdit gGuiRuleEdit, % chr(0x2328)
 g_aaRulesToolTipsMessages["Button6"] := o_L["MenuRuleEdit"]
@@ -1271,11 +1296,11 @@ g_aaRulesToolTipsMessages["Button12"] := o_L["MenuRuleDeselectAll"]
 Gui, Font
 
 Gui, Add, ListView
-	, % "vf_lvRulesSelected +Hwndg_strRulesSelectedHwnd Count32 -Multi AltSubmit NoSortHdr LV0x10 LV0x10000 gGuiRulesSelectedEvents x564 ys w200 r25 Section"
+	, % "vf_lvRulesSelected +Hwndg_strRulesSelectedHwnd Count32 -Multi AltSubmit NoSortHdr LV0x10 LV0x10000 gGuiRulesSelectedEvents x564 ys w190 r25 Section"
 	, % o_L["DialogRuleName"] ; SysHeader321 / SysListView321
 
 Gui, Font, s10 w600, Arial
-Gui, Add, Button, vf_btnRulesClose gRulesClose x340 y+20 w140 h35, % o_L["GuiClose"]
+Gui, Add, Button, vf_btnRulesClose gRulesClose x340 y+20 w140, % o_L["GuiClose"]
 GuiControl, Focus, f_btnRulesClose
 Gui, Font
 
@@ -1791,22 +1816,34 @@ return
 
 
 ;------------------------------------------------------------
+RulesGuiSize:
 EditorGuiSize:
 ;------------------------------------------------------------
 
 if (A_EventInfo = 1)  ; The window has been minimized.  No action needed.
     return
 
-Gui, Editor:Default
+strGui := StrReplace(A_ThisLabel, "GuiSize")
+Gui, %strGui%:Default
 
-intEditorH := A_GuiHeight - (g_saEditorControls[1].Y + 80)
-g_intEditorW := A_GuiWidth - 40
+if (strGui = "Rules")
+{
+	intListH := A_GuiHeight - 105
+	intListAvailableW := A_GuiWidth - 40 - 273 ; left of list + riught of list
+	
+	; = (A_GuiWidth - left margin - right margin // 2 (left, right)
+	intCloseButtonLeft := (A_GuiWidth - 140) // 2
+}
+else ; Editor
+{
+	intEditorH := A_GuiHeight - (g_saEditorControls[1].Y + 80)
+	g_intEditorW := A_GuiWidth - 40
 
-; space before, between and after save/reload/close buttons
-; = (A_GuiWidth - left margin - right margin - (2 buttons width)) // 3 (left, between 2 buttons, right)
-intButtonSpacing := (A_GuiWidth - 120 - 120 - (140 + 120 + 120)) // 4
+	; = (A_GuiWidth - left margin - right margin - (3 buttons width)) // 4 (left, between buttons, right)
+	intButtonSpacing := (A_GuiWidth - 120 - 120 - (140 + 120 + 120)) // 4
+}
 
-for intIndex, aaGuiControl in g_saEditorControls
+for intIndex, aaGuiControl in (strGui = "Rules" ? g_saRulesControls : g_saEditorControls)
 {
 	intX := aaGuiControl.X
 	intY := aaGuiControl.Y
@@ -1822,17 +1859,31 @@ for intIndex, aaGuiControl in g_saEditorControls
 		intX := intX - (arrPosW // 2) ; Floor divide
 	}
 
-	if (aaGuiControl.Name = "f_btnEditorSave")
-		intX := 80 + intButtonSpacing
-	else if (aaGuiControl.Name = "f_btnEditorCancel")
-		intX := 80 + (2 * intButtonSpacing) + 140 ; 140 for 1st button
-	else if (aaGuiControl.Name = "f_btnEditorClose")
-		intX := 80 + (3 * intButtonSpacing) + 140 + 120 ; 140 for 1st button, 100 for 2nd button
-
+	if (strGui = "Rules")
+	{
+		if (aaGuiControl.Name = "f_btnRulesClose")
+			intX := intCloseButtonLeft
+	}
+	else ; Editor
+	{
+		if (aaGuiControl.Name = "f_btnEditorSave")
+			intX := 80 + intButtonSpacing
+		else if (aaGuiControl.Name = "f_btnEditorCancel")
+			intX := 80 + (2 * intButtonSpacing) + 140 ; 140 for 1st button
+		else if (aaGuiControl.Name = "f_btnEditorClose")
+			intX := 80 + (3 * intButtonSpacing) + 140 + 120 ; 140 for 1st button, 100 for 2nd button
+	}
 	GuiControl, % "Move" . (aaGuiControl.Draw ? "Draw" : ""), % aaGuiControl.Name, % "x" . intX .  " y" . intY
 }
 
-GuiControl, Move, f_strClipboardEditor, w%g_intEditorW% h%intEditorH%
+if (strGui = "Rules")
+{
+	GuiControl, Move, f_lvRulesAvailable, w%intListAvailableW% h%intListH%
+	GuiControl, Move, f_lvRulesSelected, h%intListH%
+}
+else ; Editor
+	GuiControl, Move, f_strClipboardEditor, w%g_intEditorW% h%intEditorH%
+
 
 intListH := ""
 intButtonSpacing := ""
@@ -5111,7 +5162,7 @@ class Triggers.MouseButtons
 			for intThisIndex, strThisPopupHotkeyInternalName in saPopupHotkeyInternalNames
 			{
 				; Init Settings class items for Triggers (must be before o_PopupHotkeys)
-				strThisPopupHotkey := o_Settings.ReadIniOption("Rules", "str" . strThisPopupHotkeyInternalName, strThisPopupHotkeyInternalName, saPopupHotkeyDefaults[A_Index]
+				strThisPopupHotkey := o_Settings.ReadIniOption("Hotkeys", "str" . strThisPopupHotkeyInternalName, strThisPopupHotkeyInternalName, saPopupHotkeyDefaults[A_Index]
 					, "f_lblChangeShortcut" . A_Index . "|f_lblHotkeyText" . A_Index . "|f_btnChangeShortcut" . A_Index . "|f_lnkChangeShortcut" . A_Index)
 				oPopupHotkey := new this.PopupHotkey(strThisPopupHotkeyInternalName, strThisPopupHotkey, saPopupHotkeyDefaults[A_Index]
 					, saOptionsPopupHotkeyLocalizedNames[A_Index], saOptionsPopupHotkeyLocalizedDescriptions[A_Index])

@@ -261,9 +261,10 @@ SendMode, Input
 StringCaseSense, Off
 ComObjError(False) ; we will do our own error handling
 
-; #Include %A_ScriptDir%\XML_Class.ahk ; by Maestrith (Chad) https://autohotkey.com/boards/viewtopic.php?f=62&t=33114
 #Include %A_ScriptDir%\..\QuickAccessPopup\QAPtools.ahk ; by Jean Lalonde
 #Include %A_ScriptDir%\..\QuickAccessPopup\Class_LV_Rows.ahk ; https://github.com/Pulover/Class_LV_Rows from Rodolfo U. Batista / Pulover (as of 2020-11-22)
+#Include %A_ScriptDir%\Lib\Edit.ahk ; from jballi https://www.autohotkey.com/boards/viewtopic.php?f=6&t=5063
+; #Include %A_ScriptDir%\XML_Class.ahk ; by Maestrith (Chad) https://autohotkey.com/boards/viewtopic.php?f=62&t=33114
 
 ; avoid error message when shortcut destination is missing
 ; see http://ahkscript.org/boards/viewtopic.php?f=5&t=4477&p=25239#p25236
@@ -398,6 +399,7 @@ global g_saRulesBackupSelectedByName ; backup of selected rules
 global g_blnUndoRulesBackupExist := StrLen(o_Settings.ReadIniSection("Rules-backup")) ; used in BuildGuiEditor and BuildEditorMenuBar
 global g_aaRulesToolTipsMessages := Object() ; messages to display by ToolTip when mouse is over selected buttons in Settings
 global g_blnRulesRemovedByTimeOut ; to define what tooltip display after QACrules update
+global g_intAddRuleType ; numeric type of rule to add
 
 ; Editor
 global g_intEditorDefaultWidth := 640
@@ -408,6 +410,7 @@ global g_intEditorHwnd ; editor window ID
 global g_strEditorControlHwnd ; editor control ID
 global g_strCliboardBackup ; not used...
 global g_intClipboardContentType ; updated by ClipboardContentChanged()
+global g_strExecRuleType ; code of rule to execute in editor
 
 global g_strPipe := "Ð¡þ€" ; used to replace pipe in ini file
 global g_strEol := "€ö¦" ; used to replace end-of-line in AutoHotkey rules in ini file
@@ -939,9 +942,6 @@ Menu, Tray, Click, 1 ; require only one left mouse button click to open the defa
 if (o_Settings.Launch.intShowMenuBar.IniValue > 1) ; 1 Customize menu bar, 2 System menu, 3 both
 {
 	Menu, Tray, Add
-	Menu, Tray, Add, % o_L["MenuFile"], :menuBarEditorFile
-	Menu, Tray, Add, % o_L["MenuRule"], :menuBarEditorRule
-	Menu, Tray, Add, % o_L["GuiApplyRule"], :menuRules
 	Menu, Tray, Add, % o_L["MenuOptions"], :menuBarEditorOptions
 	Menu, Tray, Add, % o_L["MenuHelp"], :menuBarEditorHelp
 }
@@ -1137,28 +1137,13 @@ Menu, menuBarEditorFile, Add, % o_L["GuiClose"] . "`tEsc", EditorClose
 Menu, menuBarEditorFile, Add
 Menu, menuBarEditorFile, Add, % o_L["MenuOpenWorkingDirectory"], OpenWorkingDirectory
 Menu, menuBarEditorFile, Add
-if (g_strCurrentBranch <> "prod")
-{
-	Menu, menuBarEditorFile, Add, Debug QACrules.ahk (beta only), OpenQacRulesFile
-	Menu, menuBarEditorFile, Add
-}
 Menu, menuBarEditorFile, Add, % L(o_L["MenuReload"], g_strAppNameText), CleanUpBeforeReload
 Menu, menuBarEditorFile, Add
 Menu, menuBarEditorFile, Add, % L(o_L["MenuExitApp"], g_strAppNameText), EditorCloseAndExitApp
 
-Menu, menuBarEditorRule, Add, % o_L["MenuRuleAdd"], GuiAddRuleSelectType
-Menu, menuBarEditorRule, Add, % o_L["MenuRuleEdit"], GuiRuleEdit
-Menu, menuBarEditorRule, Add, % o_L["MenuRuleRemove"], GuiRuleRemove
-Menu, menuBarEditorRule, Add, % o_L["MenuRuleCopy"], GuiRuleCopy
-Menu, menuBarEditorRule, Add
-Menu, menuBarEditorRule, Add, % o_L["MenuRuleUndo"], GuiRuleUndo
-Menu, menuBarEditorRule, % (g_blnUndoRulesBackupExist ? "Enable" : "Disable"), % o_L["MenuRuleUndo"]
-Menu, menuBarEditorRule, Add
-Menu, menuBarEditorRule, Add, % o_L["MenuRuleSelect"], GuiRuleSelect
-Menu, menuBarEditorRule, Add, % o_L["MenuRuleDeselect"], GuiRuleDeselect
-Menu, menuBarEditorRule, Add, % o_L["MenuRuleDeselectAll"], GuiRuleDeselectAll
-; Menu, menuBarEditorRule, Add
-; Menu, menuBarEditorRule, Add, % o_L["GuiApplyRules"], GuiApplyRules
+for intOrder, aaRuleType in g_saRuleTypesOrder
+	if (aaRuleType.strTypeCode <> "AutoHotkey")
+		Menu, menuBarEditorEdit, Add, % aaRuleType.strTypeLabel, % "GuiEditor" . aaRuleType.strTypeCode
 
 Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyMouse"], GuiSelectShortcut3
 Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyKeyboard"], GuiSelectShortcut4
@@ -1171,8 +1156,8 @@ Menu, menuBarEditorHelp, Add, % o_L["MenuUpdate"], Check4UpdateNow
 Menu, menuBarEditorHelp, Add, % L(o_L["MenuAbout"], g_strAppNameText), GuiAboutEditor
 
 Menu, menuBarEditorMain, Add, % o_L["MenuFile"], :menuBarEditorFile
-Menu, menuBarEditorMain, Add, % o_L["MenuRule"], :menuBarEditorRule
-Menu, menuBarEditorMain, Add, % o_L["GuiApplyRule"], :menuRules
+Menu, menuBarEditorMain, Add, % o_L["MenuEditorEdit"], :menuBarEditorEdit
+Menu, menuBarEditorMain, Disable, % o_L["MenuEditorEdit"]
 Menu, menuBarEditorMain, Add, % o_L["MenuOptions"], :menuBarEditorOptions
 Menu, menuBarEditorMain, Add, % o_L["MenuHelp"], :menuBarEditorHelp
 
@@ -1692,12 +1677,179 @@ return
 
 
 ;------------------------------------------------------------
+GuiEditorChangeCase:
+GuiEditorConvertFormat:
+GuiEditorReplace:
+GuiEditorAutoHotkey:
+GuiEditorSubString:
+GuiEditorPrefix:
+GuiEditorSuffix:
+;------------------------------------------------------------
+Gui, Editor:Submit, NoHide
+
+g_strExecRuleType := StrReplace(A_ThisLabel, "GuiEditor")
+Gosub, GuiRuleFromEditor
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+ExecuteRule:
+;------------------------------------------------------------
+Gui, Editor:Submit, NoHide
+
+Gosub, 2GuiClose ; to avoid flashing Gui Rules:
+
+g_strEditedText := Edit_GetSelText(g_strEditorControlHwnd)
+
+; get text before and after selection
+strAllText := StrReplace(f_strClipboardEditor, Chr(10), Chr(13) . Chr(10)) ; add CR to get intStart and intEnd compatible with Edit_GetSel
+Edit_GetSel(g_strEditorControlHwnd, intStart, intEnd)
+strBefore := StrReplace(SubStr(strAllText, 1, intStart), Chr(13) . Chr(10), Chr(10))
+strAfter := StrReplace(SubStr(strAllText, intEnd + 1), Chr(13) . Chr(10), Chr(10))
+
+Gosub, ExecuteRuleType
+
+if (intEnd - intStart) ; rebuild full Clipboard
+	g_strEditedText := strBefore . g_strEditedText . strAfter
+
+GuiControl, , %g_strEditorControlHwnd%, %g_strEditedText% ; copy content to edit control
+
+Edit_SetSel(g_strEditorControlHwnd, intStart, intEnd)
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+ExecuteRuleType:
+;------------------------------------------------------------
+
+###_V(A_ThisLabel, g_strEditedText)
+
+/*
+
+See: ExecuteRule:
+
+Rule3(strType) ; Convert to text (ConvertFormat)
+{
+if (strType = 1) ; text
+{
+Clipboard := Clipboard
+g_intLastTick := A_TickCount ; reset timeout counter
+Sleep, 50
+
+}
+}
+
+Rule1(strType) ; Lower case (ChangeCase)
+{
+if (strType = 1) ; text
+{
+Clipboard := RegExReplace(Clipboard, ".*", "$L0")
+g_intLastTick := A_TickCount ; reset timeout counter
+Sleep, 50
+
+}
+}
+
+Rule7(strType) ; MsgBox (AutoHotkey)
+{
+if (strType = 1) ; text
+{
+MsgBox, Your Clipboard1 contains: %Clipboard%
+g_intLastTick := A_TickCount ; reset timeout counter
+Sleep, 50
+
+}
+}
+
+Rule8(strType) ; MsgBox Multiline (AutoHotkey)
+{
+if (strType = 1) ; text
+{
+if StrLen(Clipboard) > 500
+	str := "The 500 first characters of your Clipboard are:`n`n" . SubStr(Clipboard, 1, 500) . "..."
+else
+	str := "Your Clipboard contains:`n`n" . Clipboard
+MsgBox, %str%
+g_intLastTick := A_TickCount ; reset timeout counter
+Sleep, 50
+
+}
+}
+
+Rule6(strType) ; Prefix with Title (Prefix)
+{
+if (strType = 1) ; text
+{
+Clipboard := "Title: " . Clipboard . ""
+g_intLastTick := A_TickCount ; reset timeout counter
+Sleep, 50
+
+}
+}
+
+Rule4(strType) ; Replace this with that (Replace)
+{
+if (strType = 1) ; text
+{
+Clipboard := RegExReplace(Clipboard, "i)\bthis\b", "that")
+g_intLastTick := A_TickCount ; reset timeout counter
+Sleep, 50
+
+}
+}
+
+Rule9(strType) ; Suffix Example (Suffix)
+{
+if (strType = 1) ; text
+{
+Clipboard := "" . Clipboard . "... Suffix"
+g_intLastTick := A_TickCount ; reset timeout counter
+Sleep, 50
+
+}
+}
+
+Rule5(strType) ; Trim 2 last characters (SubString)
+{
+if (strType = 1) ; text
+{
+Clipboard := SubStr(Clipboard, 1, -2)
+g_intLastTick := A_TickCount ; reset timeout counter
+Sleep, 50
+
+}
+}
+
+Rule2(strType) ; Upper case (ChangeCase)
+{
+if (strType = 1) ; text
+{
+Clipboard := RegExReplace(Clipboard, ".*", "$U0")
+g_intLastTick := A_TickCount ; reset timeout counter
+Sleep, 50
+
+}
+}
+
+*/
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
 EnableEditClipboard:
 ;------------------------------------------------------------
 
 Gosub, ClipboardEditorChanged
 GuiControl, -ReadOnly, f_strClipboardEditor
 GuiControl, , f_blnSeeInvisible, 0
+
+Menu, menuBarEditorMain, Enable, % o_L["MenuEditorEdit"]
 
 return
 ;------------------------------------------------------------
@@ -1978,27 +2130,35 @@ return
 GuiRuleAdd:
 GuiRuleEdit:
 GuiRuleCopy:
+GuiRuleFromEditor:
 ;------------------------------------------------------------
-Gui, Rules:Submit, NoHide
-
 strAction := StrReplace(A_ThisLabel, "GuiRule")
-if (strAction = "Add")
-	Gosub, 2GuiClose ; to avoid flashing Gui Rules:
 
-Gui, Rules:ListView, f_lvRulesAvailable
-if !GetLVPosition(intPosition, (strAction <> "Add" ? o_L["GuiSelectRuleEdit"] : "")) ; no error message if adding
-	and InStr("Edit|Copy", strAction)
-	return
+if (strAction = "FromEditor")
+{
+	aaEditedRule := new Rule("", [g_strExecRuleType, "", ""]) ; __New(strName := "", saRuleValues := "")
+}
 else
-	LV_GetText(strName, intPosition, 1)
+{
+	Gui, Rules:Submit, NoHide
+	if (strAction = "Add")
+		Gosub, 2GuiClose ; to avoid flashing Gui Rules:
 
-; set aaEditedRule
-if (strAction = "Add")
-	aaEditedRule := new Rule("", [g_saRuleTypesOrder[g_intAddRuleType].strTypeCode, "", ""]) ; __New(strName := "", saRuleValues := "")
-else if (strAction = "Edit")
-	aaEditedRule := g_aaRulesByName[strName]
-else ; Copy
-	aaEditedRule := g_aaRulesByName[strName].CopyRule()
+	Gui, Rules:ListView, f_lvRulesAvailable
+	if !GetLVPosition(intPosition, (strAction <> "Add" ? o_L["GuiSelectRuleEdit"] : "")) ; no error message if adding
+		and InStr("Edit|Copy", strAction)
+		return
+	else
+		LV_GetText(strName, intPosition, 1)
+
+	; set aaEditedRule
+	if (strAction = "Add")
+		aaEditedRule := new Rule("", [g_saRuleTypesOrder[g_intAddRuleType].strTypeCode, "", ""]) ; __New(strName := "", saRuleValues := "")
+	else if (strAction = "Edit")
+		aaEditedRule := g_aaRulesByName[strName]
+	else ; Copy
+		aaEditedRule := g_aaRulesByName[strName].CopyRule()
+}
 
 strGuiTitle := L(o_L["DialogAddEditRuleTitle"]
 	, (strAction = "Add" ? o_L["DialogEdit"] : (strAction = "Copy" ? o_L["DialogCopy"] : o_L["DialogAdd"]))
@@ -2008,12 +2168,15 @@ Gui, 2:New, +Resize -MaximizeBox +Hwndg_strGui2Hwnd, %strGuiTitle%
 Gui, 2:+OwnerRules
 Gui, 2:+OwnDialogs
 
-Gui, 2:Add, Text, w400, % o_L["DialogRuleName"]
-Gui, 2:Add, Edit, w400 vf_strName, % aaEditedRule.strName
-Gui, 2:Add, Text, w400, % o_L["DialogRuleCategory"]
-Gui, 2:Add, Edit, w400 vf_strCategory, % aaEditedRule.strCategory
-Gui, 2:Add, Text, w400, % o_L["DialogRuleNotes"]
-Gui, 2:Add, Edit, w400 vf_strNotes, % aaEditedRule.strNotes
+if (strAction <> "FromEditor")
+{
+	Gui, 2:Add, Text, w400, % o_L["DialogRuleName"]
+	Gui, 2:Add, Edit, w400 vf_strName, % aaEditedRule.strName
+	Gui, 2:Add, Text, w400, % o_L["DialogRuleCategory"]
+	Gui, 2:Add, Edit, w400 vf_strCategory, % aaEditedRule.strCategory
+	Gui, 2:Add, Text, w400, % o_L["DialogRuleNotes"]
+	Gui, 2:Add, Edit, w400 vf_strNotes, % aaEditedRule.strNotes
+}
 
 Gui, 2:Font, w600
 Gui, 2:Add, Text, y+10 w400, % aaEditedRule.strTypeLabel
@@ -2109,12 +2272,24 @@ else if InStr("Prefix Suffix", aaEditedRule.strTypeCode)
 	GuiControl, , f_varValue2, % (aaEditedRule.saVarValues[2] = true)
 }
 
-Gui, 2:Add, Button, y+20 vf_btnSave gGuiRuleSave, % o_L["GuiSave"]
-Gui, 2:Add, Button, yp vf_btnCancel g2GuiClose, % o_L["GuiCancel"]
-GuiCenterButtons(g_strGui2Hwnd, , , , , , "f_btnSave", "f_btnCancel")
-Gui, 2:Add, Text, yp+20
+if (strAction = "FromEditor")
+{
+	Gui, 2:Add, Button, y+20 vf_btnGo Default gExecuteRule, % o_L["GuiGo"]
+	Gui, 2:Add, Button, yp vf_btnCancel g2GuiClose, % o_L["GuiCancel"]
+	GuiCenterButtons(g_strGui2Hwnd, , , , , , "f_btnGo", "f_btnCancel")
+}
+else
+{
+	Gui, 2:Add, Button, y+20 vf_btnSave Default gGuiRuleSave, % o_L["GuiSave"]
+	Gui, 2:Add, Button, yp vf_btnCancel g2GuiClose, % o_L["GuiCancel"]
+	GuiCenterButtons(g_strGui2Hwnd, , , , , , "f_btnSave", "f_btnCancel")
+}
+Gui, 2:Add, Text, yp+30
 
-Gosub, ShowGui2AndDisableGuiRules
+if (strAction = "FromEditor")
+	Gosub, ShowGui2AndDisableGuiEditor
+else
+	Gosub, ShowGui2AndDisableGuiRules
 
 intPosition := ""
 strName := ""
@@ -2279,7 +2454,7 @@ Gui, Rules:Default
 o_Settings.WriteIniSection(o_Settings.ReadIniSection("Rules"), "Rules-backup")
 o_Settings.WriteIniValue(o_Settings.ReadIniValue("Rules", "", "Rules-index"), "Rules-index", "Rules-backup")
 GuiControl, Enable, f_btnRuleUndo
-Menu, menuBarEditorRule, Enable, % o_L["MenuRuleUndo"]
+Menu, menuBarRulesRule, Enable, % o_L["MenuRuleUndo"]
 
 return
 ;------------------------------------------------------------
@@ -2301,7 +2476,7 @@ o_Settings.DeleteIniValue("Rules-index", "Rules-backup")
 Gui, Rules:Default
 Gosub, LoadRulesKeepSelected
 GuiControl, Disable, f_btnRuleUndo
-Menu, menuBarEditorRule, Disable, % o_L["MenuRuleUndo"]
+Menu, menuBarRulesRule, Disable, % o_L["MenuRuleUndo"]
 
 return
 ;------------------------------------------------------------
@@ -2854,6 +3029,7 @@ else
 {
 	Gosub, UpdateEditorWithClipboardFromGuiShow
 	Gosub, EditorDisableSaveAndCancel
+	Menu, menuBarEditorMain, Disable, % o_L["MenuEditorEdit"]
 	
 	intGuiHwnd := g_intEditorHwnd
 	Gui, Editor:Default
@@ -3694,35 +3870,6 @@ return
 
 
 ;------------------------------------------------------------
-ExecuteRule:
-;------------------------------------------------------------
-Gui, Submit, NoHide
-
-Gosub, DisableClipboardChangesInEditor
-Clipboard := f_strClipboardEditor ; save current content to editor (rule is executed by QACrules.ahk on the Clipboard, not on the control)
-
-GetSelectedTextPos(intStart, intEnd)
-if (intEnd - intStart) ; if text selected, copy it to Clipboard to apply rule only on it
-{
-	strBefore := SubStr(Clipboard, 1, intStart)
-	strAfter := SubStr(Clipboard, intEnd + 1)
-	Clipboard := SubStr(Clipboard, intStart + 1, intEnd - intStart)
-}
-
-Send_WM_COPYDATA("exec|" . g_aaRulesByName[A_ThisMenuItem].intID, "ahk_pid " . strQacRulesPID) ; apply rule to Clipboard
-
-if (intEnd - intStart) ; rebuild full Clipboard
-	Clipboard := strBefore . Clipboard . strAfter
-
-GuiControl, , %g_strEditorControlHwnd%, %Clipboard% ; copy content to Clipboard
-
-SetSelectedTextPos(intStart, intEnd)
-
-return
-;------------------------------------------------------------
-
-
-;------------------------------------------------------------
 RemoveToolTip1:
 RemoveToolTip2:
 RemoveToolTip3:
@@ -4375,35 +4522,8 @@ WM_RBUTTONUP()
 GetSelectedTextLenght()
 ;------------------------------------------------------------
 {
-	GetSelectedTextPos(intStart, intEnd)
+	Edit_GetSel(g_strEditorControlHwnd, intStart, intEnd)
 	return (intEnd - intStart)
-}
-;------------------------------------------------------------
-
-
-;------------------------------------------------------------
-GetSelectedTextPos(ByRef intStart, ByRef intEnd)
-; from just me (https://www.autohotkey.com/boards/viewtopic.php?p=27857#p27857)
-; returns start and end positions of selected text in control
-; if no text is selected, returns caret position in both start and end variables
-;------------------------------------------------------------
-{
-	intStart := 0
-	intEnd := 0
-	; EM_GETSEL = 0x00B0 -> msdn.microsoft.com/en-us/library/bb761598(v=vs.85).aspx
-	DllCall("User32.dll\SendMessage", "Ptr", g_strEditorControlHwnd, "UInt", 0x00B0, "UIntP", intStart, "UIntP", intEnd, "Ptr")
-}
-;------------------------------------------------------------
-
-
-;------------------------------------------------------------
-SetSelectedTextPos(intStart, intEnd)
-; set the selection in edit control to start and end positions
-; if start and end values are equal, set the caret to this position
-;------------------------------------------------------------
-{
-	; EM_SETSEL = 0x00B1 -> https://docs.microsoft.com/fr-fr/windows/win32/controls/em-setsel
-	Postmessage, 0xB1, intStart, intEnd, , % "ahk_id " . g_strEditorControlHwnd ; SendMessage not working
 }
 ;------------------------------------------------------------
 

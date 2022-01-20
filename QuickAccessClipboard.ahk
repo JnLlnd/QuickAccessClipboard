@@ -235,7 +235,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.7.3
+;@Ahk2Exe-SetVersion 0.0.8
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -306,7 +306,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.7.3" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.8" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -1244,17 +1244,17 @@ Gui, Rules:New, +Hwndg_intRulesHwnd +Resize -MinimizeBox +MinSize%g_intRulesDefa
 if (o_Settings.Launch.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar, 2 System menu, 3 both
 	Gui, Menu, menuBarRulesMain
 
-Gui, Font, s10 w600, Arial
+Gui, Font, s8 w600, Verdana
 Gui, Add, Text, x40 y10, % o_L["GuiRulesAvailable"]
-Gui, Font, s9 w400
+Gui, Font
 Gui, Add, Radio, yp+2 x+10 vf_intAvailableRuleOrGroups gGuiAvailableRulesOrGroupsChanged Checked, % o_L["GuiRulesLower"]
 g_aaRulesToolTipsMessages["Button1"] := o_L["GuiAvailableRulesTip"]
 Gui, Add, Radio, yp x+1 gGuiAvailableRulesOrGroupsChanged disabled,  % o_L["GuiGroupsLower"]
 g_aaRulesToolTipsMessages["Button2"] := o_L["GuiAvailableGroupsTip"]
 
-Gui, Font, s10 w600, Arial
+Gui, Font, s8 w600, Verdana
 Gui, Add, Text, vf_lblSelected x564 y10, % o_L["GuiSelected"]
-Gui, Font, s9 w400
+Gui, Font
 
 Gui, Add, Radio, yp+2 x+10 vf_intSelectRuleOrGroups1 gGuiSelectedRulesOrGroupsChanged Checked, % o_L["GuiRulesLower"]
 g_aaRulesToolTipsMessages["Button3"] := o_L["GuiSelectedRulesTip"]
@@ -1299,8 +1299,8 @@ Gui, Add, ListView
 	, % "vf_lvRulesSelected +Hwndg_strRulesSelectedHwnd Count32 -Multi AltSubmit NoSortHdr LV0x10 LV0x10000 gGuiRulesSelectedEvents x564 ys w190 r25 Section"
 	, % o_L["DialogRuleName"] ; SysHeader321 / SysListView321
 
-Gui, Font, s10 w600, Arial
-Gui, Add, Button, vf_btnRulesClose gRulesClose x340 y+20 w140, % o_L["GuiClose"]
+Gui, Font, s8 w600, Verdana
+Gui, Add, Button, vf_btnRulesClose gRulesClose x340 y+20 w140 h30, % o_L["GuiClose"]
 GuiControl, Focus, f_btnRulesClose
 Gui, Font
 
@@ -2846,6 +2846,7 @@ GuiControl, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable")
 GuiControl, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Disable" : "Enable"), f_btnEditClipboard
 
 Menu, menuBarEditorFile, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["GuiSaveEditor"] . "`tCtrl+S"
+Menu, menuBarEditorMain,  % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["MenuEditorEdit"]
 
 if (A_ThisLabel = "EditorDisableSaveAndCancel")
 {
@@ -5927,9 +5928,9 @@ class Rule
 			else if (this.intSubStringFromType = 2) ; FromPosition
 				strCodeStart .= this.intSubStringFromPosition
 			else if (this.intSubStringFromType = 3) ; FromBeginText
-				strCodeStart := "InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringFromText) . """) + " . this.intSubStringFromPlusMinus ; used to substract from "to" position
+				strCodeStart := "(InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringFromText) . """) ? InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringFromText) . """) + " . this.intSubStringFromPlusMinus . " : 1)" ; used to substract from "to" position
 			else if (this.intSubStringFromType = 4) ; FromEndText
-				strCodeStart := "InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringFromText) . """) + StrLen(""" . DoubleDoubleQuotes(this.strSubStringFromText) . """) + " . this.intSubStringFromPlusMinus ; used to substract from "to" position
+				strCodeStart := "(InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringFromText) . """) ? InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringFromText) . """) + StrLen(""" . DoubleDoubleQuotes(this.strSubStringFromText) . """) + " . this.intSubStringFromPlusMinus . " : 1)" ; used to substract from "to" position
 			strSubString .= strCodeStart
 			
 			if (this.intSubStringToType <> 1)
@@ -5941,9 +5942,9 @@ class Rule
 			else if (this.intSubStringToType = 3) ; ToBeforeEnd
 				strSubString .= this.intSubStringToLength ; intSubStringToLength already negative
 			else if (this.intSubStringToType = 4) ; ToBeginText
-				strSubString .= "InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringToText) . """) + " . this.intSubStringToPlusMinus . " - (" . strCodeStart . ")"
+				strSubString .= "(InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringToText) . """) ? InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringToText) . """) + " . this.intSubStringToPlusMinus . " - (" . strCodeStart . ") : StrLen(Clipboard))"
 			else if (this.intSubStringToType = 5) ; ToEndText
-				strSubString .= "InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringToText) . """) + StrLen(""" . DoubleDoubleQuotes(this.strSubStringToText) . """) + " . this.intSubStringToPlusMinus . " - (" . strCodeStart . ")"
+				strSubString .= "(InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringToText) . """) ? InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringToText) . """) + StrLen(""" . DoubleDoubleQuotes(this.strSubStringToText) . """) + " . this.intSubStringToPlusMinus . " - (" . strCodeStart . ") : StrLen(Clipboard))"
 			strSubString .= ")"
 			
 			if (this.blnRepeat)
@@ -6001,19 +6002,19 @@ class Rule
 			else if (this.intSubStringFromType = 2) ; FromPosition
 				intStartingPos .= this.intSubStringFromPosition
 			else if (this.intSubStringFromType = 3) ; FromBeginText
-				intStartingPos := "InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringFromText) . """) + " . this.intSubStringFromPlusMinus ; used to substract from "to" position
+				intStartingPos := (InStr(strText, this.strSubStringFromText) ? InStr(strText, this.strSubStringFromText) + this.intSubStringFromPlusMinus : 1)
 			else if (this.intSubStringFromType = 4) ; FromEndText
-				intStartingPos := "InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringFromText) . """) + StrLen(""" . DoubleDoubleQuotes(this.strSubStringFromText) . """) + " . this.intSubStringFromPlusMinus ; used to substract from "to" position
+				intStartingPos := (InStr(strText, this.strSubStringFromText) ? InStr(strText, this.strSubStringFromText) + StrLen(this.strSubStringFromText) + this.intSubStringFromPlusMinus : 1)
 			strSubString .= intStartingPos
 			
 			if (this.intSubStringToType = 2) ; ToLength
-				intLength :=  this.intSubStringToLength
+				intLength := this.intSubStringToLength
 			else if (this.intSubStringToType = 3) ; ToBeforeEnd
-				intLength :=  this.intSubStringToLength ; intSubStringToLength already negative
+				intLength := this.intSubStringToLength ; intSubStringToLength already negative
 			else if (this.intSubStringToType = 4) ; ToBeginText
-				intLength :=  InStr(strText, (this.strSubStringToText)) + this.intSubStringToPlusMinus - intStartingPos
+				intLength := (InStr(strText, this.strSubStringToText) ? InStr(strText, this.strSubStringToText) + this.intSubStringToPlusMinus - intStartingPos : StrLen(strText))
 			else if (this.intSubStringToType = 5) ; ToEndText
-				intLength :=  InStr(strText, this.strSubStringToText) + StrLen(this.strSubStringToText) + this.intSubStringToPlusMinus - intStartingPos
+				intLength := (InStr(strText, this.strSubStringToText) ? InStr(strText, this.strSubStringToText) + StrLen(this.strSubStringToText) + this.intSubStringToPlusMinus - intStartingPos : StrLen(strText))
 			
 			if (this.blnRepeat)
 			{

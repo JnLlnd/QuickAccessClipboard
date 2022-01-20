@@ -214,7 +214,7 @@ Status bar
 Editor's context menu
 - replace editor control context menu to manage Clipboard connection
   - enable or disable context menu items based on selected text, Clipboard content or editor changed status
-  - intercept Ctrl+C and Ctr+V in editor to disable Clipboard connection when using these keys in the editor
+  - intercept Ctrl+C and Ctrl+V in editor to disable Clipboard connection when using these keys in the editor
  
 Various
 - take a backup of rules checkboxes when showing the main window; if the window is closed without applying changed rules, restore backup values and alert user with a tooltip
@@ -483,8 +483,8 @@ Gosub, LoadIniFile ; load options and rules
 
 ; Build menu used in Settings Gui
 Gosub, BuildRulesMenuBar
-Gosub, BuildEditorContextMenu
 Gosub, BuildEditorMenuBar
+Gosub, BuildEditorContextMenu
 Gosub, BuildTrayMenu
 
 ; Init diag mode
@@ -554,6 +554,8 @@ Hotkey, If, WinActive(QACGuiTitle("Editor"))
 
 	Hotkey, ^c, EditorCtrlC, On UseErrorLevel
 	Hotkey, ^x, EditorCtrlX, On UseErrorLevel
+	Hotkey, ^e, EditorCtrlE, On UseErrorLevel
+	Hotkey, Del, EditorCtrlDel, On UseErrorLevel
 	Hotkey, +F10, EditorShiftF10, On UseErrorLevel
 
 	; other Hotkeys are created by menu assignement in BuildEditorMenuBar
@@ -601,33 +603,48 @@ return
 ;========================================================================================================================
 
 ; Settings Gui Hotkeys
-; see Hotkey, If, WinActive(QAPSettingsString())
+; see Hotkey, If, WinActive(QACGuiTitle("Editor"))
 
 ;-----------------------------------------------------------
 EditorCtrlS: ; ^S::
 EditorEsc: ; Escape::
 EditorCtrlC: ; Copy
 EditorCtrlX: ; Cut
+EditorCtrlE: ; Edit
+EditorCtrlDel: ; Del
 EditorShiftF10: ; context menu
 ;-----------------------------------------------------------
+Gui, Editor:Default
+
+if (A_ThisLabel = "EditorEsc")
+
+	Gosub, EditorClose
+	
+GuiControlGet, blnEditClipboardButtonEnabled, Enabled, f_btnEditClipboard
+if (blnEditClipboardButtonEnabled)
+{
+	if (A_ThisLabel = "EditorCtrlE")
+		Gosub, EnableEditClipboard
+	else
+		Oops(1, o_L["GuiEnableEditor"])
+	return
+}
 
 if (A_ThisLabel = "EditorCtrlS")
 	
 	Gosub, EditorSave
 
-else if (A_ThisLabel = "EditorEsc")
+else if InStr("EditorCtrlC|EditorCtrlX|EditorCtrlDel", A_ThisLabel)
 
-	Gosub, EditorClose
+	Send, % (A_ThisLabel = "EditorCtrlC" ? "^c" : (A_ThisLabel = "EditorCtrlX" ? "^x" : "{Del}"))
 
-else if (A_ThisLabel = "EditorCtrlC") or (A_ThisLabel = "EditorCtrlX")
-{
-	Gosub, DisableClipboardChangesInEditor
-	Send, % (A_ThisLabel = "EditorCtrlC" ? "^c" : "^x")
-	Gosub, EditorEnableSaveAndCancel
-}
 else if (A_ThisLabel = "EditorShiftF10")
 	
 	Gosub, ShowUpdatedEditorContextMenu
+
+else if (A_ThisLabel = "EditorCtrlE")
+	
+	Menu, menuBarEditorEdit, Show
 
 return
 ;-----------------------------------------------------------
@@ -972,16 +989,16 @@ BuildEditorContextMenu:
 OnMessage(0x204, "WM_RBUTTONDOWN")
 OnMessage(0x205, "WM_RBUTTONUP")
 
-Menu, menuEditorContextMenu, Add, % o_L["DialogUndo"], EditorContextMenuActions
+Menu, menuEditorContextMenu, Add, % o_L["MenuEditorEdit"] . "`tCtrl+E", :menuBarEditorEdit
 Menu, menuEditorContextMenu, Add
-Menu, menuEditorContextMenu, Add, % o_L["DialogCut"], EditorContextMenuActions
-Menu, menuEditorContextMenu, Add, % o_L["DialogCopy"], EditorContextMenuActions
-Menu, menuEditorContextMenu, Add, % o_L["DialogPaste"], EditorContextMenuActions
-Menu, menuEditorContextMenu, Add, % o_L["DialogDelete"], EditorContextMenuActions
+Menu, menuEditorContextMenu, Add, % o_L["DialogUndo"] . "`tCtrl+Z", EditorContextMenuActions
 Menu, menuEditorContextMenu, Add
-Menu, menuEditorContextMenu, Add, % o_L["MenuExecuteRule"], :menuRules
+Menu, menuEditorContextMenu, Add, % o_L["DialogCut"] . "`tCtrl+X", EditorContextMenuActions
+Menu, menuEditorContextMenu, Add, % o_L["DialogCopy"] . "`tCtrl+C", EditorContextMenuActions
+Menu, menuEditorContextMenu, Add, % o_L["DialogPaste"] . "`tCtrl+V", EditorContextMenuActions
+Menu, menuEditorContextMenu, Add, % o_L["DialogDelete"] . "`tDel", EditorContextMenuActions
 Menu, menuEditorContextMenu, Add
-Menu, menuEditorContextMenu, Add, % o_L["DialogSelectAll"], EditorContextMenuActions
+Menu, menuEditorContextMenu, Add, % o_L["DialogSelectAll"] . "`tCtrl+A", EditorContextMenuActions
 
 return
 ;------------------------------------------------------------
@@ -994,14 +1011,14 @@ ShowUpdatedEditorContextMenu:
 GuiControl, Focus, f_strClipboardEditor ; give focus to control for EditorContextMenuActions
 
 GuiControlGet, blnEnable, Enabled, f_btnEditorSave ; enable Undo item if Save button is enabled
-Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogUndo"]
+Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogUndo"] . "`tCtrl+Z"
 
 blnEnable := GetSelectedTextLenght() ; enable Cut, Copy, Delete if text is selected in the control
-Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCut"]
-Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCopy"]
-Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogDelete"]
+Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCut"] . "`tCtrl+X"
+Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCopy"] . "`tCtrl+C"
+Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogDelete"] . "`tDel"
 
-Menu, menuEditorContextMenu, % (StrLen(Clipboard) ? "Enable" : "Disable"), % o_L["DialogPaste"]
+Menu, menuEditorContextMenu, % (StrLen(Clipboard) ? "Enable" : "Disable"), % o_L["DialogPaste"] . "`tCtrl+V"
 Menu, menuEditorContextMenu, Show
 
 return
@@ -1142,7 +1159,7 @@ Menu, menuBarEditorFile, Add
 Menu, menuBarEditorFile, Add, % L(o_L["MenuExitApp"], g_strAppNameText), EditorCloseAndExitApp
 
 for intOrder, aaRuleType in g_saRuleTypesOrder
-	if (aaRuleType.strTypeCode <> "AutoHotkey")
+	if !InStr("ConvertFormat|AutoHotkey", aaRuleType.strTypeCode)
 		Menu, menuBarEditorEdit, Add, % aaRuleType.strTypeLabel, % "GuiEditor" . aaRuleType.strTypeCode
 
 Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyMouse"], GuiSelectShortcut3
@@ -1377,6 +1394,8 @@ else if (A_ThisLabel = "GuiRulesSelectedEvents" and A_GuiEvent == "D") ; case se
 	; A_EventInfo ; original position, not used
     intNewItemPos := o_LvRowsHandle.Drag("D", true, 80, 2, "3F51B5") ; returns the new item position, 3F51B5 is the color of the up/down buttons
 	; intNewItemPos not used
+
+	Gosub, GuiApplyRules
 }
 
 return
@@ -1583,8 +1602,8 @@ Gui, Editor:New, +Hwndg_intEditorHwnd +Resize -MinimizeBox +MinSize%g_intEditorD
 if (o_Settings.Launch.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar, 2 System menu, 3 both
 	Gui, Menu, menuBarEditorMain
 
-Gui, Font, s10 w600, Arial
-Gui, Add, Button, x10 y10 vf_btnEditClipboard gEnableEditClipboard Default, Edit Clipboard
+Gui, Font, s8 w600, Verdana
+Gui, Add, Button, x10 y10 vf_btnEditClipboard gEnableEditClipboard Default h26, % " Edit Clipboard "
 Gui, Font
 GuiControl, Focus, f_btnEditClipboard
 
@@ -1604,10 +1623,10 @@ GuiControlGet, arrControlPos, Pos, f_strClipboardEditor
 g_saEditorControls[1].Y := arrControlPosY
 Gosub, ClipboardEditorFontChanged ; must be after Add Edit
 
-Gui, Font, s10 w600, Arial
-Gui, Add, Button, vf_btnEditorSave Disabled gEditorSave x100 y+10 w140, % o_L["GuiSaveEditor"]
-Gui, Add, Button, vf_btnEditorCancel gEditorCancel x200 yp w120, % o_L["GuiCancel"]
-Gui, Add, Button, vf_btnEditorClose gEditorClose x300 yp w120, % o_L["GuiClose"]
+Gui, Font, s8 w600, Verdana
+Gui, Add, Button, vf_btnEditorSave Disabled gEditorSave x100 y+10 w140 h30, % o_L["GuiSaveEditor"]
+Gui, Add, Button, vf_btnEditorCancel gEditorCancel x200 yp w120 h30, % o_L["GuiCancel"]
+Gui, Add, Button, vf_btnEditorClose gEditorClose x300 yp w120 h30, % o_L["GuiClose"]
 Gui, Font
 
 Gui, Add, StatusBar
@@ -1697,19 +1716,26 @@ return
 ;------------------------------------------------------------
 ExecuteRule:
 ;------------------------------------------------------------
-Gui, Editor:Submit, NoHide
-
-Gosub, 2GuiClose ; to avoid flashing Gui Rules:
 
 g_strEditedText := Edit_GetSelText(g_strEditorControlHwnd)
+if !StrLen(g_strEditedText)
+	g_strEditedText := f_strClipboardEditor ; all content of editor
+else
+{
+	; get text before and after selection
+	strAllText := StrReplace(f_strClipboardEditor, Chr(10), Chr(13) . Chr(10)) ; add CR to get intStart and intEnd compatible with Edit_GetSel
+	Edit_GetSel(g_strEditorControlHwnd, intStart, intEnd)
+	strBefore := StrReplace(SubStr(strAllText, 1, intStart), Chr(13) . Chr(10), Chr(10))
+	strAfter := StrReplace(SubStr(strAllText, intEnd + 1), Chr(13) . Chr(10), Chr(10))
+}
 
-; get text before and after selection
-strAllText := StrReplace(f_strClipboardEditor, Chr(10), Chr(13) . Chr(10)) ; add CR to get intStart and intEnd compatible with Edit_GetSel
-Edit_GetSel(g_strEditorControlHwnd, intStart, intEnd)
-strBefore := StrReplace(SubStr(strAllText, 1, intStart), Chr(13) . Chr(10), Chr(10))
-strAfter := StrReplace(SubStr(strAllText, intEnd + 1), Chr(13) . Chr(10), Chr(10))
+IniRead, strRule, % o_Settings.strIniFile, RuleToExecute, RuleToExecute ; same section and item name
+saRuleValues := StrSplit(strRule, "|")
+loop, % saRuleValues.Length()
+	saRuleValues[A_Index] := DecodeFromIni(saRuleValues[A_Index])
+aaRuleToExecute := new Rule("RuleToexecute", saRuleValues)
 
-Gosub, ExecuteRuleType
+g_strEditedText := aaRuleToExecute.ExecRule(g_strEditedText)
 
 if (intEnd - intStart) ; rebuild full Clipboard
 	g_strEditedText := strBefore . g_strEditedText . strAfter
@@ -1718,124 +1744,14 @@ GuiControl, , %g_strEditorControlHwnd%, %g_strEditedText% ; copy content to edit
 
 Edit_SetSel(g_strEditorControlHwnd, intStart, intEnd)
 
-return
-;------------------------------------------------------------
-
-
-;------------------------------------------------------------
-ExecuteRuleType:
-;------------------------------------------------------------
-
-###_V(A_ThisLabel, g_strEditedText)
-
-/*
-
-See: ExecuteRule:
-
-Rule3(strType) ; Convert to text (ConvertFormat)
-{
-if (strType = 1) ; text
-{
-Clipboard := Clipboard
-g_intLastTick := A_TickCount ; reset timeout counter
-Sleep, 50
-
-}
-}
-
-Rule1(strType) ; Lower case (ChangeCase)
-{
-if (strType = 1) ; text
-{
-Clipboard := RegExReplace(Clipboard, ".*", "$L0")
-g_intLastTick := A_TickCount ; reset timeout counter
-Sleep, 50
-
-}
-}
-
-Rule7(strType) ; MsgBox (AutoHotkey)
-{
-if (strType = 1) ; text
-{
-MsgBox, Your Clipboard1 contains: %Clipboard%
-g_intLastTick := A_TickCount ; reset timeout counter
-Sleep, 50
-
-}
-}
-
-Rule8(strType) ; MsgBox Multiline (AutoHotkey)
-{
-if (strType = 1) ; text
-{
-if StrLen(Clipboard) > 500
-	str := "The 500 first characters of your Clipboard are:`n`n" . SubStr(Clipboard, 1, 500) . "..."
-else
-	str := "Your Clipboard contains:`n`n" . Clipboard
-MsgBox, %str%
-g_intLastTick := A_TickCount ; reset timeout counter
-Sleep, 50
-
-}
-}
-
-Rule6(strType) ; Prefix with Title (Prefix)
-{
-if (strType = 1) ; text
-{
-Clipboard := "Title: " . Clipboard . ""
-g_intLastTick := A_TickCount ; reset timeout counter
-Sleep, 50
-
-}
-}
-
-Rule4(strType) ; Replace this with that (Replace)
-{
-if (strType = 1) ; text
-{
-Clipboard := RegExReplace(Clipboard, "i)\bthis\b", "that")
-g_intLastTick := A_TickCount ; reset timeout counter
-Sleep, 50
-
-}
-}
-
-Rule9(strType) ; Suffix Example (Suffix)
-{
-if (strType = 1) ; text
-{
-Clipboard := "" . Clipboard . "... Suffix"
-g_intLastTick := A_TickCount ; reset timeout counter
-Sleep, 50
-
-}
-}
-
-Rule5(strType) ; Trim 2 last characters (SubString)
-{
-if (strType = 1) ; text
-{
-Clipboard := SubStr(Clipboard, 1, -2)
-g_intLastTick := A_TickCount ; reset timeout counter
-Sleep, 50
-
-}
-}
-
-Rule2(strType) ; Upper case (ChangeCase)
-{
-if (strType = 1) ; text
-{
-Clipboard := RegExReplace(Clipboard, ".*", "$U0")
-g_intLastTick := A_TickCount ; reset timeout counter
-Sleep, 50
-
-}
-}
-
-*/
+aaEditedRule := ""
+strAllText := ""
+intStart := ""
+intEnd := ""
+strBefore := ""
+strAfter := ""
+strRule := ""
+saRuleValues := ""
 
 return
 ;------------------------------------------------------------
@@ -1848,6 +1764,8 @@ EnableEditClipboard:
 Gosub, ClipboardEditorChanged
 GuiControl, -ReadOnly, f_strClipboardEditor
 GuiControl, , f_blnSeeInvisible, 0
+Gosub, ClipboardEditorSeeInvisibleChanged
+GuiControl, Disable, f_btnEditClipboard
 
 Menu, menuBarEditorMain, Enable, % o_L["MenuEditorEdit"]
 
@@ -1897,8 +1815,7 @@ ClipboardEditorSeeInvisibleChanged:
 ;------------------------------------------------------------
 Gui, Editor:Submit, NoHide
 
-GuiControlGet, blnEditClipboardEnabled, Enabled, f_btnEditClipboard
-if (f_blnSeeInvisible and !blnEditClipboardEnabled)
+if (f_blnSeeInvisible)
 {
 	GuiControl, +ReadOnly, f_strClipboardEditor
 	GuiControl, Enable, f_btnEditClipboard
@@ -1925,7 +1842,6 @@ ClipboardContentChanged(intClipboardContentType)
 		Gosub, EditorDisableSaveAndCancel
 	}
 	DetectHiddenWindows, %strDetectHiddenWindowsBefore%
-
 }
 ;------------------------------------------------------------
 
@@ -1990,7 +1906,7 @@ else ; Editor
 	g_intEditorW := A_GuiWidth - 40
 
 	; = (A_GuiWidth - left margin - right margin - (3 buttons width)) // 4 (left, between buttons, right)
-	intButtonSpacing := (A_GuiWidth - 120 - 120 - (140 + 120 + 120)) // 4
+	intButtonSpacing := (A_GuiWidth - 80 - 80 - (140 + 120 + 120)) // 4
 }
 
 for intIndex, aaGuiControl in (strGui = "Rules" ? g_saRulesControls : g_saEditorControls)
@@ -2136,7 +2052,7 @@ strAction := StrReplace(A_ThisLabel, "GuiRule")
 
 if (strAction = "FromEditor")
 {
-	aaEditedRule := new Rule("", [g_strExecRuleType, "", ""]) ; __New(strName := "", saRuleValues := "")
+	aaEditedRule := new Rule("RuleToExecute", [g_strExecRuleType, "", ""]) ; __New(strName := "", saRuleValues := "")
 }
 else
 {
@@ -2274,7 +2190,7 @@ else if InStr("Prefix Suffix", aaEditedRule.strTypeCode)
 
 if (strAction = "FromEditor")
 {
-	Gui, 2:Add, Button, y+20 vf_btnGo Default gExecuteRule, % o_L["GuiGo"]
+	Gui, 2:Add, Button, y+20 vf_btnGo Default gGuiRuleToExecute, % o_L["GuiGo"]
 	Gui, 2:Add, Button, yp vf_btnCancel g2GuiClose, % o_L["GuiCancel"]
 	GuiCenterButtons(g_strGui2Hwnd, , , , , , "f_btnGo", "f_btnCancel")
 }
@@ -2325,23 +2241,32 @@ return
 
 ;------------------------------------------------------------
 GuiRuleSave:
+GuiRuleToExecute:
 ;------------------------------------------------------------
 Gui, 2:Submit, NoHide
 
-if InStr(f_strName, "=") or InStr(f_strName, ";")
+if (A_ThisLabel = "GuiRuleSave")
 {
-	Oops(2, o_L["OopsNotAllowedInRuleNames"])
-	return
+	if InStr(f_strName, "=") or InStr(f_strName, ";")
+	{
+		Oops(2, o_L["OopsNotAllowedInRuleNames"])
+		return
+	}
+
+	strPreviousName := aaEditedRule.strName
+
+	aaEditedRule.strName := f_strName
+	aaEditedRule.strCategory := f_strCategory
+	aaEditedRule.strNotes := f_strNotes
+
+	if !StrLen(f_strName)
+	{
+		Oops(2, o_L["OopsValueMissing"])
+		return
+	}
 }
 
-strPreviousName := aaEditedRule.strName
-
-aaEditedRule.strName := f_strName
-aaEditedRule.strCategory := f_strCategory
-aaEditedRule.strNotes := f_strNotes
-
-
-if !StrLen(f_strName) or (InStr("Replace AutoHotkey Prefix Suffix", aaEditedRule.strTypeCode) and !StrLen(f_varValue1))
+if InStr("Replace AutoHotkey Prefix Suffix", aaEditedRule.strTypeCode) and !StrLen(f_varValue1)
 {
 	Oops(2, o_L["OopsValueMissing"])
 	return
@@ -2397,16 +2322,24 @@ else
 	Loop, 9
 		saValues.Push(EncodeForIni(f_varValue%A_Index%))
 
-if (strAction <> "Edit" and g_aaRulesByName.HasKey(f_strName)) ; when adding or copying
+if (A_ThisLabel = "GuiRuleSave")
 {
-	Oops(2, o_L["OopsNameExists"], f_strName)
-	return
+	if (strAction <> "Edit" and g_aaRulesByName.HasKey(f_strName)) ; when adding or copying
+	{
+		Oops(2, o_L["OopsNameExists"], f_strName)
+		return
+	}
+	
+	Gosub, BackupRules
+	Gosub, BackupSelectedRules
+	aaEditedRule.SaveRule(strAction, saValues, strPreviousName)
+	Gosub, LoadRulesKeepSelected
 }
-
-Gosub, BackupRules
-Gosub, BackupSelectedRules
-aaEditedRule.SaveRule(strAction, saValues, strPreviousName)
-Gosub, LoadRulesKeepSelected
+else
+{
+	aaEditedRule.SaveRule(strAction, saValues, strPreviousName)
+	Gosub, ExecuteRule
+}
 
 loop, 9 ; delete form values because Gui:Destroy does not
 	GuiControl, , f_varValue%A_Index%
@@ -2910,11 +2843,15 @@ EditorDisableSaveAndCancel:
 Gui, Editor:Default
 GuiControl, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), f_btnEditorSave
 GuiControl, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), f_btnEditorCancel
+GuiControl, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Disable" : "Enable"), f_btnEditClipboard
 
 Menu, menuBarEditorFile, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["GuiSaveEditor"] . "`tCtrl+S"
 
 if (A_ThisLabel = "EditorDisableSaveAndCancel")
+{
+	GuiControl, Focus, f_btnEditClipboard
 	Gosub, EnableClipboardChangesInEditor
+}
 else
 	Gosub, DisableClipboardChangesInEditor
 
@@ -4513,7 +4450,13 @@ WM_RBUTTONUP()
 ;------------------------------------------------------------
 {
     if (A_GuiControl = "f_strClipboardEditor")
-		Gosub, ShowUpdatedEditorContextMenu
+	{
+		GuiControlGet, blnEditClipboardButtonEnabled, Enabled, f_btnEditClipboard
+		if (blnEditClipboardButtonEnabled)
+			Oops(1, o_L["GuiEnableEditor"])
+		else
+			Gosub, ShowUpdatedEditorContextMenu
+	}
 }
 ;------------------------------------------------------------
 
@@ -5311,7 +5254,6 @@ class Triggers.MouseButtons
 		{
 			; Two hotkey variants for A_ThisHotkey: if CanNavigate or if CanLaunch, else A_ThisHotkey does nothing
 			; "If more than one variant of a hotkey is eligible to fire, only the one created earliest will fire."
-			; Hotkey, If, CanNavigate(A_ThisHotkey)
 			Hotkey, If, CanPopup(A_ThisHotkey)
 				; (1 OpenRulesHotkeyMouse, 2 OpenRulesHotkeyKeyboard, 3 OpenEditorHotkeyMouse, 4 OpenEditorHotkeyKeyboard)
 				this.SA[1].EnableHotkey("OpenRules", "Mouse")
@@ -5875,7 +5817,7 @@ class Rule
 		if InStr("Prefix Suffix", this.strTypeCode)
 			this.blnRepeat := saRuleValues[2]
 		
-		if StrLen(strName) ; update rules objects except if creating a new rule from gui
+		if StrLen(strName) and (strName <> "RuleToExecute") ; update rules objects except if creating a new rule from gui or if rule is to execute
 		{
 			g_aaRulesByName[strName] := this
 			this.intID := g_saRulesOrder.Push(this)
@@ -5906,18 +5848,21 @@ class Rule
 			strIniLine .= StrReplace(saValues[A_Index], "|", g_strPipe) . "|"
 			; do not remove last | in case we have a space as last character
 		
-		IniWrite, %strIniLine%, % o_Settings.strIniFile, Rules, % this.strName
+		IniWrite, %strIniLine%, % o_Settings.strIniFile, % (strAction = "FromEditor" ? "RuleToExecute" : "Rules"), % this.strName
 		; update rules objects will be done by LoadRules
 		
-		if (strAction = "Edit" and strPreviousName <> this.strName)
-			this.DeleteRule(strPreviousName)
-		
-		; update rules index in ini file
-		IniRead, strRulesList, % o_Settings.strIniFile, Rules-index, Rules
-		if StrLen(strPreviousName)
-			strRulesList := StrReplace(strRulesList, ";" . strPreviousName . ";", ";")
-		strRulesList .= this.strName . ";"
-		IniWrite, %strRulesList%, % o_Settings.strIniFile, Rules-index, Rules
+		if (strAction <> "FromEditor")
+		{
+			if (strAction = "Edit" and strPreviousName <> this.strName)
+				this.DeleteRule(strPreviousName)
+			
+			; update rules index in ini file
+			IniRead, strRulesList, % o_Settings.strIniFile, Rules-index, Rules
+			if StrLen(strPreviousName)
+				strRulesList := StrReplace(strRulesList, ";" . strPreviousName . ";", ";")
+			strRulesList .= this.strName . ";"
+			IniWrite, %strRulesList%, % o_Settings.strIniFile, Rules-index, Rules
+		}
 	}
 	;---------------------------------------------------------
 	
@@ -6032,6 +5977,68 @@ class Rule
 		strCode .= "`n}`n}`n`n"
 		
 		return strCode
+	}
+	;---------------------------------------------------------
+
+	;---------------------------------------------------------
+	ExecRule(strText)
+	;---------------------------------------------------------
+	{
+		if (this.strTypeCode = "ChangeCase")
+			return RegExReplace(strText, this.strFind, this.strReplace)
+		else if (this.strTypeCode = "Replace")
+		{
+			strFind := DoubleDoubleQuotes(this.strFind) ; double double-quotes inside search string
+			strFind := EscapeRegexString(strFind) ; escape regex characters "\.*?+[{|()^$" with "\" before adding \b or i) options
+			strFind := (this.blnReplaceWholeWord ? "\b" . strFind . "\b" : strFind) ; \b...\b for whole word boundries
+			strFind := (this.blnReplaceCaseSensitive ? "" : "i)") . strFind ; by default, regex are case-sensitive, changed with "i)"
+			return RegExReplace(strText, strFind, this.strReplace)
+		}
+		else if (this.strTypeCode = "SubString")
+		{
+			if (this.intSubStringFromType = 1) ; FromStart
+				intStartingPos := "1"
+			else if (this.intSubStringFromType = 2) ; FromPosition
+				intStartingPos .= this.intSubStringFromPosition
+			else if (this.intSubStringFromType = 3) ; FromBeginText
+				intStartingPos := "InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringFromText) . """) + " . this.intSubStringFromPlusMinus ; used to substract from "to" position
+			else if (this.intSubStringFromType = 4) ; FromEndText
+				intStartingPos := "InStr(Clipboard, """ . DoubleDoubleQuotes(this.strSubStringFromText) . """) + StrLen(""" . DoubleDoubleQuotes(this.strSubStringFromText) . """) + " . this.intSubStringFromPlusMinus ; used to substract from "to" position
+			strSubString .= intStartingPos
+			
+			if (this.intSubStringToType = 2) ; ToLength
+				intLength :=  this.intSubStringToLength
+			else if (this.intSubStringToType = 3) ; ToBeforeEnd
+				intLength :=  this.intSubStringToLength ; intSubStringToLength already negative
+			else if (this.intSubStringToType = 4) ; ToBeginText
+				intLength :=  InStr(strText, (this.strSubStringToText)) + this.intSubStringToPlusMinus - intStartingPos
+			else if (this.intSubStringToType = 5) ; ToEndText
+				intLength :=  InStr(strText, this.strSubStringToText) + StrLen(this.strSubStringToText) + this.intSubStringToPlusMinus - intStartingPos
+			
+			if (this.blnRepeat)
+			{
+				Loop, Parse, strText, `n
+					if (this.intSubStringToType = 1)
+						strTemp .= SubStr(A_LoopField, intStartingPos) . "`n"
+					else
+						strTemp .= SubStr(A_LoopField, intStartingPos, intLength) . "`n"
+				return SubStr(strTemp, 1, -1) ; remove last eol
+			}
+			else
+				if (this.intSubStringToType = 1)
+					return SubStr(strText, intStartingPos)
+				else
+					return SubStr(strText, intStartingPos, intLength)
+		}
+		else if InStr("Prefix Suffix", this.strTypeCode)
+			if (this.blnRepeat)
+			{
+				Loop, Parse, strText, `n
+					strTemp .=  (this.strTypeCode = "Prefix" ? this.strPrefix : "") . A_LoopField . (this.strTypeCode = "Suffix" ? this.strSuffix : "") . "`n"
+				return SubStr(strTemp, 1, -1) ; remove last eol
+			}
+			else
+				return (this.strTypeCode = "Prefix" ? this.strPrefix : "") . strText . (this.strTypeCode = "Suffix" ? this.strSuffix : "")
 	}
 	;---------------------------------------------------------
 }

@@ -34,14 +34,13 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
-Version ALPHA: 0.0.8 (2022-01-??)
+Version ALPHA: 0.0.8.1 (2022-01-??)
+
+Version ALPHA: 0.0.8 (2022-01-20)
 - split user interface in 2 guis: rules manager and editor
 - add a cancel button to editor that do not close the window
 - add "Edit Clipboard" button to editor removing the default readonly attibute of the editor
 - add status when Clipboard is synchronized
-- make Rules manager gui resizable
-- save hotkeys to ini file section hotkeys
-- enable checkmark for "Options, Run at Startup" menu in Rules gui
 - add "Edit" menu with all rule types (except types AutoHotkey and ConvertFormat) to editor menu bar and to editor context menu
 - update getting the selected in editor using Edit library from jballi
 - add Oops message when the editor is readonly
@@ -49,7 +48,10 @@ Version ALPHA: 0.0.8 (2022-01-??)
 - add Del to hotkeys processed if used in readonly editor
 - apply rules on editor or selected text in editor, using a temporary rule object, refactoring save rule and adding rule method ExecRule()
 - disable "Edit" main menu after cancel changes in editor
+- make Rules manager gui resizable
+- enable checkmark for "Options, Run at Startup" menu in Rules gui
 - fix bugs in ExecRule() and GetCode() methods for Substring rules when the searched text (for "From text" or "To text" options) is not found
+- save hotkeys to ini file section hotkeys
 
 Version ALPHA: 0.0.7.3 (2022-01-13)
 - apply rules each time a rule is selected or deselected
@@ -249,7 +251,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.8
+;@Ahk2Exe-SetVersion 0.0.8.1
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -320,7 +322,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.8" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.8.1" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -1114,6 +1116,10 @@ BuildRulesMenuBar:
 ; see https://docs.microsoft.com/fr-fr/windows/desktop/uxguide/cmd-menus
 ;------------------------------------------------------------
 
+Menu, menuRulesWindowMenu, Add, % o_L["MenuEditor"] . "`tCtrl+E", GuiShowOnlyEditor
+Menu, menuRulesWindowMenu, Add
+Menu, menuRulesWindowMenu, Add, % o_L["MenuShowBoth"] . "`tCtrl+B", GuiShowRulesEditor
+
 Menu, menuBarRulesFile, Add, % o_L["GuiClose"] . "`tEsc", RulesClose
 Menu, menuBarRulesFile, Add
 Menu, menuBarRulesFile, Add, % o_L["MenuOpenWorkingDirectory"], OpenWorkingDirectory
@@ -1152,6 +1158,7 @@ Menu, menuBarRulesHelp, Add, % L(o_L["MenuAbout"], g_strAppNameText), GuiAboutRu
 Menu, menuBarRulesMain, Add, % o_L["MenuFile"], :menuBarRulesFile
 Menu, menuBarRulesMain, Add, % o_L["MenuRule"], :menuBarRulesRule
 Menu, menuBarRulesMain, Add, % o_L["MenuOptions"], :menuBarRulesOptions
+Menu, menuBarRulesMain, Add, % o_L["MenuWindow"], :menuRulesWindowMenu
 Menu, menuBarRulesMain, Add, % o_L["MenuHelp"], :menuBarRulesHelp
 
 return
@@ -1162,6 +1169,10 @@ return
 BuildEditorMenuBar:
 ; see https://docs.microsoft.com/fr-fr/windows/desktop/uxguide/cmd-menus
 ;------------------------------------------------------------
+
+Menu, menuEditorWindowMenu, Add, % o_L["MenuRules"] . "`tCtrl+D", GuiShowOnlyRules
+Menu, menuEditorWindowMenu, Add
+Menu, menuEditorWindowMenu, Add, % o_L["MenuShowBoth"] . "`tCtrl+B", GuiShowRulesEditor
 
 Menu, menuBarEditorFile, Add, % o_L["GuiSaveEditor"] . "`tCtrl+S", EditorCtrlS
 Menu, menuBarEditorFile, Add, % o_L["GuiClose"] . "`tEsc", EditorClose
@@ -1190,6 +1201,7 @@ Menu, menuBarEditorMain, Add, % o_L["MenuFile"], :menuBarEditorFile
 Menu, menuBarEditorMain, Add, % o_L["MenuEditorEdit"], :menuBarEditorEdit
 Menu, menuBarEditorMain, Disable, % o_L["MenuEditorEdit"]
 Menu, menuBarEditorMain, Add, % o_L["MenuOptions"], :menuBarEditorOptions
+Menu, menuBarEditorMain, Add, % o_L["MenuWindow"], :menuEditorWindowMenu
 Menu, menuBarEditorMain, Add, % o_L["MenuHelp"], :menuBarEditorHelp
 
 return
@@ -2962,6 +2974,28 @@ CanPopup(strMouseOrKeyboard) ; SEE HotkeyIfWin.ahk to use Hotkey, If, Expression
 */
 	return true
 }
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+GuiShowRulesEditor:
+GuiShowOnlyRules:
+GuiShowOnlyEditor:
+;------------------------------------------------------------
+
+if InStr(A_ThisLabel, "Rules")
+	Gosub, GuiShowRules
+
+if InStr(A_ThisLabel, "Editor")
+	Gosub, GuiShowEditor
+
+if (A_ThisLabel = "GuiShowOnlyRules")
+	Gui, Editor:Cancel
+
+if (A_ThisLabel = "GuiShowOnlyEditor")
+	Gui, Rules:Cancel
+
+return
 ;------------------------------------------------------------
 
 

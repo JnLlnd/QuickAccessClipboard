@@ -36,6 +36,20 @@ HISTORY
 
 Version ALPHA: 0.0.8 (2022-01-??)
 - split user interface in 2 guis: rules manager and editor
+- add a cancel button to editor that do not close the window
+- add "Edit Clipboard" button to editor removing the default readonly attibute of the editor
+- add status when Clipboard is synchronized
+- make Rules manager gui resizable
+- save hotkeys to ini file section hotkeys
+- enable checkmark for "Options, Run at Startup" menu in Rules gui
+- add "Edit" menu with all rule types (except types AutoHotkey and ConvertFormat) to editor menu bar and to editor context menu
+- update getting the selected in editor using Edit library from jballi
+- add Oops message when the editor is readonly
+- add Ctrl+E hotkey to enable the editor or, if already enabled, show the "Edit" menu
+- add Del to hotkeys processed if used in readonly editor
+- apply rules on editor or selected text in editor, using a temporary rule object, refactoring save rule and adding rule method ExecRule()
+- disable "Edit" main menu after cancel changes in editor
+- fix bugs in ExecRule() and GetCode() methods for Substring rules when the searched text (for "From text" or "To text" options) is not found
 
 Version ALPHA: 0.0.7.3 (2022-01-13)
 - apply rules each time a rule is selected or deselected

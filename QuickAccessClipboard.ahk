@@ -656,7 +656,7 @@ else if InStr("EditorCtrlC|EditorCtrlX|EditorCtrlDel", A_ThisLabel)
 
 else if (A_ThisLabel = "EditorShiftF10")
 	
-	Gosub, ShowUpdatedEditorContextMenu
+	Gosub, ShowUpdatedEditorEditMenu
 
 else if (A_ThisLabel = "EditorCtrlE")
 	
@@ -882,7 +882,6 @@ o_Settings.ReadIniOption("Launch", "blnCheck4Update", "Check4Update", (g_blnPort
 o_Settings.ReadIniOption("Launch", "intRulesTimeoutSecs", "RulesTimeoutSecs", 60, "")
 o_Settings.ReadIniOption("Launch", "strBackupFolder", "BackupFolder", A_WorkingDir
 	, "f_lblBackupFolder|f_strBackupFolder|f_btnBackupFolder|f_lblWorkingFolder|f_strWorkingFolder|f_btnWorkingFolder|f_lblWorkingFolderDisabled")
-o_Settings.ReadIniOption("Launch", "intShowMenuBar", "ShowMenuBar", 3, "")
 o_Settings.ReadIniOption("Launch", "blnDiagMode", "DiagMode", 0) ; g_blnDiagMode
 ; not ready !! o_Settings.ReadIniOption("Launch", "blnRunAsAdmin", "RunAsAdmin", 0, "f_blnRunAsAdmin|f_picRunAsAdmin") ; default false, if true reload QAC as admin
 
@@ -970,17 +969,15 @@ BuildTrayMenu:
 ;------------------------------------------------------------
 
 Menu, Tray, Add, % o_L["MenuEditor"] Default, GuiShowEditorFromTray
-Menu, Tray, Add, % o_L["MenuRules"], GuiShowRulesFromTray
 Menu, Tray, Click, 1 ; require only one left mouse button click to open the default item
-if (o_Settings.Launch.intShowMenuBar.IniValue > 1) ; 1 Customize menu bar, 2 System menu, 3 both
-{
-	Menu, Tray, Add
-	Menu, Tray, Add, % o_L["MenuOptions"], :menuBarEditorOptions
-	Menu, Tray, Add, % o_L["MenuHelp"], :menuBarEditorHelp
-}
+Menu, Tray, Add, % o_L["MenuRules"], GuiShowRulesFromTray
+Menu, Tray, Add
+Menu, Tray, Add, % o_L["MenuOpenWorkingDirectory"], OpenWorkingDirectory
 Menu, Tray, Add
 Menu, Tray, Add, % o_L["MenuSuspendHotkeys"], ToggleSuspendHotkeys
 Menu, Tray, Add, % o_L["MenuRunAtStartup"], ToggleRunAtStartup
+Menu, Tray, Add
+Menu, Tray, Add, % L(o_L["MenuReload"], g_strAppNameText), CleanUpBeforeReload
 Menu, Tray, Add, % L(o_L["MenuExitApp"], g_strAppNameText), RulesCloseAndExitApp
 ;@Ahk2Exe-IgnoreBegin
 ; Start of code for developement phase only - won't be compiled
@@ -1005,37 +1002,26 @@ BuildEditorContextMenu:
 OnMessage(0x204, "WM_RBUTTONDOWN")
 OnMessage(0x205, "WM_RBUTTONUP")
 
-Menu, menuEditorContextMenu, Add, % o_L["MenuEditorEdit"] . "`tCtrl+E", :menuBarEditorEdit
-Menu, menuEditorContextMenu, Add
-Menu, menuEditorContextMenu, Add, % o_L["DialogUndo"] . "`tCtrl+Z", EditorContextMenuActions
-Menu, menuEditorContextMenu, Add
-Menu, menuEditorContextMenu, Add, % o_L["DialogCut"] . "`tCtrl+X", EditorContextMenuActions
-Menu, menuEditorContextMenu, Add, % o_L["DialogCopy"] . "`tCtrl+C", EditorContextMenuActions
-Menu, menuEditorContextMenu, Add, % o_L["DialogPaste"] . "`tCtrl+V", EditorContextMenuActions
-Menu, menuEditorContextMenu, Add, % o_L["DialogDelete"] . "`tDel", EditorContextMenuActions
-Menu, menuEditorContextMenu, Add
-Menu, menuEditorContextMenu, Add, % o_L["DialogSelectAll"] . "`tCtrl+A", EditorContextMenuActions
-
 return
 ;------------------------------------------------------------
 
 
 ;------------------------------------------------------------
-ShowUpdatedEditorContextMenu:
+ShowUpdatedEditorEditMenu:
 ;------------------------------------------------------------
 
 GuiControl, Focus, f_strClipboardEditor ; give focus to control for EditorContextMenuActions
 
 GuiControlGet, blnEnable, Enabled, f_btnEditorSave ; enable Undo item if Save button is enabled
-Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogUndo"] . "`tCtrl+Z"
+Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogUndo"] . "`tCtrl+Z"
 
 blnEnable := GetSelectedTextLenght() ; enable Cut, Copy, Delete if text is selected in the control
-Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCut"] . "`tCtrl+X"
-Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCopy"] . "`tCtrl+C"
-Menu, menuEditorContextMenu, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogDelete"] . "`tDel"
+Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCut"] . "`tCtrl+X"
+Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCopy"] . "`tCtrl+C"
+Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogDelete"] . "`tDel"
 
-Menu, menuEditorContextMenu, % (StrLen(Clipboard) ? "Enable" : "Disable"), % o_L["DialogPaste"] . "`tCtrl+V"
-Menu, menuEditorContextMenu, Show
+Menu, menuBarEditorEdit, % (StrLen(Clipboard) ? "Enable" : "Disable"), % o_L["DialogPaste"] . "`tCtrl+V"
+Menu, menuBarEditorEdit, Show
 
 return
 ;------------------------------------------------------------
@@ -1152,8 +1138,12 @@ Menu, menuBarRulesOptions, Add, % o_L["MenuRunAtStartup"], ToggleRunAtStartup
 Menu, menuBarRulesOptions, Add
 Menu, menuBarRulesOptions, Add, % L(o_L["MenuEditIniFile"], o_Settings.strIniFileNameExtOnly), ShowSettingsIniFile
 
+Menu, menuBarRulesHelp, Add, % L(o_L["MenuWebSite"], g_strAppNameText), OpenQACWebsite
+Menu, menuBarRulesHelp, Add, % o_L["MenuDonate"], GuiDonate
+Menu, menuBarRulesHelp, Add
 Menu, menuBarRulesHelp, Add, % o_L["MenuUpdate"], Check4UpdateNow
-Menu, menuBarRulesHelp, Add, % L(o_L["MenuAbout"], g_strAppNameText), GuiAboutRules
+Menu, menuBarRulesHelp, Add
+Menu, menuBarRulesHelp, Add, % L(o_L["MenuAbout"], g_strAppNameText), GuiAboutEditor
 
 Menu, menuBarRulesMain, Add, % o_L["MenuFile"], :menuBarRulesFile
 Menu, menuBarRulesMain, Add, % o_L["MenuRule"], :menuBarRulesRule
@@ -1183,6 +1173,15 @@ Menu, menuBarEditorFile, Add, % L(o_L["MenuReload"], g_strAppNameText), CleanUpB
 Menu, menuBarEditorFile, Add
 Menu, menuBarEditorFile, Add, % L(o_L["MenuExitApp"], g_strAppNameText), EditorCloseAndExitApp
 
+Menu, menuBarEditorEdit, Add, % o_L["DialogUndo"] . "`tCtrl+Z", EditorContextMenuActions
+Menu, menuBarEditorEdit, Add
+Menu, menuBarEditorEdit, Add, % o_L["DialogCut"] . "`tCtrl+X", EditorContextMenuActions
+Menu, menuBarEditorEdit, Add, % o_L["DialogCopy"] . "`tCtrl+C", EditorContextMenuActions
+Menu, menuBarEditorEdit, Add, % o_L["DialogPaste"] . "`tCtrl+V", EditorContextMenuActions
+Menu, menuBarEditorEdit, Add, % o_L["DialogDelete"] . "`tDel", EditorContextMenuActions
+Menu, menuBarEditorEdit, Add
+Menu, menuBarEditorEdit, Add, % o_L["DialogSelectAll"] . "`tCtrl+A", EditorContextMenuActions
+Menu, menuBarEditorEdit, Add
 for intOrder, aaRuleType in g_saRuleTypesOrder
 	if !InStr("ConvertFormat|AutoHotkey", aaRuleType.strTypeCode)
 		Menu, menuBarEditorEdit, Add, % aaRuleType.strTypeLabel, % "GuiEditor" . aaRuleType.strTypeCode
@@ -1194,7 +1193,11 @@ Menu, menuBarEditorOptions, Add, % o_L["MenuRunAtStartup"], ToggleRunAtStartup
 Menu, menuBarEditorOptions, Add
 Menu, menuBarEditorOptions, Add, % L(o_L["MenuEditIniFile"], o_Settings.strIniFileNameExtOnly), ShowSettingsIniFile
 
+Menu, menuBarEditorHelp, Add, % L(o_L["MenuWebSite"], g_strAppNameText), OpenQACWebsite
+Menu, menuBarEditorHelp, Add, % o_L["MenuDonate"], GuiDonate
+Menu, menuBarEditorHelp, Add
 Menu, menuBarEditorHelp, Add, % o_L["MenuUpdate"], Check4UpdateNow
+Menu, menuBarEditorHelp, Add
 Menu, menuBarEditorHelp, Add, % L(o_L["MenuAbout"], g_strAppNameText), GuiAboutEditor
 
 Menu, menuBarEditorMain, Add, % o_L["MenuFile"], :menuBarEditorFile
@@ -1267,8 +1270,7 @@ BuildGuiRules:
 ;------------------------------------------------------------
 
 Gui, Rules:New, +Hwndg_intRulesHwnd +Resize -MinimizeBox +MinSize%g_intRulesDefaultWidth%x%g_intRulesDefaultHeight%, % QACGuiTitle("Rules")
-if (o_Settings.Launch.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar, 2 System menu, 3 both
-	Gui, Menu, menuBarRulesMain
+Gui, Menu, menuBarRulesMain
 
 Gui, Font, s8 w600, Verdana
 Gui, Add, Text, x40 y10, % o_L["GuiRulesAvailable"]
@@ -1625,8 +1627,7 @@ BuildGuiEditor:
 ;------------------------------------------------------------
 
 Gui, Editor:New, +Hwndg_intEditorHwnd +Resize -MinimizeBox +MinSize%g_intEditorDefaultWidth%x%g_intEditorDefaultHeight%, % QACGuiTitle("Editor")
-if (o_Settings.Launch.intShowMenuBar.IniValue <> 2) ; 1 Customize menu bar, 2 System menu, 3 both
-	Gui, Menu, menuBarEditorMain
+Gui, Menu, menuBarEditorMain
 
 Gui, Font, s8 w600, Verdana
 Gui, Add, Button, x10 y10 vf_btnEditClipboard gEnableEditClipboard Default h26, % " Edit Clipboard "
@@ -1755,7 +1756,7 @@ else
 	strAfter := StrReplace(SubStr(strAllText, intEnd + 1), Chr(13) . Chr(10), Chr(10))
 }
 
-IniRead, strRule, % o_Settings.strIniFile, RuleToExecute, RuleToExecute ; same section and item name
+IniRead, strRule, % o_Settings.strIniFile, RuleForEditor, RuleToExecute ; same section and item name
 saRuleValues := StrSplit(strRule, "|")
 loop, % saRuleValues.Length()
 	saRuleValues[A_Index] := DecodeFromIni(saRuleValues[A_Index])
@@ -3582,7 +3583,7 @@ Gui, 2:Add, Link, x10 w%intWidthHalf%, % L(o_L["AboutText4"])
 Gui, 2:Font, s10 w700, Arial
 Gui, 2:Add, Link, x10 y+10 w%intWidthTotal%, % L(o_L["AboutText5"])
 Gui, 2:Font, s10 w400, Arial
-Gui, 2:Add, Link, x10 w%intWidthHalf% section, % L(o_L["AboutText6"], "Lexikos (AutoHotkey_L), Joe Glines (the-Automator.com), RaptorX, Blackholyman, just_me"
+Gui, 2:Add, Link, x10 w%intWidthHalf% section, % L(o_L["AboutText6"], "Lexikos (AutoHotkey_L), Joe Glines (the-Automator.com), RaptorX, jballi (Edit library), Blackholyman, just_me"
 	. ", Learning One, Maestrith, Pulover (LV_Rows class), Tank, jeeswg", "https://www.autohotkey.com/boards/")
 aaL := o_L.InsertAmpersand(false, "GuiClose")
 Gui, 2:Add, Button, y+20 vf_btnAboutClose g2GuiClose, % o_L["GuiClose"]
@@ -3624,6 +3625,16 @@ Loop, Files, %g_strTempDirParent%\_QAC_temp_*,  D
 		Sleep, 10000 ; wait 10 second
 	}
 }
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+OpenQACWebsite:
+;------------------------------------------------------------
+
+Run, % AddUtm2Url("https://clipboard.quickaccesspopup.com/", A_ThisLabel, "Help")
 
 return
 ;------------------------------------------------------------
@@ -3862,6 +3873,15 @@ RemoveToolTip3:
 ;------------------------------------------------------------
 
 ToolTip, , , , % StrReplace(A_ThisLabel, "RemoveToolTip")
+
+return
+;------------------------------------------------------------
+
+;------------------------------------------------------------
+GuiDonate:
+;------------------------------------------------------------
+
+Run, % AddUtm2Url("https://www.paypal.com/donate?hosted_button_id=MKS3LBZSUGT6N", A_ThisLabel, "Donation")
 
 return
 ;------------------------------------------------------------
@@ -4504,7 +4524,7 @@ WM_RBUTTONUP()
 		if (blnEditClipboardButtonEnabled)
 			Oops(1, o_L["GuiEnableEditor"])
 		else
-			Gosub, ShowUpdatedEditorContextMenu
+			Gosub, ShowUpdatedEditorEditMenu
 	}
 }
 ;------------------------------------------------------------
@@ -5134,7 +5154,7 @@ TODO
 	{
 		SplitPath, strIniFile, strIniFileFilename, strIniFileFolder
 		
-		strThisBackupFolder := o_Settings.ReadIniValue("BackupFolder", " ", "SettingsFile", strIniFile) ; can be main ini file, alternative ini or external ini file backup folder
+		strThisBackupFolder := o_Settings.ReadIniValue("BackupFolder", " ", "Launch", strIniFile) ; can be main ini file, alternative ini or external ini file backup folder
 		if !StrLen(strThisBackupFolder) ; if no backup folder in ini file, backup in ini file's folder
 			strThisBackupFolder := strIniFileFolder
 		
@@ -5897,7 +5917,7 @@ class Rule
 			strIniLine .= StrReplace(saValues[A_Index], "|", g_strPipe) . "|"
 			; do not remove last | in case we have a space as last character
 		
-		IniWrite, %strIniLine%, % o_Settings.strIniFile, % (strAction = "FromEditor" ? "RuleToExecute" : "Rules"), % this.strName
+		IniWrite, %strIniLine%, % o_Settings.strIniFile, % (strAction = "FromEditor" ? "RuleForEditor" : "Rules"), % this.strName
 		; update rules objects will be done by LoadRules
 		
 		if (strAction <> "FromEditor")

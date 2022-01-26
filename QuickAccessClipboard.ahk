@@ -571,6 +571,7 @@ Hotkey, If, WinActive(QACGuiTitle("Editor"))
 	Hotkey, ^c, EditorCtrlC, On UseErrorLevel
 	Hotkey, ^x, EditorCtrlX, On UseErrorLevel
 	Hotkey, ^e, EditorCtrlE, On UseErrorLevel
+	Hotkey, ^f, EditorCtrlF, On UseErrorLevel
 	Hotkey, Del, EditorCtrlDel, On UseErrorLevel
 	Hotkey, +F10, EditorShiftF10, On UseErrorLevel
 
@@ -627,6 +628,7 @@ EditorEsc: ; Escape::
 EditorCtrlC: ; Copy
 EditorCtrlX: ; Cut
 EditorCtrlE: ; Edit
+EditorCtrlF: ; Find
 EditorCtrlDel: ; Del
 EditorShiftF10: ; context menu
 ;-----------------------------------------------------------
@@ -661,6 +663,10 @@ else if (A_ThisLabel = "EditorShiftF10")
 else if (A_ThisLabel = "EditorCtrlE")
 	
 	Menu, menuBarEditorEdit, Show
+
+else if (A_ThisLabel = "EditorCtrlF")
+	
+	Gosub, GuiEditorFind
 
 return
 ;-----------------------------------------------------------
@@ -814,7 +820,7 @@ InitRuleTypes:
 global g_aaRuleTypes = Object()
 global g_saRuleTypesOrder = Object()
 
-saRuleTypes := StrSplit("ChangeCase|ConvertFormat|Replace|AutoHotkey|Prefix|Suffix|SubString", "|")
+saRuleTypes := StrSplit("Find|Replace|ChangeCase|ConvertFormat|AutoHotkey|Prefix|Suffix|SubString", "|")
 for intIndex, strType in saRuleTypes
 {
 	strLabels .= o_L["Type" . strType] . "|" ; "TypeChangeCase", etc.
@@ -1723,6 +1729,7 @@ return
 
 
 ;------------------------------------------------------------
+GuiEditorFind:
 GuiEditorChangeCase:
 GuiEditorConvertFormat:
 GuiEditorReplace:
@@ -1741,9 +1748,12 @@ return
 
 
 ;------------------------------------------------------------
-ExecuteRule:
+ExecuteRuleInEditor:
 ;------------------------------------------------------------
 
+GuiControl, Focus, %g_strEditorControlHwnd%
+
+Edit_GetSel(g_strEditorControlHwnd, intStart, intEnd)
 g_strEditedText := Edit_GetSelText(g_strEditorControlHwnd)
 if !StrLen(g_strEditedText)
 	g_strEditedText := f_strClipboardEditor ; all content of editor
@@ -1751,7 +1761,6 @@ else
 {
 	; get text before and after selection
 	strAllText := StrReplace(f_strClipboardEditor, Chr(10), Chr(13) . Chr(10)) ; add CR to get intStart and intEnd compatible with Edit_GetSel
-	Edit_GetSel(g_strEditorControlHwnd, intStart, intEnd)
 	strBefore := StrReplace(SubStr(strAllText, 1, intStart), Chr(13) . Chr(10), Chr(10))
 	strAfter := StrReplace(SubStr(strAllText, intEnd + 1), Chr(13) . Chr(10), Chr(10))
 }
@@ -1762,12 +1771,25 @@ loop, % saRuleValues.Length()
 	saRuleValues[A_Index] := DecodeFromIni(saRuleValues[A_Index])
 aaRuleToExecute := new Rule("RuleToexecute", saRuleValues)
 
-g_strEditedText := aaRuleToExecute.ExecRule(g_strEditedText)
+if (aaRuleToExecute.strTypeCode = "Find")
+{
+	aaRuleToExecute.intSearchFrom := intStart + 1
+	intFoundPosition := aaRuleToExecute.ExecRule(g_strEditedText)
+	if (intFoundPosition) ; text found
+	{
+		intStart := intFoundPosition - 1
+		intEnd := intStart + StrLen(aaRuleToExecute.strFind) ; position cursor but no text selected
+	}
+	; else keep original intStart and intEnd values
+}
+else
+	g_strEditedText := aaRuleToExecute.ExecRule(g_strEditedText)
 
 if (intEnd - intStart) ; rebuild full Clipboard
 	g_strEditedText := strBefore . g_strEditedText . strAfter
 
 GuiControl, , %g_strEditorControlHwnd%, %g_strEditedText% ; copy content to edit control
+GuiControl, Focus, %g_strEditorControlHwnd%
 
 Edit_SetSel(g_strEditorControlHwnd, intStart, intEnd)
 
@@ -1779,6 +1801,7 @@ strBefore := ""
 strAfter := ""
 strRule := ""
 saRuleValues := ""
+intFoundPosition := ""
 
 return
 ;------------------------------------------------------------
@@ -2011,7 +2034,8 @@ Gui, 2:+OwnDialogs
 Gui, 2:Add, Text, x10 y+20, % o_L["DialogAddRuleSelectPrompt"] . ":"
 
 for intOrder, aaRuleType in g_saRuleTypesOrder
-	Gui, 2:Add, Radio, % (A_Index = 1 ? "y+20 section" : "y+10") . " x10 w120 vf_intRadioRuleType" . A_Index . " gGuiAddRuleSelectTypeRadioButtonChanged", % aaRuleType.strTypeLabel
+	if (intOrder > 1) ; skip "Find" type not applicable in rules
+		Gui, 2:Add, Radio, % (A_Index = 2 ? "y+20 section" : "y+10") . " x10 w120 vf_intRadioRuleType" . A_Index . " gGuiAddRuleSelectTypeRadioButtonChanged", % aaRuleType.strTypeLabel
 
 Gui, 2:Add, Button, x20 y+20 vf_btnAddRuleSelectTypeContinue gGuiAddRuleSelectTypeContinue default, % o_L["DialogContinue"]
 Gui, 2:Add, Button, yp vf_btnAddRuleSelectTypeCancel gGuiAddRuleCancel, % o_L["GuiCancel"]
@@ -2075,19 +2099,21 @@ GuiRuleEdit:
 GuiRuleCopy:
 GuiRuleFromEditor:
 ;------------------------------------------------------------
+
 strAction := StrReplace(A_ThisLabel, "GuiRule")
+strMainGui := (strAction = "FromEditor" ? "Editor" : "Rules")
 
 if (strAction = "FromEditor")
-{
+
 	aaEditedRule := new Rule("RuleToExecute", [g_strExecRuleType, "", ""]) ; __New(strName := "", saRuleValues := "")
-}
+
 else
 {
-	Gui, Rules:Submit, NoHide
+	Gui, %strMainGui%:Submit, NoHide
 	if (strAction = "Add")
 		Gosub, 2GuiClose ; to avoid flashing Gui Rules:
 
-	Gui, Rules:ListView, f_lvRulesAvailable
+	Gui, %strMainGui%:ListView, f_lvRulesAvailable
 	if !GetLVPosition(intPosition, (strAction <> "Add" ? o_L["GuiSelectRuleEdit"] : "")) ; no error message if adding
 		and InStr("Edit|Copy", strAction)
 		return
@@ -2107,8 +2133,8 @@ strGuiTitle := L(o_L["DialogAddEditRuleTitle"]
 	, (strAction = "Add" ? o_L["DialogEdit"] : (strAction = "Copy" ? o_L["DialogCopy"] : o_L["DialogAdd"]))
 	, g_strAppNameText, g_strAppVersion, aaEditedRule.strTypeLabel)
 ; Gui, 2:New, +Resize -MaximizeBox +MinSize570x555 +MaxSizex555 +Hwndg_strGui2Hwnd, %strGuiTitle%
-Gui, 2:New, +Resize -MaximizeBox +Hwndg_strGui2Hwnd, %strGuiTitle%
-Gui, 2:+OwnerRules
+Gui, 2:New, +Resize -MaximizeBox -MinimizeBox +Hwndg_strGui2Hwnd, %strGuiTitle%
+Gui, 2:+Owner%strMainGui%
 Gui, 2:+OwnDialogs
 
 if (strAction <> "FromEditor")
@@ -2135,12 +2161,15 @@ else if (aaEditedRule.strTypeCode = "ConvertFormat")
 
 	Gui, 2:Add, Radio, % "vf_varValue1" . ((aaEditedRule.intConvertFormat = 1 or aaEditedRule.intConvertFormat = "") ? " Checked" : ""), % o_L["DialogConvertFormatText"]
 
-else if (aaEditedRule.strTypeCode = "Replace")
+else if InStr("Replace|Find", aaEditedRule.strTypeCode)
 {
 	Gui, 2:Add, Text, y+5, % o_L["DialogFind"]
 	Gui, 2:Add, Edit, vf_varValue1 w400, % aaEditedRule.strFind ; aaEditedRule.saVarValues[4]
-	Gui, 2:Add, Text, , % o_L["DialogReplaceWith"]
-	Gui, 2:Add, Edit, vf_varValue2 w400, % aaEditedRule.strReplace ; aaEditedRule.saVarValues[5]
+	if (aaEditedRule.strTypeCode = "Replace")
+	{
+		Gui, 2:Add, Text, , % o_L["DialogReplaceWith"]
+		Gui, 2:Add, Edit, vf_varValue2 w400, % aaEditedRule.strReplace ; aaEditedRule.saVarValues[5]
+	}
 
 	Gui, 2:Add, Checkbox, % "vf_varValue3 " . (aaEditedRule.blnReplaceWholeWord ? " Checked" : ""), % o_L["DialogReplaceWholeWord"]
 	Gui, 2:Add, Checkbox, % "vf_varValue4 " . (aaEditedRule.blnReplaceCaseSensitive ? " Checked" : ""), % o_L["DialogReplaceCaseSensitive"]
@@ -2240,6 +2269,7 @@ arrWidth1 := ""
 arrWidth2 := ""
 arrWidth3 := ""
 arrWidth4 := ""
+strMainGui := ""
 
 return
 ;------------------------------------------------------------
@@ -2349,6 +2379,8 @@ else
 	Loop, 9
 		saValues.Push(EncodeForIni(f_varValue%A_Index%))
 
+Gosub, 2GuiClose
+
 if (A_ThisLabel = "GuiRuleSave")
 {
 	if (strAction <> "Edit" and g_aaRulesByName.HasKey(f_strName)) ; when adding or copying
@@ -2365,13 +2397,11 @@ if (A_ThisLabel = "GuiRuleSave")
 else
 {
 	aaEditedRule.SaveRule(strAction, saValues, strPreviousName)
-	Gosub, ExecuteRule
+	Gosub, ExecuteRuleInEditor
 }
 
 loop, 9 ; delete form values because Gui:Destroy does not
 	GuiControl, , f_varValue%A_Index%
-Gosub, 2GuiClose
-
 strPreviousName := ""
 saValues := ""
 strAction := ""
@@ -2447,11 +2477,8 @@ LoadRules:
 LoadRulesKeepSelected:
 ;------------------------------------------------------------
 
-if (A_ThisLabel = "LoadRulesKeepSelected")
-	a := a
 Gui, Rules:Default
 Gosub, LoadRulesFromIni ; reload rules
-Gosub, BuildRulesMenu ; rebuild rules menu
 Gosub, % (A_ThisLabel = "LoadRulesKeepSelected"
 	? "GuiLoadRulesAvailableKeepSelected" ; update Available rules listview and keep Selected rules listview
 	: "GuiLoadRulesAvailableAll") ; update Available rules listview and empty Selected rules listview
@@ -2497,27 +2524,6 @@ else
 	saRule := ""
 	intEqualSign := ""
 	strRuleName := ""
-}
-
-return
-;------------------------------------------------------------
-
-
-;------------------------------------------------------------
-BuildRulesMenu:
-;------------------------------------------------------------
-
-; delete menu before updating it
-Menu, menuRules, Add ; to avoid an error if menu is empty when deleting
-Menu, menuRules, DeleteAll ; required for menu updates
-
-if g_aaRulesByName.Count()
-	for strRuleName, oRule in g_aaRulesByName
-		Menu, menuRules, Add, %strRuleName%, ExecuteRule
-else
-{
-	Menu, menuRules, Add, % o_L["MenuNoRule"], DoNothing
-	Menu, menuRules, Disable, % o_L["MenuNoRule"]
 }
 
 return
@@ -3881,7 +3887,7 @@ return
 GuiDonate:
 ;------------------------------------------------------------
 
-Run, % AddUtm2Url("https://www.paypal.com/donate?hosted_button_id=MKS3LBZSUGT6N", A_ThisLabel, "Donation")
+Run, % AddUtm2Url("https://www.paypal.com/donate/?hosted_button_id=F22JAQULFM6C4", A_ThisLabel, "Donation")
 
 return
 ;------------------------------------------------------------
@@ -5855,6 +5861,12 @@ class Rule
 		}
 		else if (this.strTypeCode = "ConvertFormat")
 			this.intConvertFormat := saRuleValues[1]
+		else if (this.strTypeCode = "Find")
+		{
+			this.strFind := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
+			this.blnReplaceWholeWord := saRuleValues[3] ; also in this.saVarValues[3]
+			this.blnReplaceCaseSensitive := saRuleValues[4] ; also in this.saVarValues[4]
+		}
 		else if (this.strTypeCode = "Replace")
 		{
 			this.strFind := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
@@ -6055,13 +6067,16 @@ class Rule
 	{
 		if (this.strTypeCode = "ChangeCase")
 			return RegExReplace(strText, this.strFind, this.strReplace)
-		else if (this.strTypeCode = "Replace")
+		else if InStr("Replace|Find", this.strTypeCode)
 		{
 			strFind := DoubleDoubleQuotes(this.strFind) ; double double-quotes inside search string
 			strFind := EscapeRegexString(strFind) ; escape regex characters "\.*?+[{|()^$" with "\" before adding \b or i) options
 			strFind := (this.blnReplaceWholeWord ? "\b" . strFind . "\b" : strFind) ; \b...\b for whole word boundries
 			strFind := (this.blnReplaceCaseSensitive ? "" : "i)") . strFind ; by default, regex are case-sensitive, changed with "i)"
-			return RegExReplace(strText, strFind, this.strReplace)
+			if (this.strTypeCode = "Replace")
+				return RegExReplace(strText, strFind, this.strReplace)
+			else
+				return RegExMatch(strText, strFind, , this.intSearchFrom) ; position of found text
 		}
 		else if (this.strTypeCode = "SubString")
 		{

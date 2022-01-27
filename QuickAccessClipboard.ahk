@@ -500,7 +500,7 @@ Gosub, LoadIniFile ; load options and rules
 ; Build menu used in Settings Gui
 Gosub, BuildRulesMenuBar
 Gosub, BuildEditorMenuBar
-Gosub, BuildEditorContextMenu
+Gosub, InitEditorContextMenu
 Gosub, BuildTrayMenu
 
 ; Init diag mode
@@ -1000,7 +1000,7 @@ return
 
 
 ;------------------------------------------------------------
-BuildEditorContextMenu:
+InitEditorContextMenu:
 ;------------------------------------------------------------
 
 ; OnMessage to intercept Context menu in Edit control
@@ -1019,14 +1019,14 @@ ShowUpdatedEditorEditMenu:
 GuiControl, Focus, f_strClipboardEditor ; give focus to control for EditorContextMenuActions
 
 GuiControlGet, blnEnable, Enabled, f_btnEditorSave ; enable Undo item if Save button is enabled
-Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogUndo"] . "`tCtrl+Z"
+Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogUndo"] . "`t(Ctrl-Z)"
 
 blnEnable := GetSelectedTextLenght() ; enable Cut, Copy, Delete if text is selected in the control
-Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCut"] . "`tCtrl+X"
-Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCopy"] . "`tCtrl+C"
-Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogDelete"] . "`tDel"
+Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCut"] . "`t(Ctrl-X)"
+Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCopy"] . "`t(Ctrl-C)"
+Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogDelete"] . "`t(Del)"
 
-Menu, menuBarEditorEdit, % (StrLen(Clipboard) ? "Enable" : "Disable"), % o_L["DialogPaste"] . "`tCtrl+V"
+Menu, menuBarEditorEdit, % (StrLen(Clipboard) ? "Enable" : "Disable"), % o_L["DialogPaste"] . "`t(Ctrl-V)"
 Menu, menuBarEditorEdit, Show
 
 return
@@ -1037,20 +1037,17 @@ return
 EditorContextMenuActions:
 ;------------------------------------------------------------
 
-if (A_ThisMenuItem = "DialogCut" or A_ThisMenuItem = "DialogCopy") ; disconnect before changing the Clipboard content
-	Gosub, DisableClipboardChangesInEditor
-
-if (A_ThisMenuItem = o_L["DialogUndo"])
+if (A_ThisMenuItem = o_L["DialogUndo"] . "`t(Ctrl-Z)")
 	Send, ^z
-else if (A_ThisMenuItem = o_L["DialogCut"])
+else if (A_ThisMenuItem = o_L["DialogCut"] . "`t(Ctrl-X)")
 	Send, ^x
-else if (A_ThisMenuItem = o_L["DialogCopy"])
+else if (A_ThisMenuItem = o_L["DialogCopy"] . "`t(Ctrl-C)")
 	Send, ^c
-else if (A_ThisMenuItem = o_L["DialogPaste"])
+else if (A_ThisMenuItem = o_L["DialogPaste"] . "`t(Ctrl-V)")
 	Send, ^v
-else if (A_ThisMenuItem = o_L["DialogDelete"])
+else if (A_ThisMenuItem = o_L["DialogDelete"] . "`t(Del)")
 	Send, {Del}
-else if (A_ThisMenuItem = o_L["DialogSelectAll"])
+else if (A_ThisMenuItem = o_L["DialogSelectAll"] . "`t(Ctrl-A)")
 	Send, ^a
 
 return
@@ -1108,11 +1105,11 @@ BuildRulesMenuBar:
 ; see https://docs.microsoft.com/fr-fr/windows/desktop/uxguide/cmd-menus
 ;------------------------------------------------------------
 
-Menu, menuRulesWindowMenu, Add, % o_L["MenuEditor"] . "`tCtrl+E", GuiShowOnlyEditor
+Menu, menuRulesWindowMenu, Add, % o_L["MenuEditor"] . "`t(Ctrl-E)", GuiShowOnlyEditor
 Menu, menuRulesWindowMenu, Add
-Menu, menuRulesWindowMenu, Add, % o_L["MenuShowBoth"] . "`tCtrl+B", GuiShowRulesEditor
+Menu, menuRulesWindowMenu, Add, % o_L["MenuShowBoth"] . "`t(Ctrl-B)", GuiShowRulesEditor
 
-Menu, menuBarRulesFile, Add, % o_L["GuiClose"] . "`tEsc", RulesClose
+Menu, menuBarRulesFile, Add, % o_L["GuiClose"] . " (Esc)", RulesClose
 Menu, menuBarRulesFile, Add
 Menu, menuBarRulesFile, Add, % o_L["MenuOpenWorkingDirectory"], OpenWorkingDirectory
 Menu, menuBarRulesFile, Add
@@ -1166,12 +1163,12 @@ BuildEditorMenuBar:
 ; see https://docs.microsoft.com/fr-fr/windows/desktop/uxguide/cmd-menus
 ;------------------------------------------------------------
 
-Menu, menuEditorWindowMenu, Add, % o_L["MenuRules"] . "`tCtrl+D", GuiShowOnlyRules
+Menu, menuEditorWindowMenu, Add, % o_L["MenuRules"] . "`t(Ctrl-D)", GuiShowOnlyRules
 Menu, menuEditorWindowMenu, Add
-Menu, menuEditorWindowMenu, Add, % o_L["MenuShowBoth"] . "`tCtrl+B", GuiShowRulesEditor
+Menu, menuEditorWindowMenu, Add, % o_L["MenuShowBoth"] . "`t(Ctrl-B)", GuiShowRulesEditor
 
-Menu, menuBarEditorFile, Add, % o_L["GuiSaveEditor"] . "`tCtrl+S", EditorCtrlS
-Menu, menuBarEditorFile, Add, % o_L["GuiClose"] . "`tEsc", EditorClose
+Menu, menuBarEditorFile, Add, % o_L["GuiSaveEditor"] . "`t(Ctrl-S)", EditorCtrlS
+Menu, menuBarEditorFile, Add, % o_L["GuiClose"] . " (Esc)", EditorClose
 Menu, menuBarEditorFile, Add
 Menu, menuBarEditorFile, Add, % o_L["MenuOpenWorkingDirectory"], OpenWorkingDirectory
 Menu, menuBarEditorFile, Add
@@ -1179,14 +1176,14 @@ Menu, menuBarEditorFile, Add, % L(o_L["MenuReload"], g_strAppNameText), CleanUpB
 Menu, menuBarEditorFile, Add
 Menu, menuBarEditorFile, Add, % L(o_L["MenuExitApp"], g_strAppNameText), EditorCloseAndExitApp
 
-Menu, menuBarEditorEdit, Add, % o_L["DialogUndo"] . "`tCtrl+Z", EditorContextMenuActions
+Menu, menuBarEditorEdit, Add, % o_L["DialogUndo"] . "`t(Ctrl-Z)", EditorContextMenuActions
 Menu, menuBarEditorEdit, Add
-Menu, menuBarEditorEdit, Add, % o_L["DialogCut"] . "`tCtrl+X", EditorContextMenuActions
-Menu, menuBarEditorEdit, Add, % o_L["DialogCopy"] . "`tCtrl+C", EditorContextMenuActions
-Menu, menuBarEditorEdit, Add, % o_L["DialogPaste"] . "`tCtrl+V", EditorContextMenuActions
-Menu, menuBarEditorEdit, Add, % o_L["DialogDelete"] . "`tDel", EditorContextMenuActions
+Menu, menuBarEditorEdit, Add, % o_L["DialogCut"] . "`t(Ctrl-X)", EditorContextMenuActions
+Menu, menuBarEditorEdit, Add, % o_L["DialogCopy"] . "`t(Ctrl-C)", EditorContextMenuActions
+Menu, menuBarEditorEdit, Add, % o_L["DialogPaste"] . "`t(Ctrl-V)", EditorContextMenuActions
+Menu, menuBarEditorEdit, Add, % o_L["DialogDelete"] . "`t(Del)", EditorContextMenuActions
 Menu, menuBarEditorEdit, Add
-Menu, menuBarEditorEdit, Add, % o_L["DialogSelectAll"] . "`tCtrl+A", EditorContextMenuActions
+Menu, menuBarEditorEdit, Add, % o_L["DialogSelectAll"] . "`t(Ctrl-A)", EditorContextMenuActions
 Menu, menuBarEditorEdit, Add
 for intOrder, aaRuleType in g_saRuleTypesOrder
 	if !InStr("ConvertFormat|AutoHotkey", aaRuleType.strTypeCode)
@@ -2878,7 +2875,7 @@ GuiControl, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable")
 GuiControl, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), f_btnEditorCancel
 GuiControl, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Disable" : "Enable"), f_btnEditClipboard
 
-Menu, menuBarEditorFile, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["GuiSaveEditor"] . "`tCtrl+S"
+Menu, menuBarEditorFile, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["GuiSaveEditor"] . "`t(Ctrl-S)"
 Menu, menuBarEditorMain,  % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["MenuEditorEdit"]
 
 if (A_ThisLabel = "EditorDisableSaveAndCancel")

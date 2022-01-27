@@ -34,7 +34,15 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
-Version ALPHA: 0.0.8.1 (2022-01-??)
+Version ALPHA: 0.0.8.1 (2022-01-26)
+- add "Window" menu to menu bar with items to switch to the other window or both windows
+- add hotkeys Ctrl+E to show Editor window, Ctrl+R to show Rules window and Ctrl+B to show both windows
+- merge context menu and Edit menu an use it as context menu
+- add to Help menu "Visit QAC website" and "Make donation"
+- remove option ShowMenuBar and always display menu bar in Window
+- add items to Tray menu
+- implement "Find" rule type (for use only in Editor) with hotkey Ctrl+F
+- fix bug selecting text in editor
 
 Version ALPHA: 0.0.8 (2022-01-20)
 - split user interface in 2 guis: rules manager and editor
@@ -574,8 +582,16 @@ Hotkey, If, WinActive(QACGuiTitle("Editor"))
 	Hotkey, ^f, EditorCtrlF, On UseErrorLevel
 	Hotkey, Del, EditorCtrlDel, On UseErrorLevel
 	Hotkey, +F10, EditorShiftF10, On UseErrorLevel
+	
+	Hotkey, ^r, GuiShowOnlyRules, On UseErrorLevel
+	Hotkey, ^b, GuiShowBothRulesEditor, On UseErrorLevel
 
-	; other Hotkeys are created by menu assignement in BuildEditorMenuBar
+Hotkey, If
+
+Hotkey, If, WinActive(QACGuiTitle("Rules"))
+
+	Hotkey, ^e, GuiShowOnlyEditor, On UseErrorLevel
+	Hotkey, ^b, GuiShowBothRulesEditor, On UseErrorLevel
 
 Hotkey, If
 
@@ -608,6 +624,16 @@ return
 ;------------------------------------------------------------
 ;------------------------------------------------------------
 #If, WinActive(QACGuiTitle("Editor")) ; main Gui title
+; empty - act as a handle for the "Hotkey, If, Expression" condition in PopupHotkey.__New() (and elsewhere)
+; ("Expression must be an expression which has been used with the #If directive elsewhere in the script.")
+#If
+;------------------------------------------------------------
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+;------------------------------------------------------------
+#If, WinActive(QACGuiTitle("Rules")) ; main Gui title
 ; empty - act as a handle for the "Hotkey, If, Expression" condition in PopupHotkey.__New() (and elsewhere)
 ; ("Expression must be an expression which has been used with the #If directive elsewhere in the script.")
 #If
@@ -1016,17 +1042,17 @@ return
 ShowUpdatedEditorEditMenu:
 ;------------------------------------------------------------
 
-GuiControl, Focus, f_strClipboardEditor ; give focus to control for EditorContextMenuActions
+GuiControl, Focus, f_strClipboardEditor ; give focus to control for EditorEditMenuActions
 
 GuiControlGet, blnEnable, Enabled, f_btnEditorSave ; enable Undo item if Save button is enabled
-Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogUndo"] . "`t(Ctrl-Z)"
+Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogUndo"] . "`t(Ctrl+Z)"
 
 blnEnable := GetSelectedTextLenght() ; enable Cut, Copy, Delete if text is selected in the control
-Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCut"] . "`t(Ctrl-X)"
-Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCopy"] . "`t(Ctrl-C)"
+Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCut"] . "`t(Ctrl+X)"
+Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCopy"] . "`t(Ctrl+C)"
 Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogDelete"] . "`t(Del)"
 
-Menu, menuBarEditorEdit, % (StrLen(Clipboard) ? "Enable" : "Disable"), % o_L["DialogPaste"] . "`t(Ctrl-V)"
+Menu, menuBarEditorEdit, % (StrLen(Clipboard) ? "Enable" : "Disable"), % o_L["DialogPaste"] . "`t(Ctrl+V)"
 Menu, menuBarEditorEdit, Show
 
 return
@@ -1034,20 +1060,20 @@ return
 
 
 ;------------------------------------------------------------
-EditorContextMenuActions:
+EditorEditMenuActions:
 ;------------------------------------------------------------
 
-if (A_ThisMenuItem = o_L["DialogUndo"] . "`t(Ctrl-Z)")
+if (A_ThisMenuItem = o_L["DialogUndo"] . "`t(Ctrl+Z)")
 	Send, ^z
-else if (A_ThisMenuItem = o_L["DialogCut"] . "`t(Ctrl-X)")
+else if (A_ThisMenuItem = o_L["DialogCut"] . "`t(Ctrl+X)")
 	Send, ^x
-else if (A_ThisMenuItem = o_L["DialogCopy"] . "`t(Ctrl-C)")
+else if (A_ThisMenuItem = o_L["DialogCopy"] . "`t(Ctrl+C)")
 	Send, ^c
-else if (A_ThisMenuItem = o_L["DialogPaste"] . "`t(Ctrl-V)")
+else if (A_ThisMenuItem = o_L["DialogPaste"] . "`t(Ctrl+V)")
 	Send, ^v
 else if (A_ThisMenuItem = o_L["DialogDelete"] . "`t(Del)")
 	Send, {Del}
-else if (A_ThisMenuItem = o_L["DialogSelectAll"] . "`t(Ctrl-A)")
+else if (A_ThisMenuItem = o_L["DialogSelectAll"] . "`t(Ctrl+A)")
 	Send, ^a
 
 return
@@ -1105,11 +1131,11 @@ BuildRulesMenuBar:
 ; see https://docs.microsoft.com/fr-fr/windows/desktop/uxguide/cmd-menus
 ;------------------------------------------------------------
 
-Menu, menuRulesWindowMenu, Add, % o_L["MenuEditor"] . "`t(Ctrl-E)", GuiShowOnlyEditor
+Menu, menuRulesWindowMenu, Add, % o_L["MenuEditor"] . "`t(Ctrl+E)", GuiShowOnlyEditor
 Menu, menuRulesWindowMenu, Add
-Menu, menuRulesWindowMenu, Add, % o_L["MenuShowBoth"] . "`t(Ctrl-B)", GuiShowRulesEditor
+Menu, menuRulesWindowMenu, Add, % o_L["MenuShowBoth"] . "`t(Ctrl+B)", GuiShowBothRulesEditor
 
-Menu, menuBarRulesFile, Add, % o_L["GuiClose"] . " (Esc)", RulesClose
+Menu, menuBarRulesFile, Add, % o_L["GuiClose"] . "`t(Esc)", RulesClose
 Menu, menuBarRulesFile, Add
 Menu, menuBarRulesFile, Add, % o_L["MenuOpenWorkingDirectory"], OpenWorkingDirectory
 Menu, menuBarRulesFile, Add
@@ -1163,12 +1189,12 @@ BuildEditorMenuBar:
 ; see https://docs.microsoft.com/fr-fr/windows/desktop/uxguide/cmd-menus
 ;------------------------------------------------------------
 
-Menu, menuEditorWindowMenu, Add, % o_L["MenuRules"] . "`t(Ctrl-D)", GuiShowOnlyRules
+Menu, menuEditorWindowMenu, Add, % o_L["MenuRules"] . "`t(Ctrl+R)", GuiShowOnlyRules
 Menu, menuEditorWindowMenu, Add
-Menu, menuEditorWindowMenu, Add, % o_L["MenuShowBoth"] . "`t(Ctrl-B)", GuiShowRulesEditor
+Menu, menuEditorWindowMenu, Add, % o_L["MenuShowBoth"] . "`t(Ctrl+B)", GuiShowBothRulesEditor
 
-Menu, menuBarEditorFile, Add, % o_L["GuiSaveEditor"] . "`t(Ctrl-S)", EditorCtrlS
-Menu, menuBarEditorFile, Add, % o_L["GuiClose"] . " (Esc)", EditorClose
+Menu, menuBarEditorFile, Add, % o_L["GuiSaveEditor"] . "`t(Ctrl+S)", EditorCtrlS
+Menu, menuBarEditorFile, Add, % o_L["GuiClose"] . "`t(Esc)", EditorClose
 Menu, menuBarEditorFile, Add
 Menu, menuBarEditorFile, Add, % o_L["MenuOpenWorkingDirectory"], OpenWorkingDirectory
 Menu, menuBarEditorFile, Add
@@ -1176,14 +1202,14 @@ Menu, menuBarEditorFile, Add, % L(o_L["MenuReload"], g_strAppNameText), CleanUpB
 Menu, menuBarEditorFile, Add
 Menu, menuBarEditorFile, Add, % L(o_L["MenuExitApp"], g_strAppNameText), EditorCloseAndExitApp
 
-Menu, menuBarEditorEdit, Add, % o_L["DialogUndo"] . "`t(Ctrl-Z)", EditorContextMenuActions
+Menu, menuBarEditorEdit, Add, % o_L["DialogUndo"] . "`t(Ctrl+Z)", EditorEditMenuActions
 Menu, menuBarEditorEdit, Add
-Menu, menuBarEditorEdit, Add, % o_L["DialogCut"] . "`t(Ctrl-X)", EditorContextMenuActions
-Menu, menuBarEditorEdit, Add, % o_L["DialogCopy"] . "`t(Ctrl-C)", EditorContextMenuActions
-Menu, menuBarEditorEdit, Add, % o_L["DialogPaste"] . "`t(Ctrl-V)", EditorContextMenuActions
-Menu, menuBarEditorEdit, Add, % o_L["DialogDelete"] . "`t(Del)", EditorContextMenuActions
+Menu, menuBarEditorEdit, Add, % o_L["DialogCut"] . "`t(Ctrl+X)", EditorEditMenuActions
+Menu, menuBarEditorEdit, Add, % o_L["DialogCopy"] . "`t(Ctrl+C)", EditorEditMenuActions
+Menu, menuBarEditorEdit, Add, % o_L["DialogPaste"] . "`t(Ctrl+V)", EditorEditMenuActions
+Menu, menuBarEditorEdit, Add, % o_L["DialogDelete"] . "`t(Del)", EditorEditMenuActions
 Menu, menuBarEditorEdit, Add
-Menu, menuBarEditorEdit, Add, % o_L["DialogSelectAll"] . "`t(Ctrl-A)", EditorContextMenuActions
+Menu, menuBarEditorEdit, Add, % o_L["DialogSelectAll"] . "`t(Ctrl+A)", EditorEditMenuActions
 Menu, menuBarEditorEdit, Add
 for intOrder, aaRuleType in g_saRuleTypesOrder
 	if !InStr("ConvertFormat|AutoHotkey", aaRuleType.strTypeCode)
@@ -2875,7 +2901,7 @@ GuiControl, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable")
 GuiControl, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), f_btnEditorCancel
 GuiControl, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Disable" : "Enable"), f_btnEditClipboard
 
-Menu, menuBarEditorFile, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["GuiSaveEditor"] . "`t(Ctrl-S)"
+Menu, menuBarEditorFile, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["GuiSaveEditor"] . "`t(Ctrl+S)"
 Menu, menuBarEditorMain,  % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["MenuEditorEdit"]
 
 if (A_ThisLabel = "EditorDisableSaveAndCancel")
@@ -2982,7 +3008,7 @@ CanPopup(strMouseOrKeyboard) ; SEE HotkeyIfWin.ahk to use Hotkey, If, Expression
 
 
 ;------------------------------------------------------------
-GuiShowRulesEditor:
+GuiShowBothRulesEditor:
 GuiShowOnlyRules:
 GuiShowOnlyEditor:
 ;------------------------------------------------------------

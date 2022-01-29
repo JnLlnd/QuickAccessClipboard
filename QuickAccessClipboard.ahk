@@ -554,8 +554,6 @@ if (blnStartup) ; both setup and portable
 	Menu, menuBarEditorOptions, Check, % o_L["MenuRunAtStartup"]
 }
 
-Gosub, EnableClipboardChangesInEditor
-
 ; startups count and trace
 IniWrite, % (intStartups + 1), % o_Settings.strIniFile, Internal, Startups
 IniWrite, %g_strCurrentVersion%, % o_Settings.strIniFile, Internal, % "LastVersionUsed" . (g_strCurrentBranch = "alpha" ? "Alpha" : (g_strCurrentBranch = "beta" ? "Beta" : "Prod"))
@@ -1834,10 +1832,13 @@ return
 EnableEditClipboard:
 ;------------------------------------------------------------
 
-Gosub, ClipboardEditorChanged
 GuiControl, -ReadOnly, f_strClipboardEditor
 GuiControl, , f_blnSeeInvisible, 0
 Gosub, ClipboardEditorSeeInvisibleChanged
+
+Gosub, ClipboardEditorChanged ; update the status bar
+Gosub, EditorEnableSaveAndCancel ; calls DisableClipboardChangesInEditor
+
 GuiControl, Disable, f_btnEditClipboard
 
 Menu, menuBarEditorMain, Enable, % o_L["MenuEditorEdit"]
@@ -1849,11 +1850,11 @@ return
 ;------------------------------------------------------------
 ClipboardEditorChanged:
 ;------------------------------------------------------------
-Gui, Editor:Submit, NoHide
 
-Gosub, DisableClipboardChangesInEditor
-SB_SetText(o_L["MenuEditor"] . ": " . (StrLen(f_strClipboardEditor) = 1 ? o_L["GuiOneCharacter"] : L(o_L["GuiCharacters"], StrLen(f_strClipboardEditor))), 1)
-Gosub, EditorEnableSaveAndCancel
+intLength := Edit_GetTextLength(g_strEditorControlHwnd)
+SB_SetText(o_L["MenuEditor"] . ": " . L((intLength <= 1 ? o_L["GuiCharacter"] : o_L["GuiCharacters"]), intLength), 1)
+
+intLength := ""
 
 return
 ;------------------------------------------------------------
@@ -1912,7 +1913,6 @@ ClipboardContentChanged(intClipboardContentType)
 	{
 		g_intClipboardContentType := intClipboardContentType
 		Gosub, UpdateEditorWithClipboard
-		Gosub, EditorDisableSaveAndCancel
 	}
 	DetectHiddenWindows, %strDetectHiddenWindowsBefore%
 }
@@ -3044,7 +3044,7 @@ if InStr(A_ThisLabel, "Rules")
 else
 {
 	Gosub, UpdateEditorWithClipboardFromGuiShow
-	Gosub, EditorDisableSaveAndCancel
+	Gosub, EditorDisableSaveAndCancel ; calls EditorDisableSaveAndCancel???
 	Menu, menuBarEditorMain, Disable, % o_L["MenuEditorEdit"]
 	
 	intGuiHwnd := g_intEditorHwnd

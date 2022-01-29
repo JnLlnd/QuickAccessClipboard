@@ -576,9 +576,10 @@ Hotkey, If, WinActive(QACGuiTitle("Editor"))
 
 	Hotkey, ^c, EditorCtrlC, On UseErrorLevel
 	Hotkey, ^x, EditorCtrlX, On UseErrorLevel
+	Hotkey, ^v, EditorCtrlV, On UseErrorLevel
 	Hotkey, ^e, EditorCtrlE, On UseErrorLevel
 	Hotkey, ^f, EditorCtrlF, On UseErrorLevel
-	Hotkey, Del, EditorCtrlDel, On UseErrorLevel
+	Hotkey, Del, EditorDel, On UseErrorLevel
 	Hotkey, +F10, EditorShiftF10, On UseErrorLevel
 	
 	Hotkey, ^r, GuiShowOnlyRules, On UseErrorLevel
@@ -647,13 +648,15 @@ return
 ; see Hotkey, If, WinActive(QACGuiTitle("Editor"))
 
 ;-----------------------------------------------------------
-EditorCtrlS: ; ^S::
-EditorEsc: ; Escape::
 EditorCtrlC: ; Copy
-EditorCtrlX: ; Cut
 EditorCtrlE: ; Edit
 EditorCtrlF: ; Find
-EditorCtrlDel: ; Del
+EditorCtrlS: ; Save
+EditorCtrlV: ; Paste
+EditorCtrlX: ; Cut
+EditorCtrlZ: ; Undo
+EditorDel: ; Del
+EditorEsc: ; Escape::
 EditorShiftF10: ; context menu
 ;-----------------------------------------------------------
 Gui, Editor:Default
@@ -676,17 +679,25 @@ if (A_ThisLabel = "EditorCtrlS")
 	
 	Gosub, EditorSave
 
-else if InStr("EditorCtrlC|EditorCtrlX|EditorCtrlDel", A_ThisLabel)
+else if (A_ThisLabel = "EditorCtrlC")
 
-	Send, % (A_ThisLabel = "EditorCtrlC" ? "^c" : (A_ThisLabel = "EditorCtrlX" ? "^x" : "{Del}"))
+	Edit_Copy(g_strEditorControlHwnd)
 
-else if (A_ThisLabel = "EditorShiftF10")
+else if (A_ThisLabel = "EditorCtrlX")
+
+	Edit_Cut(g_strEditorControlHwnd)
+
+else if (A_ThisLabel = "EditorCtrlV")
+
+	Edit_Paste(g_strEditorControlHwnd)
+
+else if (A_ThisLabel = "EditorDel")
+
+	Edit_Clear(g_strEditorControlHwnd)
+
+else if (A_ThisLabel = "EditorShiftF10" or A_ThisLabel = "EditorCtrlE")
 	
-	Gosub, ShowUpdatedEditorEditMenu
-
-else if (A_ThisLabel = "EditorCtrlE")
-	
-	Menu, menuBarEditorEdit, Show
+	Gosub, ShowEditorEditMenu
 
 else if (A_ThisLabel = "EditorCtrlF")
 	
@@ -909,7 +920,6 @@ else
 o_Settings.ReadIniOption("Launch", "blnRunAtStartup", "", , "f_lblOptionsRunAtStartup|f_blnOptionsRunAtStartup") ; blnRunAtStartup is not used but strGuiControls is
 o_Settings.ReadIniOption("Launch", "blnDisplayTrayTip", "DisplayTrayTip", 1, "f_blnDisplayTrayTip") ; g_blnDisplayTrayTip
 o_Settings.ReadIniOption("Launch", "blnCheck4Update", "Check4Update", (g_blnPortableMode ? 0 : 1), "f_blnCheck4Update|f_lnkCheck4Update") ; g_blnCheck4Update ; enable by default only in setup install mode
-o_Settings.ReadIniOption("Launch", "intRulesTimeoutSecs", "RulesTimeoutSecs", 60, "")
 o_Settings.ReadIniOption("Launch", "strBackupFolder", "BackupFolder", A_WorkingDir
 	, "f_lblBackupFolder|f_strBackupFolder|f_btnBackupFolder|f_lblWorkingFolder|f_strWorkingFolder|f_btnWorkingFolder|f_lblWorkingFolderDisabled")
 o_Settings.ReadIniOption("Launch", "blnDiagMode", "DiagMode", 0) ; g_blnDiagMode
@@ -930,6 +940,7 @@ o_Settings.ReadIniOption("RulesWindow", "blnDisplayRulesAtStartup", "DisplayRule
 o_Settings.ReadIniOption("RulesWindow", "blnRememberRulesPosition", "RememberRulesPosition", 1, "f_blnRememberRulesPosition")
 o_Settings.ReadIniOption("RulesWindow", "blnOpenRulesOnActiveMonitor", "OpenRulesOnActiveMonitor", 1, "f_blnOpenRulesOnActiveMonitor")
 o_Settings.ReadIniOption("RulesWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "")
+o_Settings.ReadIniOption("RulesWindow", "intRulesTimeoutSecs", "RulesTimeoutSecs", 60, "")
 ; need improvement !! o_Settings.ReadIniOption("RulesWindow", "blnDarkModeCustomize", "DarkModeCustomize", 0, "f_blnDarkModeCustomize")
 
 ; ---------------------
@@ -1037,21 +1048,30 @@ return
 
 
 ;------------------------------------------------------------
-ShowUpdatedEditorEditMenu:
+ShowEditorEditMenu:
 ;------------------------------------------------------------
 
 GuiControl, Focus, f_strClipboardEditor ; give focus to control for EditorEditMenuActions
+Menu, menuBarEditorEdit, Show
 
-GuiControlGet, blnEnable, Enabled, f_btnEditorSave ; enable Undo item if Save button is enabled
-Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogUndo"] . "`t(Ctrl+Z)"
+return
+;------------------------------------------------------------
 
-blnEnable := GetSelectedTextLenght() ; enable Cut, Copy, Delete if text is selected in the control
-Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCut"] . "`t(Ctrl+X)"
-Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogCopy"] . "`t(Ctrl+C)"
-Menu, menuBarEditorEdit, % (blnEnable ? "Enable" : "Disable"), % o_L["DialogDelete"] . "`t(Del)"
+
+;------------------------------------------------------------
+UpdateEditorEditMenu:
+;------------------------------------------------------------
+
+Menu, menuBarEditorEdit, % (Edit_CanUndo(g_strEditorControlHwnd) ? "Enable" : "Disable"), % o_L["DialogUndo"] . "`t(Ctrl+Z)"
+
+Menu, menuBarEditorEdit, % (Edit_TextIsSelected(g_strEditorControlHwnd) ? "Enable" : "Disable"), % o_L["DialogCut"] . "`t(Ctrl+X)"
+Menu, menuBarEditorEdit, % (Edit_TextIsSelected(g_strEditorControlHwnd) ? "Enable" : "Disable"), % o_L["DialogCopy"] . "`t(Ctrl+C)"
+Menu, menuBarEditorEdit, % (Edit_TextIsSelected(g_strEditorControlHwnd) ? "Enable" : "Disable"), % o_L["DialogDelete"] . "`t(Del)"
 
 Menu, menuBarEditorEdit, % (StrLen(Clipboard) ? "Enable" : "Disable"), % o_L["DialogPaste"] . "`t(Ctrl+V)"
-Menu, menuBarEditorEdit, Show
+
+intStart := ""
+intEnd := ""
 
 return
 ;------------------------------------------------------------
@@ -1062,17 +1082,17 @@ EditorEditMenuActions:
 ;------------------------------------------------------------
 
 if (A_ThisMenuItem = o_L["DialogUndo"] . "`t(Ctrl+Z)")
-	Send, ^z
+	Edit_Undo(g_strEditorControlHwnd)
 else if (A_ThisMenuItem = o_L["DialogCut"] . "`t(Ctrl+X)")
-	Send, ^x
+	Edit_Cut(g_strEditorControlHwnd)
 else if (A_ThisMenuItem = o_L["DialogCopy"] . "`t(Ctrl+C)")
-	Send, ^c
+	Edit_Copy(g_strEditorControlHwnd)
 else if (A_ThisMenuItem = o_L["DialogPaste"] . "`t(Ctrl+V)")
-	Send, ^v
+	Edit_Paste(g_strEditorControlHwnd)
 else if (A_ThisMenuItem = o_L["DialogDelete"] . "`t(Del)")
-	Send, {Del}
+	Edit_Clear(g_strEditorControlHwnd)
 else if (A_ThisMenuItem = o_L["DialogSelectAll"] . "`t(Ctrl+A)")
-	Send, ^a
+	Edit_SelectAll(g_strEditorControlHwnd)
 
 return
 ;------------------------------------------------------------
@@ -1185,6 +1205,7 @@ return
 ;------------------------------------------------------------
 BuildEditorMenuBar:
 ; see https://docs.microsoft.com/fr-fr/windows/desktop/uxguide/cmd-menus
+; keep () for shortcuts to avoid them to be considered as shortcuts from the menu (instead they are manages by QAC own hotkeys)
 ;------------------------------------------------------------
 
 Menu, menuEditorWindowMenu, Add, % o_L["MenuRules"] . "`t(Ctrl+R)", GuiShowOnlyRules
@@ -1210,8 +1231,12 @@ Menu, menuBarEditorEdit, Add
 Menu, menuBarEditorEdit, Add, % o_L["DialogSelectAll"] . "`t(Ctrl+A)", EditorEditMenuActions
 Menu, menuBarEditorEdit, Add
 for intOrder, aaRuleType in g_saRuleTypesOrder
+{
 	if !InStr("ConvertFormat|AutoHotkey", aaRuleType.strTypeCode)
 		Menu, menuBarEditorEdit, Add, % aaRuleType.strTypeLabel, % "GuiEditor" . aaRuleType.strTypeCode
+	if (aaRuleType.strTypeCode = "Replace")
+		Menu, menuBarEditorEdit, Disable, % aaRuleType.strTypeLabel
+}
 
 Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyMouse"], GuiSelectShortcut3
 Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyKeyboard"], GuiSelectShortcut4
@@ -1774,7 +1799,27 @@ ExecuteRuleInEditor:
 
 GuiControl, Focus, %g_strEditorControlHwnd%
 
+; prepare rule object
+IniRead, strRule, % o_Settings.strIniFile, RuleForEditor, RuleToExecute ; same section and item name
+saRuleValues := StrSplit(strRule, "|")
+loop, % saRuleValues.Length()
+	saRuleValues[A_Index] := DecodeFromIni(saRuleValues[A_Index])
+aaRuleToExecute := new Rule("RuleToexecute", saRuleValues)
+
 Edit_GetSel(g_strEditorControlHwnd, intStart, intEnd)
+if InStr("Find|Replace", aaRuleToExecute.strTypeCode)
+; if (aaRuleToExecute.strTypeCode = "Find")
+{
+	strFind := DoubleDoubleQuotes(aaRuleToExecute.strFind) ; double double-quotes inside search string
+	strFind := EscapeRegexString(strFind) ; escape regex characters "\.*?+[{|()^$" with "\" before adding \b or i) options
+	strFind := (aaRuleToExecute.blnReplaceWholeWord ? "\b" . strFind . "\b" : strFind) ; \b...\b for whole word boundries
+	strFind := (aaRuleToExecute.blnReplaceCaseSensitive ? "" : "i)") . strFind ; by default, regex are case-sensitive, changed with "i)"
+	intFoundPosition := Edit_FindText(g_strEditorControlHwnd, strFind, intStart, , "RegEx")
+	if (intFoundPosition >= 0) ; text found, zero-based index
+		Edit_SetSel(g_strEditorControlHwnd, intFoundPosition, intFoundPosition + StrLen(aaRuleToExecute.strFind))
+}
+
+return
 g_strEditedText := Edit_GetSelText(g_strEditorControlHwnd)
 if !StrLen(g_strEditedText)
 	g_strEditedText := f_strClipboardEditor ; all content of editor
@@ -1786,25 +1831,8 @@ else
 	strAfter := StrReplace(SubStr(strAllText, intEnd + 1), Chr(13) . Chr(10), Chr(10))
 }
 
-IniRead, strRule, % o_Settings.strIniFile, RuleForEditor, RuleToExecute ; same section and item name
-saRuleValues := StrSplit(strRule, "|")
-loop, % saRuleValues.Length()
-	saRuleValues[A_Index] := DecodeFromIni(saRuleValues[A_Index])
-aaRuleToExecute := new Rule("RuleToexecute", saRuleValues)
 
-if (aaRuleToExecute.strTypeCode = "Find")
-{
-	aaRuleToExecute.intSearchFrom := intStart + 1
-	intFoundPosition := aaRuleToExecute.ExecRule(g_strEditedText)
-	if (intFoundPosition) ; text found
-	{
-		intStart := intFoundPosition - 1
-		intEnd := intStart + StrLen(aaRuleToExecute.strFind) ; position cursor but no text selected
-	}
-	; else keep original intStart and intEnd values
-}
-else
-	g_strEditedText := aaRuleToExecute.ExecRule(g_strEditedText)
+g_strEditedText := aaRuleToExecute.ExecRule(g_strEditedText)
 
 if (intEnd - intStart) ; rebuild full Clipboard
 	g_strEditedText := strBefore . g_strEditedText . strAfter
@@ -1842,6 +1870,16 @@ Gosub, EditorEnableSaveAndCancel ; calls DisableClipboardChangesInEditor
 GuiControl, Disable, f_btnEditClipboard
 
 Menu, menuBarEditorMain, Enable, % o_L["MenuEditorEdit"]
+
+SetTimer, UpdateEditorEditMenu, 200
+; Force A_WorkingDir to A_ScriptDir if uncompiled (development environment)
+;@Ahk2Exe-IgnoreBegin
+; Start of code for development environment only - won't be compiled
+; see http://fincs.ahk4.net/Ahk2ExeDirectives.htm
+SetTimer, UpdateEditorEditMenu, Off
+; to test user data directory: SetWorkingDir, %A_AppData%\Quick Access Clipboard
+; / End of code for developement environment only - won't be compiled
+;@Ahk2Exe-IgnoreEnd
 
 return
 ;------------------------------------------------------------
@@ -1904,7 +1942,6 @@ return
 ;------------------------------------------------------------
 ClipboardContentChanged(intClipboardContentType)
 ; intClipboardContentType: 0 = empty / 1 = contains text / 2 = contains binary
-
 ;------------------------------------------------------------
 {
 	strDetectHiddenWindowsBefore := A_DetectHiddenWindows
@@ -1946,7 +1983,7 @@ Gui, Submit, NoHide
 Gosub, EditorDisableSaveAndCancel
 
 if (A_ThisLabel = "EditorSave")
-	Clipboard := f_strClipboardEditor
+	Clipboard := Edit_GetText(g_strEditorControlHwnd)
 else
 	Gosub, UpdateEditorWithClipboard
 
@@ -2906,6 +2943,7 @@ Menu, menuBarEditorMain,  % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable
 
 if (A_ThisLabel = "EditorDisableSaveAndCancel")
 {
+	SetTimer, UpdateEditorEditMenu, Off
 	GuiControl, Focus, f_btnEditClipboard
 	Gosub, EnableClipboardChangesInEditor
 }
@@ -3147,7 +3185,7 @@ else ; Clipboard contains text (g_intClipboardContentType = 1 or StrLen(Clipboar
 	strContent .= (StrLen(Clipboard) = 1 ? o_L["GuiOneCharacter"] : L(o_L["GuiCharacters"], StrLen(Clipboard)))
 
 g_strCliboardBackup := ClipboardAll ; not used...
-GuiControl, , f_strClipboardEditor, %Clipboard%
+Edit_SetText(g_strEditorControlHwnd, Clipboard)
 SB_SetText(strContent, 1)
 
 Gosub, ClipboardEditorSeeInvisibleChanged
@@ -4553,18 +4591,8 @@ WM_RBUTTONUP()
 		if (blnEditClipboardButtonEnabled)
 			Oops(1, o_L["GuiEnableEditor"])
 		else
-			Gosub, ShowUpdatedEditorEditMenu
+			Gosub, ShowEditorEditMenu
 	}
-}
-;------------------------------------------------------------
-
-
-;------------------------------------------------------------
-GetSelectedTextLenght()
-;------------------------------------------------------------
-{
-	Edit_GetSel(g_strEditorControlHwnd, intStart, intEnd)
-	return (intEnd - intStart)
 }
 ;------------------------------------------------------------
 

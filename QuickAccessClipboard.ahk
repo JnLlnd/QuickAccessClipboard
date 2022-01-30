@@ -259,7 +259,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.8.1
+;@Ahk2Exe-SetVersion 0.0.8.2
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -330,7 +330,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.8.1" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.8.2" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -439,6 +439,7 @@ global g_strExecRuleType ; code of rule to execute in editor
 global g_strPipe := "Ð¡þ€" ; used to replace pipe in ini file
 global g_strEol := "€ö¦" ; used to replace end-of-line in AutoHotkey rules in ini file
 global g_strTab := "¬ã³" ; used to replace tab in AutoHotkey rules in ini file
+global g_intMaximumValue := 0x7FFFFFFFFFFFFFFF ; max value for integers
 
 ;---------------------------------
 ; Init language
@@ -670,7 +671,7 @@ if (blnEditClipboardButtonEnabled)
 {
 	if (A_ThisLabel = "EditorCtrlE")
 		Gosub, EnableEditClipboard
-	else
+	else if (A_ThisLabel <> "EditorCtrlV") ; avoid oops if ^v from Ditto Clipboard history
 		Oops(1, o_L["GuiEnableEditor"])
 	return
 }
@@ -693,7 +694,7 @@ else if (A_ThisLabel = "EditorCtrlV")
 
 else if (A_ThisLabel = "EditorDel")
 
-	Edit_Clear(g_strEditorControlHwnd)
+	Send, {Del} ; Edit_Clear(g_strEditorControlHwnd) does not delete if there is not selection
 
 else if (A_ThisLabel = "EditorShiftF10" or A_ThisLabel = "EditorCtrlE")
 	
@@ -1838,8 +1839,6 @@ else
 	strAfter := StrReplace(SubStr(strAllText, intEnd + 1), Chr(13) . Chr(10), Chr(10))
 }
 
-
-
 if (intEnd - intStart) ; rebuild full Clipboard
 	g_strEditedText := strBefore . g_strEditedText . strAfter
 
@@ -1869,6 +1868,7 @@ EnableEditClipboard:
 GuiControl, -ReadOnly, f_strClipboardEditor
 GuiControl, , f_blnSeeInvisible, 0
 Gosub, ClipboardEditorSeeInvisibleChanged
+GuiControl, Focus, f_strClipboardEditor
 
 Gosub, ClipboardEditorChanged ; update the status bar
 Gosub, EditorEnableSaveAndCancel ; calls DisableClipboardChangesInEditor
@@ -6138,48 +6138,87 @@ class Rule
 		else if (this.strTypeCode = "SubString")
 		{
 			if (this.intSubStringFromType = 1) ; FromStart
-				intStartingPos := "1"
+				this.intStartingPos := "1"
 			else if (this.intSubStringFromType = 2) ; FromPosition
-				intStartingPos .= this.intSubStringFromPosition
-			else if (this.intSubStringFromType = 3) ; FromBeginText
-				intStartingPos := (InStr(strText, this.strSubStringFromText) ? InStr(strText, this.strSubStringFromText) + this.intSubStringFromPlusMinus : 1)
-			else if (this.intSubStringFromType = 4) ; FromEndText
-				intStartingPos := (InStr(strText, this.strSubStringFromText) ? InStr(strText, this.strSubStringFromText) + StrLen(this.strSubStringFromText) + this.intSubStringFromPlusMinus : 1)
-			strSubString .= intStartingPos
+				this.intStartingPos .= this.intSubStringFromPosition
+			else if (this.intSubStringFromType = 3 and !this.blnRepeat) ; FromBeginText
+				this.intStartingPos := this.GetFromBeginText(strText)
+			else if (this.intSubStringFromType = 4 and !this.blnRepeat) ; FromEndText
+				this.intStartingPos := this.GetFromEndText(strText)
 			
-			if (this.intSubStringToType = 2) ; ToLength
-				intLength := this.intSubStringToLength
+			if (this.intSubStringToType = 1) ; ToEnd
+				this.intLength := g_intMaximumValue
+			else if (this.intSubStringToType = 2) ; ToLength
+				this.intLength := this.intSubStringToLength
 			else if (this.intSubStringToType = 3) ; ToBeforeEnd
-				intLength := this.intSubStringToLength ; intSubStringToLength already negative
-			else if (this.intSubStringToType = 4) ; ToBeginText
-				intLength := (InStr(strText, this.strSubStringToText) ? InStr(strText, this.strSubStringToText) + this.intSubStringToPlusMinus - intStartingPos : StrLen(strText))
-			else if (this.intSubStringToType = 5) ; ToEndText
-				intLength := (InStr(strText, this.strSubStringToText) ? InStr(strText, this.strSubStringToText) + StrLen(this.strSubStringToText) + this.intSubStringToPlusMinus - intStartingPos : StrLen(strText))
+				this.intLength := this.intSubStringToLength ; intSubStringToLength already negative
+			else if (this.intSubStringToType = 4 and !this.blnRepeat) ; ToBeginText
+				this.intLength := this.GetToBeginText(strText)
+			else if (this.intSubStringToType = 5 and !this.blnRepeat) ; ToEndText
+				this.intLength := this.GetToEndText(strText)
 			
 			if (this.blnRepeat)
 			{
 				Loop, Parse, strText, `r, `n
-					if (this.intSubStringToType = 1)
-						strTemp .= SubStr(A_LoopField, intStartingPos) . "`r`n" ; end-of-line CRLF
-					else
-						strTemp .= SubStr(A_LoopField, intStartingPos, intLength) . "`r`n" ; end-of-line CRLF
+				{
+					if (this.intSubStringFromType = 3) ; FromBeginText
+						this.intStartingPos := this.GetFromBeginText(A_LoopField)
+					else if (this.intSubStringFromType = 4) ; FromEndText
+						this.intStartingPos := this.GetFromEndText(A_LoopField)
+					
+					if (this.intSubStringToType = 4) ; ToBeginText
+						this.intLength := this.GetToBeginText(A_LoopField)
+					else if (this.intSubStringToType = 5) ; ToEndText
+						this.intLength := this.GetToEndText(A_LoopField)
+					
+					strTemp .= SubStr(A_LoopField, this.intStartingPos, this.intLength) . "`r`n" ; end-of-line CRLF in Edit control
+				}
 				return SubStr(strTemp, 1, -2)
 			}
 			else
-				if (this.intSubStringToType = 1)
-					return SubStr(strText, intStartingPos)
-				else
-					return SubStr(strText, intStartingPos, intLength)
+				return SubStr(strText, this.intStartingPos, this.intLength)
 		}
 		else if InStr("Prefix Suffix", this.strTypeCode)
 			if (this.blnRepeat)
 			{
 				Loop, Parse, strText, `r, `n
-					strTemp .=  (this.strTypeCode = "Prefix" ? this.strPrefix : "") . A_LoopField . (this.strTypeCode = "Suffix" ? this.strSuffix : "") . "`r`n" ; end-of-line CRLF
+					strTemp .=  (this.strTypeCode = "Prefix" ? this.strPrefix : "") . A_LoopField . (this.strTypeCode = "Suffix" ? this.strSuffix : "") . "`r`n" ; end-of-line CRLF in Edit control
 				return SubStr(strTemp, 1, -1) ; remove last eol
 			}
 			else
 				return (this.strTypeCode = "Prefix" ? this.strPrefix : "") . strText . (this.strTypeCode = "Suffix" ? this.strSuffix : "")
+	}
+	;---------------------------------------------------------
+	
+	;---------------------------------------------------------
+	GetFromBeginText(strText)
+	;---------------------------------------------------------
+	{
+		return (InStr(strText, this.strSubStringFromText) ? InStr(strText, this.strSubStringFromText) + this.intSubStringFromPlusMinus : 1)
+	}
+	;---------------------------------------------------------
+
+	;---------------------------------------------------------
+	GetFromEndText(strText)
+	;---------------------------------------------------------
+	{
+		return (InStr(strText, this.strSubStringFromText) ? InStr(strText, this.strSubStringFromText) + StrLen(this.strSubStringFromText) + this.intSubStringFromPlusMinus : 1)
+	}
+	;---------------------------------------------------------
+	
+	;---------------------------------------------------------
+	GetToBeginText(strText)
+	;---------------------------------------------------------
+	{
+		return (InStr(strText, this.strSubStringToText) ? InStr(strText, this.strSubStringToText) + this.intSubStringToPlusMinus - this.intStartingPos : StrLen(strText))
+	}
+	;---------------------------------------------------------
+	
+	;---------------------------------------------------------
+	GetToEndText(strText)
+	;---------------------------------------------------------
+	{
+		return (InStr(strText, this.strSubStringToText) ? InStr(strText, this.strSubStringToText) + StrLen(this.strSubStringToText) + this.intSubStringToPlusMinus - this.intStartingPos : StrLen(strText))
 	}
 	;---------------------------------------------------------
 }

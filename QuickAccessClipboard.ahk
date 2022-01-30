@@ -1818,9 +1818,16 @@ if InStr("Find|Replace", aaRuleToExecute.strTypeCode)
 	if (intFoundPosition >= 0) ; text found, zero-based index
 		Edit_SetSel(g_strEditorControlHwnd, intFoundPosition, intFoundPosition + StrLen(aaRuleToExecute.strFind))
 }
-
+else
+{
+	if !Edit_TextIsSelected(g_strEditorControlHwnd)
+		Edit_SelectAll(g_strEditorControlHwnd)
+	g_strEditedText := Edit_GetSelText(g_strEditorControlHwnd)
+	g_strEditedText := aaRuleToExecute.ExecRule(g_strEditedText)
+	Edit_ReplaceSel(g_strEditorControlHwnd, g_strEditedText)
+}
 return
-g_strEditedText := Edit_GetSelText(g_strEditorControlHwnd)
+
 if !StrLen(g_strEditedText)
 	g_strEditedText := f_strClipboardEditor ; all content of editor
 else
@@ -1832,7 +1839,6 @@ else
 }
 
 
-g_strEditedText := aaRuleToExecute.ExecRule(g_strEditedText)
 
 if (intEnd - intStart) ; rebuild full Clipboard
 	g_strEditedText := strBefore . g_strEditedText . strAfter

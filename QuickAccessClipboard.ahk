@@ -6158,12 +6158,12 @@ class Rule
 			
 			if (this.blnRepeat)
 			{
-				Loop, Parse, strText, `n
+				Loop, Parse, strText, `r, `n
 					if (this.intSubStringToType = 1)
-						strTemp .= SubStr(A_LoopField, intStartingPos) . "`n"
+						strTemp .= SubStr(A_LoopField, intStartingPos) . "`r`n" ; end-of-line CRLF
 					else
-						strTemp .= SubStr(A_LoopField, intStartingPos, intLength) . "`n"
-				return SubStr(strTemp, 1, -1) ; remove last eol
+						strTemp .= SubStr(A_LoopField, intStartingPos, intLength) . "`r`n" ; end-of-line CRLF
+				return SubStr(strTemp, 1, -2)
 			}
 			else
 				if (this.intSubStringToType = 1)
@@ -6174,8 +6174,8 @@ class Rule
 		else if InStr("Prefix Suffix", this.strTypeCode)
 			if (this.blnRepeat)
 			{
-				Loop, Parse, strText, `n
-					strTemp .=  (this.strTypeCode = "Prefix" ? this.strPrefix : "") . A_LoopField . (this.strTypeCode = "Suffix" ? this.strSuffix : "") . "`n"
+				Loop, Parse, strText, `r, `n
+					strTemp .=  (this.strTypeCode = "Prefix" ? this.strPrefix : "") . A_LoopField . (this.strTypeCode = "Suffix" ? this.strSuffix : "") . "`r`n" ; end-of-line CRLF
 				return SubStr(strTemp, 1, -1) ; remove last eol
 			}
 			else

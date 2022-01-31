@@ -34,6 +34,17 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
+Version ALPHA: 0.0.8.2 (2022-01-31)
+- improve reliability of Find command in editor
+- improve editor actions involving selection of text (Change case, Substring, etc.)
+- use Edit library (from jballi) for edit menu command Copy, Cut, Paste and Del
+- disable Find and replace in edit menu until Replace command is implemented
+- set timer every 200 ms to enable edit menu items requiring a selection
+- optimization reflecting Clipboard changes in the editor
+- move timeout option in ini file from Launch to RulesWindow section
+- fix bug with end-of-lines when repeating a command on every line of the editor
+- fix bugs in editor when using SubString command with text search
+
 Version ALPHA: 0.0.8.1 (2022-01-26)
 - add "Window" menu to menu bar with items to switch to the other window or both windows
 - add hotkeys Ctrl+E to show Editor window, Ctrl+R to show Rules window and Ctrl+B to show both windows

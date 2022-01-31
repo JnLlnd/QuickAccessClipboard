@@ -270,7 +270,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.8.2
+;@Ahk2Exe-SetVersion 0.0.8.3
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -341,7 +341,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.8.2" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.8.3" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -1820,50 +1820,30 @@ aaRuleToExecute := new Rule("RuleToexecute", saRuleValues)
 
 Edit_GetSel(g_strEditorControlHwnd, intStart, intEnd)
 if InStr("Find|Replace", aaRuleToExecute.strTypeCode)
-; if (aaRuleToExecute.strTypeCode = "Find")
 {
-	strFind := DoubleDoubleQuotes(aaRuleToExecute.strFind) ; double double-quotes inside search string
+	strFind := DecodeEolAndTab(aaRuleToExecute.strFind) ; replace `t and `n with actual tab or eol
+	intLengthStrFindBeforeOptions := StrLen(strFind)
+	strFind := DoubleDoubleQuotes(strFind) ; double double-quotes inside search string
 	strFind := EscapeRegexString(strFind) ; escape regex characters "\.*?+[{|()^$" with "\" before adding \b or i) options
 	strFind := (aaRuleToExecute.blnReplaceWholeWord ? "\b" . strFind . "\b" : strFind) ; \b...\b for whole word boundries
 	strFind := (aaRuleToExecute.blnReplaceCaseSensitive ? "" : "i)") . strFind ; by default, regex are case-sensitive, changed with "i)"
 	intFoundPosition := Edit_FindText(g_strEditorControlHwnd, strFind, intStart, , "RegEx")
 	if (intFoundPosition >= 0) ; text found, zero-based index
-		Edit_SetSel(g_strEditorControlHwnd, intFoundPosition, intFoundPosition + StrLen(aaRuleToExecute.strFind))
+		Edit_SetSel(g_strEditorControlHwnd, intFoundPosition, intFoundPosition + intLengthStrFindBeforeOptions)
+	; ##### to be completed if (aaRuleToExecute.strTypeCode = "Replace")
 }
 else
 {
 	if !Edit_TextIsSelected(g_strEditorControlHwnd)
 		Edit_SelectAll(g_strEditorControlHwnd)
 	g_strEditedText := Edit_GetSelText(g_strEditorControlHwnd)
-	g_strEditedText := aaRuleToExecute.ExecRule(g_strEditedText)
+	g_strEditedText := aaRuleToExecute.ExecEditCommand(g_strEditedText)
 	Edit_ReplaceSel(g_strEditorControlHwnd, g_strEditedText)
 }
-return
 
-if !StrLen(g_strEditedText)
-	g_strEditedText := f_strClipboardEditor ; all content of editor
-else
-{
-	; get text before and after selection
-	strAllText := StrReplace(f_strClipboardEditor, Chr(10), Chr(13) . Chr(10)) ; add CR to get intStart and intEnd compatible with Edit_GetSel
-	strBefore := StrReplace(SubStr(strAllText, 1, intStart), Chr(13) . Chr(10), Chr(10))
-	strAfter := StrReplace(SubStr(strAllText, intEnd + 1), Chr(13) . Chr(10), Chr(10))
-}
-
-if (intEnd - intStart) ; rebuild full Clipboard
-	g_strEditedText := strBefore . g_strEditedText . strAfter
-
-GuiControl, , %g_strEditorControlHwnd%, %g_strEditedText% ; copy content to edit control
-GuiControl, Focus, %g_strEditorControlHwnd%
-
-Edit_SetSel(g_strEditorControlHwnd, intStart, intEnd)
-
-aaEditedRule := ""
-strAllText := ""
+aaRuleToExecute := ""
 intStart := ""
 intEnd := ""
-strBefore := ""
-strAfter := ""
 strRule := ""
 saRuleValues := ""
 intFoundPosition := ""
@@ -4776,6 +4756,20 @@ DoubleDoubleQuotes(str)
 ;------------------------------------------------------------
 
 
+;------------------------------------------------------------
+DecodeEolAndTab(strText)
+;------------------------------------------------------------
+{
+	strText := StrReplace(strText, "````", "!r4nd0mt3xt!")	; preserve double-backticks
+	strText := StrReplace(strText, "``n", "`r`n")				; decode end-of-lines (with CRLF for Edit control)
+	strText := StrReplace(strText, "``t", "`t")				; decode tabs
+	strText := StrReplace(strText, "!r4nd0mt3xt!", "``")		; restore double-backticks
+	
+	return strText
+}
+;------------------------------------------------------------
+
+
 ;========================================================================================================================
 ; END !_090_VARIOUS_FUNCTIONS:
 ;========================================================================================================================
@@ -6130,7 +6124,7 @@ class Rule
 	;---------------------------------------------------------
 
 	;---------------------------------------------------------
-	ExecRule(strText)
+	ExecEditCommand(strText)
 	;---------------------------------------------------------
 	{
 		if (this.strTypeCode = "ChangeCase")
@@ -6148,6 +6142,8 @@ class Rule
 		}
 		else if (this.strTypeCode = "SubString")
 		{
+			if (this.intSubStringFromType >= 3) ; 3 or 4 text search
+				this.strSubStringFromText := DecodeEolAndTab(this.strSubStringFromText)
 			if (this.intSubStringFromType = 1) ; FromStart
 				this.intStartingPos := "1"
 			else if (this.intSubStringFromType = 2) ; FromPosition
@@ -6157,6 +6153,8 @@ class Rule
 			else if (this.intSubStringFromType = 4 and !this.blnRepeat) ; FromEndText
 				this.intStartingPos := this.GetFromEndText(strText)
 			
+			if (this.intSubStringToType >= 4) ; 4 or 5 text search
+				this.strSubStringToText := DecodeEolAndTab(this.strSubStringToText)
 			if (this.intSubStringToType = 1) ; ToEnd
 				this.intLength := g_intMaximumValue
 			else if (this.intSubStringToType = 2) ; ToLength

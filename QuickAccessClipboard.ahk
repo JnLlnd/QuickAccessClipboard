@@ -451,6 +451,7 @@ global g_strPipe := "Ð¡þ€" ; used to replace pipe in ini file
 global g_strEol := "€ö¦" ; used to replace end-of-line in AutoHotkey rules in ini file
 global g_strTab := "¬ã³" ; used to replace tab in AutoHotkey rules in ini file
 global g_intMaximumValue := 0x7FFFFFFFFFFFFFFF ; max value for integers
+global g_strActiveRules ; list of active rules updated in LaunchQACrules and displayed in status bar
 
 ;---------------------------------
 ; Init language
@@ -955,11 +956,6 @@ o_Settings.ReadIniOption("RulesWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "")
 o_Settings.ReadIniOption("RulesWindow", "intRulesTimeoutSecs", "RulesTimeoutSecs", 60, "")
 ; need improvement !! o_Settings.ReadIniOption("RulesWindow", "blnDarkModeCustomize", "DarkModeCustomize", 0, "f_blnDarkModeCustomize")
 
-; ---------------------
-; Load rules
-
-Gosub, LoadRules ; load rules from ini and update rules objects
-
 strLanguageCode := ""
 
 return
@@ -1393,20 +1389,24 @@ Gui, Add, ListView
 
 Gui, Font, s8 w600, Verdana
 Gui, Add, Button, vf_btnRulesClose gRulesClose x340 y+20 w140 h30, % o_L["GuiClose"]
+g_aaRulesToolTipsMessages["Button13"] := ""
 GuiControl, Focus, f_btnRulesClose
 Gui, Font
 
 Gui, Add, Button, ys+30 xs+205 w24 vf_btnRuleAddGroup gGuiAddRuleGroup Disabled, % chr(0x2795) ; or chr(0x271B)
-g_aaRulesToolTipsMessages["Button13"] := o_L["MenuRuleGroupAdd"]
+g_aaRulesToolTipsMessages["Button14"] := o_L["MenuRuleGroupAdd"]
 
-Gosub, LoadRules
+; ---------------------
+; Load rules
+
+Gosub, LoadRules ; load rules from ini and update rules objects
 
 ; initialize LV_Rows class (https://github.com/Pulover/Class_LV_Rows)
 o_LvRowsHandle := New LV_Rows(Hwndg_strRulesSelectedHwnd)
 o_LvRowsHandle.SetHwnd(Hwndg_strRulesSelectedHwnd)
 
 Gui, Add, StatusBar
-SB_SetParts(200, 200)
+SB_SetText(o_L["GuiSelectedRules"] . ":", 1)
 
 GetSavedGuiWindowPosition("Rules", saRulesPosition) ; format: x|y|w|h with optional |M if maximized
 
@@ -1455,6 +1455,7 @@ else
 }
 
 Gosub, GuiApplyRules
+SB_SetText(o_L["GuiSelectedRules"] . ": " . g_strActiveRules, 1)
 
 intPosition := ""
 intOrder := ""
@@ -1620,6 +1621,7 @@ strTop =
 
 ; OnClipboardChange functions
 strOnClipboardChange := ""
+g_strActiveRules := ""
 loop, Parse, % "f_lvRulesSelected|f_lvRulesAvailable", |
 {
 	Gui, Rules:ListView, %A_LoopField%
@@ -1627,7 +1629,11 @@ loop, Parse, % "f_lvRulesSelected|f_lvRulesAvailable", |
 	{
 		LV_GetText(strName, A_Index, 1)
 		strOnClipboardChange .= "OnClipboardChange(""Rule" . g_aaRulesByName[strName].intID . """, " . (A_LoopField = "f_lvRulesSelected") . ")`n"
+		if (A_LoopField = "f_lvRulesSelected")
+			g_strActiveRules .= strName . ", "
 	}
+	if (A_LoopField = "f_lvRulesSelected")
+		g_strActiveRules := SubStr(g_strActiveRules, 1, -2)
 }
 
 Gui, Rules:ListView, f_lvRulesSelected

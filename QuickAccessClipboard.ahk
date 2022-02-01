@@ -1799,14 +1799,14 @@ GuiEditorSuffix:
 Gui, Editor:Submit, NoHide
 
 g_strExecRuleType := StrReplace(A_ThisLabel, "GuiEditor")
-Gosub, GuiRuleFromEditor
+Gosub, GuiRuleForEditor
 
 return
 ;------------------------------------------------------------
 
 
 ;------------------------------------------------------------
-ExecuteRuleInEditor:
+ExecuteEditCommand:
 ;------------------------------------------------------------
 
 GuiControl, Focus, %g_strEditorControlHwnd%
@@ -2154,13 +2154,13 @@ return
 GuiRuleAdd:
 GuiRuleEdit:
 GuiRuleCopy:
-GuiRuleFromEditor:
+GuiRuleForEditor:
 ;------------------------------------------------------------
 
 strAction := StrReplace(A_ThisLabel, "GuiRule")
-strMainGui := (strAction = "FromEditor" ? "Editor" : "Rules")
+strMainGui := (strAction = "ForEditor" ? "Editor" : "Rules")
 
-if (strAction = "FromEditor")
+if (strAction = "ForEditor")
 
 	aaEditedRule := new Rule("RuleToExecute", [g_strExecRuleType, "", ""]) ; __New(strName := "", saRuleValues := "")
 
@@ -2194,7 +2194,7 @@ Gui, 2:New, +Resize -MaximizeBox -MinimizeBox +Hwndg_strGui2Hwnd, %strGuiTitle%
 Gui, 2:+Owner%strMainGui%
 Gui, 2:+OwnDialogs
 
-if (strAction <> "FromEditor")
+if (strAction <> "ForEditor")
 {
 	Gui, 2:Add, Text, w400, % o_L["DialogRuleName"]
 	Gui, 2:Add, Edit, w400 vf_strName, % aaEditedRule.strName
@@ -2211,7 +2211,7 @@ Gui, 2:Add, Link, % "y+2 w" . (aaEditedRule.strTypeCode = "AutoHotkey" ? 900 : 4
 
 if (aaEditedRule.strTypeCode = "ChangeCase")
 	
-	loop, 3
+	loop, 4
 		Gui, 2:Add, Radio, % (A_Index = 1 ? "vf_varValue1 " : "") . ((aaEditedRule.intCaseType = A_Index or aaEditedRule.intCaseType = "" and A_Index = 1) ? " checked" : ""), % o_L["DialogCaseType" . A_Index]
 	
 else if (aaEditedRule.strTypeCode = "ConvertFormat")
@@ -2301,9 +2301,9 @@ else if InStr("Prefix Suffix", aaEditedRule.strTypeCode)
 	GuiControl, , f_varValue2, % (aaEditedRule.saVarValues[2] = true)
 }
 
-if (strAction = "FromEditor")
+if (strAction = "ForEditor")
 {
-	Gui, 2:Add, Button, y+20 vf_btnGo Default gGuiRuleToExecute, % o_L["GuiGo"]
+	Gui, 2:Add, Button, y+20 vf_btnGo Default gGuiEditCommand, % o_L["GuiGo"]
 	Gui, 2:Add, Button, yp vf_btnCancel g2GuiClose, % o_L["GuiCancel"]
 	GuiCenterButtons(g_strGui2Hwnd, , , , , , "f_btnGo", "f_btnCancel")
 }
@@ -2315,7 +2315,7 @@ else
 }
 Gui, 2:Add, Text, yp+30
 
-if (strAction = "FromEditor")
+if (strAction = "ForEditor")
 	Gosub, ShowGui2AndDisableGuiEditor
 else
 	Gosub, ShowGui2AndDisableGuiRules
@@ -2355,7 +2355,7 @@ return
 
 ;------------------------------------------------------------
 GuiRuleSave:
-GuiRuleToExecute:
+GuiEditCommand:
 ;------------------------------------------------------------
 Gui, 2:Submit, NoHide
 
@@ -2454,7 +2454,7 @@ if (A_ThisLabel = "GuiRuleSave")
 else
 {
 	aaEditedRule.SaveRule(strAction, saValues, strPreviousName)
-	Gosub, ExecuteRuleInEditor
+	Gosub, ExecuteEditCommand
 }
 
 loop, 9 ; delete form values because Gui:Destroy does not
@@ -4770,6 +4770,28 @@ DecodeEolAndTab(strText)
 ;------------------------------------------------------------
 
 
+;------------------------------------------------------------
+ToggleCase(strText)
+;------------------------------------------------------------
+{
+	Loop Parse, strText
+	{
+		strChar := A_LoopField
+		
+		if strChar is Upper
+			StringLower strChar, strChar
+		else if strChar is Lower
+			StringUpper strChar, strChar
+		; else keep unchanged
+		
+		strToggledText .= strChar
+	}
+	
+	return strToggledText
+}
+;------------------------------------------------------------
+
+
 ;========================================================================================================================
 ; END !_090_VARIOUS_FUNCTIONS:
 ;========================================================================================================================
@@ -5991,10 +6013,10 @@ class Rule
 			strIniLine .= StrReplace(saValues[A_Index], "|", g_strPipe) . "|"
 			; do not remove last | in case we have a space as last character
 		
-		IniWrite, %strIniLine%, % o_Settings.strIniFile, % (strAction = "FromEditor" ? "RuleForEditor" : "Rules"), % this.strName
+		IniWrite, %strIniLine%, % o_Settings.strIniFile, % (strAction = "ForEditor" ? "RuleForEditor" : "Rules"), % this.strName
 		; update rules objects will be done by LoadRules
 		
-		if (strAction <> "FromEditor")
+		if (strAction <> "ForEditor")
 		{
 			if (strAction = "Edit" and strPreviousName <> this.strName)
 				this.DeleteRule(strPreviousName)
@@ -6128,7 +6150,10 @@ class Rule
 	;---------------------------------------------------------
 	{
 		if (this.strTypeCode = "ChangeCase")
-			return RegExReplace(strText, this.strFind, this.strReplace)
+			if (this.intCaseType = 4) ; toggle
+				return ToggleCase(strText)
+			else
+				return RegExReplace(strText, this.strFind, this.strReplace) ; .strFind is ".*", .strReplace is one of "$L0|$U0|$T0" (lower, upper, title)
 		else if InStr("Replace|Find", this.strTypeCode)
 		{
 			strFind := DoubleDoubleQuotes(this.strFind) ; double double-quotes inside search string

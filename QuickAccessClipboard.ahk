@@ -1649,6 +1649,28 @@ strBottom =
 	}
 	;-----------------------------------------------------------
 
+	;------------------------------------------------------------
+	ToggleCase(strText)
+	;------------------------------------------------------------
+	{
+		Loop Parse, strText
+		{
+			strChar := A_LoopField
+			if strChar is Upper
+				StringLower strChar, strChar
+			else if strChar is Lower
+				StringUpper strChar, strChar
+			; else keep unchanged
+			strToggledText .= strChar
+		}
+		return strToggledText
+	}
+	;------------------------------------------------------------
+
+	;------------------------------------------------------------
+	; RULES
+	;------------------------------------------------------------
+
 
 ) ; leave the 2 last extra lines above
 
@@ -6064,13 +6086,19 @@ class Rule
 	;---------------------------------------------------------
 	{
 		; begin rule
-		strCode := "Rule" . this.intID . "(strType) `; " . this.strName . " (" . this.strTypeCode . ")`n{`n"
-		; strCode .= "`; MsgBox, Execute QACrule: %A_ThisFunc%`n"
+		strCode := ";------------------------------------------------------------`n"
+		strCode .= "Rule" . this.intID . "(strType) `; Type: " . this.strTypeCode . " / Name: " . this.strName . "`n"
+		strCode .= ";------------------------------------------------------------`n{`n"
 		strCode .= "if (strType = 1) `; text`n{`n"
 		
 		; strCode .= "`; strBefore := Clipboard`n"
 		if (this.strTypeCode = "ChangeCase")
-			strCode .= "Clipboard := RegExReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
+		{
+			strCode .= "if (" . this.intCaseType . " = 4)`n"
+			strCode .= "`tClipboard := ToggleCase(Clipboard)`n"
+			strCode .= "else`n"
+			strCode .= "`tClipboard := RegExReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
+		}
 		if (this.strTypeCode = "ConvertFormat") ; only Text format is supported
 			strCode .= "Clipboard := Clipboard"
 		else if (this.strTypeCode = "Replace")
@@ -6139,7 +6167,7 @@ class Rule
 		; strCode .= "`; MsgBox, Before:``n%strBefore%``n``nAfter:``n%strAfter%"
 		
 		; end rule
-		strCode .= "`n}`n}`n`n"
+		strCode .= "}`n}`n;------------------------------------------------------------`n`n"
 		
 		return strCode
 	}

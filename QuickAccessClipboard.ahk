@@ -1731,7 +1731,8 @@ Gui, Add, Text, x+10 yp vf_lblFontSize, % o_L["DialogFontSize"]
 Gui, Add, Edit, x+5 yp-3 w40 vf_intFontSize gClipboardEditorFontChanged
 Gui, Add, UpDown, Range6-36 vf_intFontUpDown, % o_Settings.EditorWindow.intFontSize.IniValue
 Gui, Add, Checkbox, % "x+20 yp+3 vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopChanged " . (o_Settings.EditorWindow.blnAlwaysOnTop.IniValue = 1 ? "checked" : ""), % o_L["DialogAlwaysOnTop"]
-Gui, Add, Checkbox, % "x+10 yp vf_blnUseTab gClipboardEditorUseTabChanged " . (o_Settings.EditorWindow.blnUseTab.IniValue = 1 ? "checked" : ""), % o_L["DialogUseTab"]
+; #### UseTab checkbos disabled until AHK bug is fixed: https://www.autohotkey.com/boards/viewtopic.php?f=14&t=99698
+Gui, Add, Checkbox, % "x+10 yp vf_blnUseTab gClipboardEditorUseTabChanged " . (o_Settings.EditorWindow.blnUseTab.IniValue = 1 ? "checked" : "") disabled, % o_L["DialogUseTab"]
 Gui, Add, Checkbox, x+10 yp vf_blnSeeInvisible gClipboardEditorSeeInvisibleChanged disabled, % o_L["DialogSeeInvisible"] ; enable only if f_strClipboardEditor contains Clipboard
 
 Gosub, ClipboardEditorAlwaysOnTopChanged
@@ -3295,7 +3296,9 @@ SelectShortcut(P_strActualShortcut, P_strShortcutName, P_intShortcutType, P_strD
 	Gui, 2:Default
 	Gui, +Owner%g_strMainGui%
 	Gui, +OwnDialogs
-	
+	if (g_strMainGui = "Editor")
+		WinSet, AlwaysOnTop, % (f_blnAlwaysOnTop ? "On" : "Off"), ahk_id %g_strGui2Hwnd% ; do not use default Toogle for safety
+
 	if (g_blnUseColors)
 		Gui, Color, %g_strGuiWindowColor%
 	Gui, Font, s12 w700, Arial
@@ -4629,33 +4632,22 @@ ConvertInvisible(str)
 {
 	; preserve tabs and new lines
 	strTabReplacement := "¤¢£"
-	str := StrReplace(str, Chr(9), strTabReplacement)
 	strLfReplacement := "²¬¼"
-	str := StrReplace(str, Chr(10), strLfReplacement)
-	
 	intUnicodeBase := 0x2400
-	loop, 31 ; from 1 to 31 (exclude 32 space)
-		if (InStr(str, Chr(A_Index)) or InStr(str, Chr(A_Index + intUnicodeBase)) or A_Index = 9 or A_Index = 10)
-		{
-			if (A_Index = 9) ; TAB
+	
+	loop, 32
+		if InStr(str, Chr(A_Index))
+			Switch A_Index
 			{
-				strFrom := strTabReplacement
-				strTo := Chr(0x21E5) . strTabReplacement ; U+21E8 RIGHTWARDS WHITE ARROW / U+21F0 RIGHTWARDS WHITE ARROW FROM WALL / U+21E5 RIGHTWARDS ARROW TO BAR
-				g_intInvisibleChars++
+			Case 9: ; TAB
+				str := StrReplace(str, A_Tab, Chr(0x21E5) . strTabReplacement) ; U+21E5 RIGHTWARDS ARROW TO BAR
+			Case 10: ; LF (`n = LF)
+				str := StrReplace(str, "`n", Chr(0x21B2) . strLfReplacement) ; U+21B2 DOWNWARDS ARROW WITH TIP LEFTWARDS
+			Case 32: ; SPACE
+				str := StrReplace(str, A_Space, Chr(0x25AB)) ; U+25AB WHITE SMALL SQUARE
+			Default:
+				str := StrReplace(str, Chr(A_Index), Chr(A_Index + intUnicodeBase)) ; U+25AB WHITE SMALL SQUARE
 			}
-			else if (A_Index = 10) ; LF (`n = LF)
-			{
-				strFrom := strLfReplacement
-				strTo := Chr(0x21B2) . strLfReplacement ; U+21E9 DOWNWARDS WHITE ARROW / U+21A9	LEFTWARDS ARROW WITH HOOK / U+21B2 DOWNWARDS ARROW WITH TIP LEFTWARDS
-				g_intInvisibleChars++
-			}
-			else
-			{
-				strFrom := Chr(A_Index)
-				strTo := Chr(A_Index + intUnicodeBase)
-			}
-			str := StrReplace(str, strFrom, strTo)
-		}
 	
 	; restore tabs and new lines
 	str := StrReplace(str, strTabReplacement, Chr(9))
@@ -6227,7 +6219,7 @@ class Rule
 			
 			if (this.blnRepeat)
 			{
-				Loop, Parse, strText, `r, `n
+				Loop, Parse, strText, `n, `r
 				{
 					if (this.intSubStringFromType = 3) ; FromBeginText
 						this.intStartingPos := this.GetFromBeginText(A_LoopField)
@@ -6249,7 +6241,7 @@ class Rule
 		else if InStr("Prefix Suffix", this.strTypeCode)
 			if (this.blnRepeat)
 			{
-				Loop, Parse, strText, `r, `n
+				Loop, Parse, strText, `n, `r
 					strTemp .=  (this.strTypeCode = "Prefix" ? this.strPrefix : "") . A_LoopField . (this.strTypeCode = "Suffix" ? this.strSuffix : "") . "`r`n" ; end-of-line CRLF in Edit control
 				return SubStr(strTemp, 1, -1) ; remove last eol
 			}

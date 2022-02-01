@@ -390,13 +390,9 @@ FileCreateDir, %g_strTempDir%
 
 global g_strRulesPathNameNoExt := g_strTempDir . "\QACrules" ; QACrules .exe and .ahk files path and file name no ext
 
-; Force g_strRulesPathNameNoExt to be in A_WorkingDir if uncompiled (development environment)
 ;@Ahk2Exe-IgnoreBegin
-; Start of code for development environment only - won't be compiled
-; see http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 global g_strRulesPathNameNoExt := A_WorkingDir . "\QACrules"
 ; to test user data directory: SetWorkingDir, %A_AppData%\Quick Access Clipboard
-; / End of code for developement environment only - won't be compiled
 ;@Ahk2Exe-IgnoreEnd
 
 ; remove temporary folders older than 7 days
@@ -1003,10 +999,8 @@ g_blnTrayIconError := ErrorLevel or g_blnTrayIconError
 Menu, Tray, UseErrorLevel, Off
 
 ;@Ahk2Exe-IgnoreBegin
-; Start of code for developement phase only - won't be compiled
 Menu, Tray, Icon, % o_JLicons.strFileLocation, 51, 1 ; 51 is iconPaste
 Menu, Tray, Standard
-; / End of code for developement phase only - won't be compiled
 ;@Ahk2Exe-IgnoreEnd
 
 return
@@ -1017,9 +1011,12 @@ return
 BuildTrayMenu:
 ;------------------------------------------------------------
 
-Menu, Tray, Add, % o_L["MenuEditor"] Default, GuiShowEditorFromTray
-Menu, Tray, Click, 1 ; require only one left mouse button click to open the default item
-Menu, Tray, Add, % o_L["MenuRules"], GuiShowRulesFromTray
+strEditorMenuName := o_L["MenuEditor"] . " (" . o_PopupHotkeyOpenEditorHotkeyMouse.AA.strPopupHotkeyTextShort . " " . o_L["DialogOr"]
+	. " " . o_PopupHotkeyOpenEditorHotkeyKeyboard.AA.strPopupHotkeyTextShort . ")"
+	
+Menu, Tray, Add, %strEditorMenuName% , GuiShowEditorFromTray
+Menu, Tray, Add, % o_L["MenuRules"] . " (" . o_PopupHotkeyOpenRulesHotkeyMouse.AA.strPopupHotkeyTextShort . " " . o_L["DialogOr"]
+	. " " . o_PopupHotkeyOpenRulesHotkeyKeyboard.AA.strPopupHotkeyTextShort . ")", GuiShowRulesFromTray
 Menu, Tray, Add
 Menu, Tray, Add, % o_L["MenuOpenWorkingDirectory"], OpenWorkingDirectory
 Menu, Tray, Add
@@ -1029,15 +1026,15 @@ Menu, Tray, Add
 Menu, Tray, Add, % L(o_L["MenuReload"], g_strAppNameText), CleanUpBeforeReload
 Menu, Tray, Add, % L(o_L["MenuExitApp"], g_strAppNameText), RulesCloseAndExitApp
 ;@Ahk2Exe-IgnoreBegin
-; Start of code for developement phase only - won't be compiled
 Menu, Tray, Add
-; / End of code for developement phase only - won't be compiled
 ;@Ahk2Exe-IgnoreEnd
 
-Menu, Tray, NoDefault ; do not open the Customize window on tray icon double-click
 Menu, Tray, Tip, % g_strAppNameText . " " . g_strAppVersion . " (" . (A_PtrSize * 8) . "-bit)" ; A_PtrSize * 8 = 32 or 64
-Menu, Tray, Default, % o_L["MenuEditor"]
-	
+Menu, Tray, Default, %strEditorMenuName%
+Menu, Tray, Click, 1 ; require only one left mouse button click to open the default item
+
+strEditorMenuName := ""
+
 return
 ;------------------------------------------------------------
 
@@ -1898,13 +1895,8 @@ GuiControl, Disable, f_btnEditClipboard
 Menu, menuBarEditorMain, Enable, % o_L["MenuEditorEdit"]
 
 SetTimer, UpdateEditorEditMenu, 200
-; Force A_WorkingDir to A_ScriptDir if uncompiled (development environment)
 ;@Ahk2Exe-IgnoreBegin
-; Start of code for development environment only - won't be compiled
-; see http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 SetTimer, UpdateEditorEditMenu, Off
-; to test user data directory: SetWorkingDir, %A_AppData%\Quick Access Clipboard
-; / End of code for developement environment only - won't be compiled
 ;@Ahk2Exe-IgnoreEnd
 
 return
@@ -5155,12 +5147,10 @@ TODO
 ; /* #### UNCOMMENT TO TEST WITH NORMAL SETTINGS FILE NAME
 		; Set developement ini file
 ;@Ahk2Exe-IgnoreBegin
-		; Start of code for developement environment only - won't be compiled
 		if (A_ComputerName = "JEAN-PC") ; for my home PC
 			this.strIniFile := A_WorkingDir . "\" . g_strAppNameFile . "-HOME.ini"
 		else if InStr(A_ComputerName, "ELITEBOOK-JEAN") ; for my work hotkeys
 			this.strIniFile := A_WorkingDir . "\" . g_strAppNameFile . "-WORK.ini"
-		; / End of code for developement environment only - won't be compiled
 ;@Ahk2Exe-IgnoreEnd
 ; */ ; #### UNCOMMENT TO TEST WITH NORMAL SETTINGS FILE NAME
 

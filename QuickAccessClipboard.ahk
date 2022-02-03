@@ -438,7 +438,9 @@ global g_intEditorDefaultHeight := 320
 global g_saEditorControls := Object() ; to build Editor gui
 global g_aaEditorControlsByName := Object() ; to build Editor gui
 global g_intEditorHwnd ; editor window ID
-global g_strEditorControlHwnd ; editor control ID
+global g_strEditorControlHwndWrapOn ; word wrap on editor control ID
+global g_strEditorControlHwndWrapOff ; word wrap off editor control ID
+global g_strEditorControlHwnd ; current editor control ID
 global g_strCliboardBackup ; not used...
 global g_intClipboardContentType ; updated by ClipboardContentChanged()
 global g_strExecRuleType ; code of rule to execute in editor
@@ -941,6 +943,7 @@ o_Settings.ReadIniOption("EditorWindow", "blnOpenEditorOnActiveMonitor", "OpenEd
 o_Settings.ReadIniOption("EditorWindow", "blnFixedFont", "FixedFont", 1, "")
 o_Settings.ReadIniOption("EditorWindow", "intFontSize", "FontSize", 12, "")
 o_Settings.ReadIniOption("EditorWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "")
+o_Settings.ReadIniOption("EditorWindow", "blnWordWrap", "WordWrap", 0, "")
 o_Settings.ReadIniOption("EditorWindow", "blnUseTab", "UseTab", 0, "")
 ; need improvement !! o_Settings.ReadIniOption("EditorWindow", "blnDarkModeCustomize", "DarkModeCustomize", 0, "f_blnDarkModeCustomize")
 
@@ -1056,7 +1059,7 @@ return
 ShowEditorEditMenu:
 ;------------------------------------------------------------
 
-GuiControl, Focus, f_strClipboardEditor ; give focus to control for EditorEditMenuActions
+GuiControl, Focus, %g_strEditorControlHwnd% ; give focus to control for EditorEditMenuActions
 Menu, menuBarEditorEdit, Show
 
 return
@@ -1296,7 +1299,8 @@ return
 InitEditorControls:
 ;------------------------------------------------------------
 
-InsertGuiControlPos(g_saEditorControls, g_aaEditorControlsByName, "f_strClipboardEditor",	10, 130)
+InsertGuiControlPos(g_saEditorControls, g_aaEditorControlsByName, "f_strEditorWordWrapOn",	10, 130)
+InsertGuiControlPos(g_saEditorControls, g_aaEditorControlsByName, "f_strEditorWordWrapOff",	10, 130)
 InsertGuiControlPos(g_saEditorControls, g_aaEditorControlsByName, "f_btnEditorSave",		0,  -70, , true) ; 0 set during build
 InsertGuiControlPos(g_saEditorControls, g_aaEditorControlsByName, "f_btnEditorCancel",		0,  -70, , true) ; 0 set during build
 InsertGuiControlPos(g_saEditorControls, g_aaEditorControlsByName, "f_btnEditorClose",		0,  -70, , true) ; 0 set during build
@@ -1723,22 +1727,29 @@ Gui, Add, Button, x10 y10 vf_btnEditClipboard gEnableEditClipboard Default h26, 
 Gui, Font
 GuiControl, Focus, f_btnEditClipboard
 
-Gui, Add, Checkbox, % "x+10 yp+5 vf_blnFixedFont gClipboardEditorFontChanged " . (o_Settings.EditorWindow.blnFixedFont.IniValue = 1 ? "checked" : ""), % o_L["DialogFixedFont"]
-Gui, Add, Text, x+10 yp vf_lblFontSize, % o_L["DialogFontSize"]
+Gui, Add, Checkbox, % "x+15 yp+5 vf_blnFixedFont gClipboardEditorFontChanged " . (o_Settings.EditorWindow.blnFixedFont.IniValue = 1 ? "checked" : ""), % o_L["DialogFixedFont"]
+Gui, Add, Text, x+5 yp vf_lblFontSize, % o_L["DialogFontSize"]
 Gui, Add, Edit, x+5 yp-3 w40 vf_intFontSize gClipboardEditorFontChanged
 Gui, Add, UpDown, Range6-36 vf_intFontUpDown, % o_Settings.EditorWindow.intFontSize.IniValue
-Gui, Add, Checkbox, % "x+20 yp+3 vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopChanged " . (o_Settings.EditorWindow.blnAlwaysOnTop.IniValue = 1 ? "checked" : ""), % o_L["DialogAlwaysOnTop"]
-; #### UseTab checkbos disabled until AHK bug is fixed: https://www.autohotkey.com/boards/viewtopic.php?f=14&t=99698
-Gui, Add, Checkbox, % "x+10 yp vf_blnUseTab gClipboardEditorUseTabChanged " . (o_Settings.EditorWindow.blnUseTab.IniValue = 1 ? "checked" : "") disabled, % o_L["DialogUseTab"]
-Gui, Add, Checkbox, x+10 yp vf_blnSeeInvisible gClipboardEditorSeeInvisibleChanged disabled, % o_L["DialogSeeInvisible"] ; enable only if f_strClipboardEditor contains Clipboard
+Gui, Add, Checkbox, % "x+15 yp+3 vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopChanged " . (o_Settings.EditorWindow.blnAlwaysOnTop.IniValue = 1 ? "checked" : ""), % o_L["DialogAlwaysOnTop"]
+Gui, Add, Checkbox, x+5 yp vf_blnWordWrap gClipboardEditorWrapChanged, % o_L["DialogWordWrap"]
+Gui, Add, Checkbox, x+5 yp vf_blnSeeInvisible gClipboardEditorSeeInvisibleChanged disabled, % o_L["DialogSeeInvisible"] ; enable only if g_strEditorControlHwnd contains Clipboard
+
+Gui, Add, Edit, x10 y+20 w600 vf_strEditorWordWrapOn gClipboardEditorChanged ReadOnly Multi t20 WantReturn +Wrap +hwndg_strEditorControlHwndWrapOn
+GuiControl, % (o_Settings.EditorWindow.blnUseTab.IniValue ? "+" : "-") . "WantTab", %g_strEditorControlHwndWrapOn%
+
+GuiControlGet, arrControlPos, Pos, %g_strEditorControlHwndWrapOn%
+g_saEditorControls[1].Y := arrControlPosY
+g_saEditorControls[2].Y := arrControlPosY
+
+Gui, Add, Edit, x10 yp w600 vf_strEditorWordWrapOff gClipboardEditorChanged ReadOnly Multi t20 WantReturn -Wrap +0x100000 +hwndg_strEditorControlHwndWrapOff ; +0x100000 is WS_HSCROLL
+GuiControl, % (o_Settings.EditorWindow.blnUseTab.IniValue ? "+" : "-") . "WantTab", %g_strEditorControlHwndWrapOff%
 
 Gosub, ClipboardEditorAlwaysOnTopChanged
-Gosub, ClipboardEditorUseTabChanged
-
-Gui, Add, Edit, x10 y+20 w600 vf_strClipboardEditor gClipboardEditorChanged ReadOnly Multi t20 WantReturn +hwndg_strEditorControlHwnd
-GuiControlGet, arrControlPos, Pos, f_strClipboardEditor
-g_saEditorControls[1].Y := arrControlPosY
-Gosub, ClipboardEditorFontChanged ; must be after Add Edit
+; must be after Add Edit
+Gosub, ClipboardEditorFontChanged
+g_strEditorControlHwnd := (o_Settings.EditorWindow.blnWordWrap.IniValue ? g_strEditorControlHwndWrapOn : g_strEditorControlHwndWrapOff)
+Gosub, ClipboardEditorWrapChanged
 
 Gui, Font, s8 w600, Verdana
 Gui, Add, Button, vf_btnEditorSave Disabled gEditorSave x100 y+10 w140 h30, % o_L["GuiSaveEditor"]
@@ -1882,10 +1893,10 @@ return
 EnableEditClipboard:
 ;------------------------------------------------------------
 
-GuiControl, -ReadOnly, f_strClipboardEditor
+GuiControl, -ReadOnly, %g_strEditorControlHwnd%
 GuiControl, , f_blnSeeInvisible, 0
 Gosub, ClipboardEditorSeeInvisibleChanged
-GuiControl, Focus, f_strClipboardEditor
+GuiControl, Focus, %g_strEditorControlHwnd%
 
 Gosub, ClipboardEditorChanged ; update the status bar
 Gosub, EditorEnableSaveAndCancel ; calls DisableClipboardChangesInEditor
@@ -1929,12 +1940,58 @@ return
 
 
 ;------------------------------------------------------------
-ClipboardEditorUseTabChanged:
+ClipboardEditorWrapChanged:
+; never change Edit control's Wrap option, managed using 2 Edit controls +Wrap and -Wrap
+; based on code from jblalli in "Example - General.ahk" from the Edit library)
 ;------------------------------------------------------------
-Gui, Editor:Submit, NoHide
+Gui,  Editor:Submit,  NoHide
 
-GuiControl, % (f_blnUseTab ? "+" : "-") . "WantTab", f_strClipboardEditor
-o_Settings.EditorWindow.blnUseTab.IniValue := f_blnUseTab
+g_strEditorControlHwnd := (f_blnWordWrap ? g_strEditorControlHwndWrapOn : g_strEditorControlHwndWrapOff)
+o_Settings.EditorWindow.blnWordWrap.IniValue := f_blnWordWrap
+
+strHwndSource := (g_strEditorControlHwnd = g_strEditorControlHwndWrapOn ? g_strEditorControlHwndWrapOff : g_strEditorControlHwndWrapOn)
+strHwndDest := (g_strEditorControlHwnd = g_strEditorControlHwndWrapOn ? g_strEditorControlHwndWrapOn : g_strEditorControlHwndWrapOff)
+
+; update modify state
+blnModify := Edit_GetModify(strHwndSource)
+Edit_SetModify(strHwndDest, blnModify)
+
+; get source selection
+Edit_GetSel(strHwndSource, intStartSelPos, intEndSelPos)
+
+; update content
+Edit_SetText(strHwndDest, Edit_GetText(strHwndSource)) ; set destination selection
+Edit_SetText(strHwndSource, "")
+
+; set dest selection
+Edit_SetSel(g_strEditorControlHwnd, intStartSelPos, intStartSelPos)
+Edit_ScrollCaret(g_strEditorControlHwnd) ; make sure the leftmost position of the selection is visible
+
+; set dest selection
+if (intStartSelPos <> intEndSelPos)
+{
+    Edit_SetSel(g_strEditorControlHwnd, intStartSelPos, intEndSelPos)
+
+    ; show as much of the selection as possible
+    intFirstVisibleLine := Edit_GetFirstVisibleLine(g_strEditorControlHwnd)
+    intLastVisibleLine := Edit_GetLastVisibleLine(g_strEditorControlHwnd)
+    intFirstSelectedLine := Edit_LineFromChar(g_strEditorControlHwnd, intStartSelPos)
+    intLastSelectedLine := Edit_LineFromChar(g_strEditorControlHwnd, intEndSelPos)
+
+    ; last line showing?
+    if (intLastSelectedLine > intLastVisibleLine)
+        if (intLastSelectedLine - intLastVisibleLine < intFirstSelectedLine - intFirstVisibleLine)
+            Edit_LineScroll(g_strEditorControlHwnd, 0, (intLastVisibleLine - intLastSelectedLine) * -1)
+         else
+            Edit_LineScroll(g_strEditorControlHwnd, 0, (intFirstVisibleLine - intFirstSelectedLine) * -1)
+}
+
+GuiControl, Hide, %strHwndSource%
+GuiControl, Show, %strHwndDest%
+GuiControl, Focus, %strHwndDest%
+
+strHwndSource := ""
+strHwndDest := ""
 
 return
 ;------------------------------------------------------------
@@ -1947,11 +2004,14 @@ Gui, Editor:Submit, NoHide
 
 if (f_blnSeeInvisible)
 {
-	GuiControl, +ReadOnly, f_strClipboardEditor
+	GuiControl, +ReadOnly, %g_strEditorControlHwnd%
 	GuiControl, Enable, f_btnEditClipboard
 }
 
-GuiControl, , f_strClipboardEditor, % (f_blnSeeInvisible ? ConvertInvisible(f_strClipboardEditor) : Clipboard)
+GuiControlGet, strText, , %g_strEditorControlHwnd% ; get text with GuiControlGet because strText must contain eol with LF only
+GuiControl, , %g_strEditorControlHwnd%, % (f_blnSeeInvisible ? ConvertInvisible(strText) : Clipboard)
+
+strText := ""
 
 return
 ;------------------------------------------------------------
@@ -1983,7 +2043,8 @@ if (f_blnFixedFont)
 	Gui, Editor:Font, % "s" . f_intFontSize, Courier New
 else
 	Gui, Editor:Font, % "s" . f_intFontSize
-GuiControl, Font, f_strClipboardEditor
+GuiControl, Font, %g_strEditorControlHwndWrapOn%
+GuiControl, Font, %g_strEditorControlHwndWrapOff%
 Gui, Editor:Font
 
 o_Settings.EditorWindow.blnFixedFont.IniValue := f_blnFixedFont
@@ -2076,8 +2137,10 @@ if (strGui = "Rules")
 	GuiControl, Move, f_lvRulesSelected, h%intListH%
 }
 else ; Editor
-	GuiControl, Move, f_strClipboardEditor, w%g_intEditorW% h%intEditorH%
-
+{
+	GuiControl, Move, f_strEditorWordWrapOn, w%g_intEditorW% h%intEditorH%
+	GuiControl, Move, f_strEditorWordWrapOff, w%g_intEditorW% h%intEditorH%
+}
 
 intListH := ""
 intButtonSpacing := ""
@@ -2827,7 +2890,7 @@ if FileExist(o_Settings.strIniFile) ; in case user deleted the ini file to creat
 	o_Settings.EditorWindow.blnFixedFont.WriteIni(o_Settings.EditorWindow.blnFixedFont.IniValue)
 	o_Settings.EditorWindow.intFontSize.WriteIni(o_Settings.EditorWindow.intFontSize.IniValue)
 	o_Settings.EditorWindow.blnAlwaysOnTop.WriteIni(o_Settings.EditorWindow.blnAlwaysOnTop.IniValue)
-	o_Settings.EditorWindow.blnUseTab.WriteIni(o_Settings.EditorWindow.blnUseTab.IniValue)
+	o_Settings.EditorWindow.blnWordWrap.WriteIni(o_Settings.EditorWindow.blnWordWrap.IniValue)
 
 	if (o_Settings.RulesWindow.blnRememberRulesPosition.IniValue)
 		SaveWindowPosition("RulesPosition", "ahk_id " . g_intRulesHwnd)
@@ -2924,7 +2987,7 @@ if InStr(A_ThisLabel, "ExitApp")
 	ExitApp
 ; else continue
 
-if (InStr(A_ThisLabel, "EditorClose") and EditorUnsaved())
+if (InStr(A_ThisLabel, "Editor") and EditorUnsaved())
 {
 	Gui, +OwnDialogs
 	MsgBox, 36, % L(o_L["DialogCancelTitle"], g_strAppNameText, g_strAppVersion), % o_L["DialogCancelPromptClipboard"]
@@ -3947,7 +4010,7 @@ DisableClipboardChangesInEditor:
 OnClipboardChange("ClipboardContentChanged", (A_ThisLabel = "EnableClipboardChangesInEditor"))
 SB_SetText((A_ThisLabel = "DisableClipboardChangesInEditor" ? o_L["DialogClipboardDisconnected"] : o_L["DialogClipboardSynchronized"]), 2)
 GuiControl, % (A_ThisLabel = "EnableClipboardChangesInEditor" ? "Enable" : "Disable"), f_blnSeeInvisible
-GuiControl, % (A_ThisLabel = "EnableClipboardChangesInEditor" ? "+" : "-") . "ReadOnly", f_strClipboardEditor
+GuiControl, % (A_ThisLabel = "EnableClipboardChangesInEditor" ? "+" : "-") . "ReadOnly", %g_strEditorControlHwnd%
 
 return
 ;------------------------------------------------------------
@@ -4594,7 +4657,7 @@ WM_RBUTTONDOWN()
 ; see OnMessage(0x204, "WM_RBUTTONDOWN")
 ;------------------------------------------------------------
 {
-    if (A_GuiControl = "f_strClipboardEditor")
+    if InStr(A_GuiControl, "f_strEditorWordWrap") ; f_strEditorWordWrapOff or f_strEditorWordWrapOn
        return 0
 }
 ;------------------------------------------------------------
@@ -4605,7 +4668,7 @@ WM_RBUTTONUP()
 ; see OnMessage(0x205, "WM_RBUTTONUP")
 ;------------------------------------------------------------
 {
-    if (A_GuiControl = "f_strClipboardEditor")
+    if InStr(A_GuiControl, "f_strEditorWordWrap") ; f_strEditorWordWrapOff or f_strEditorWordWrapOn
 	{
 		GuiControlGet, blnEditClipboardButtonEnabled, Enabled, f_btnEditClipboard
 		if (blnEditClipboardButtonEnabled)

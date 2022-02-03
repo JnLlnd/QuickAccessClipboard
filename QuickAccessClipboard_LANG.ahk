@@ -99,6 +99,7 @@ this["DialogUseTab"] := "Use tab"
 this["DialogWin"] := "Windows" ; windows key name
 this["DialogWindowMonitor"] := "Monitor"
 this["DialogWinShort"] := "Win" ; windows key short name
+this["DialogWordWrap"] := "Word wrap"
 this["GuiApplyRule"] := "Apply rule"
 this["GuiApplyRules"] := "Apply rules"
 this["GuiAvailableGroupsTip"] := "Show availabe groups of rules"

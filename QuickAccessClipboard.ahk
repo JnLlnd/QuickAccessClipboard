@@ -34,6 +34,25 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
+Version ALPHA: 0.0.9 (2022-02-03)
+ 
+Editor
+- add "Word wrap" checkbox and an the "WordWrap" ini option (under "EditorWindow" section) updated as checkbox is changed
+- add Toggle case option to Change case command
+- make `t (for tab) and `n (for new line) work in editor Substring text search
+- remove "Use tab" checkbox until an AutoHotkey runtime bug is fixed (https://www.autohotkey.com/boards/viewtopic.php?f=14&t=99698); the "UseTab" option (under "EditorWindow" section) can still be changed in ini file
+- when showing invisible characters, make space characters visible
+- fix bug when changing Editor window's shortcuts with Editor window is always on top
+ 
+Rules manager
+- add Toogle case option to Change case rule type
+- change vocabulary using "Active rules" instead of "Selected rule" (and "Activate", "Deactivate", etc.)
+- add list of active rules to Rules manager status bar
+ 
+General
+- add shortcuts reminders in tray menu
+- new AutoHotkey runtime v1.1.33.10
+
 Version ALPHA: 0.0.8.2 (2022-01-31)
 - improve reliability of Find command in editor
 - improve editor actions involving selection of text (Change case, Substring, etc.)
@@ -270,7 +289,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.8.3
+;@Ahk2Exe-SetVersion 0.0.9
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -341,7 +360,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.8.3" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.9" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"

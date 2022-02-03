@@ -2707,10 +2707,10 @@ g_strMainGui := StrReplace(A_ThisLabel, "ShowGui2AndDisableGui")
 
 CalculateTopGuiPosition(g_strGui2Hwnd, g_int%g_strMainGui%Hwnd, intX, intY)
 Gui, 2:Show, AutoSize x%intX% y%intY%
+if (g_strMainGui = "Editor" and f_blnAlwaysOnTop)
+	WinSet, AlwaysOnTop, On, ahk_id %g_strGui2Hwnd%
 
 Gui, %g_strMainGui%:+Disabled
-if (f_blnAlwaysOnTop)
-	WinSet, AlwaysOnTop, Off, % QACGuiTitle(g_strMainGui)
 
 intX := ""
 intY := ""
@@ -3042,20 +3042,18 @@ return
 Gui, 2:Submit, NoHide
 
 if StrLen(g_strMainGui) ; detect main window to enable after closing SelectShortcut()
-{
 	Gui, %g_strMainGui%:Default
-	g_strMainGui := ""
-}
 else
 	###_V("Debugging flag (please report this)", "*g_strMainGui", g_strMainGui, "*A_DefaultGui", A_DefaultGui) ; #####
 
 Gui, -Disabled
 Gui, 2:Destroy
-if (WinExist("A") <> g_intEditorHwnd)
+if (g_strMainGui = "Editor" and WinExist("A") <> g_intEditorHwnd)
 	WinActivate, ahk_id %g_intEditorHwnd%
+else if (g_strMainGui = "Rules" and WinExist("A") <> g_intRulesHwnd)
+	WinActivate, ahk_id %g_intRulesHwnd%
 
-if (f_blnAlwaysOnTop)
-	WinSet, AlwaysOnTop, On, % QACGuiTitle("Editor")
+g_strMainGui := ""
 
 return
 ;------------------------------------------------------------
@@ -3351,8 +3349,8 @@ SelectShortcut(P_strActualShortcut, P_strShortcutName, P_intShortcutType, P_strD
 	Gui, 2:Default
 	Gui, +Owner%g_strMainGui%
 	Gui, +OwnDialogs
-	if (g_strMainGui = "Editor")
-		WinSet, AlwaysOnTop, % (f_blnAlwaysOnTop ? "On" : "Off"), ahk_id %g_strGui2Hwnd% ; do not use default Toogle for safety
+	if (g_strMainGui = "Editor" and f_blnAlwaysOnTop)
+		WinSet, AlwaysOnTop, On, ahk_id %g_strGui2Hwnd% ; do not use default Toogle for safety
 
 	if (g_blnUseColors)
 		Gui, Color, %g_strGuiWindowColor%

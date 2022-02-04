@@ -1751,7 +1751,7 @@ Gui, Add, Text, x+5 yp vf_lblFontSize, % o_L["DialogFontSize"]
 Gui, Add, Edit, x+5 yp-3 w40 vf_intFontSize gClipboardEditorFontChanged
 Gui, Add, UpDown, Range6-36 vf_intFontUpDown, % o_Settings.EditorWindow.intFontSize.IniValue
 Gui, Add, Checkbox, % "x+15 yp+3 vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopChanged " . (o_Settings.EditorWindow.blnAlwaysOnTop.IniValue = 1 ? "checked" : ""), % o_L["DialogAlwaysOnTop"]
-Gui, Add, Checkbox, x+5 yp vf_blnWordWrap gClipboardEditorWrapChanged, % o_L["DialogWordWrap"]
+Gui, Add, Checkbox, % "x+5 yp vf_blnWordWrap gClipboardEditorWrapChanged " . (o_Settings.EditorWindow.blnWordWrap.IniValue = 1 ? "checked" : ""), % o_L["DialogWordWrap"]
 Gui, Add, Checkbox, x+5 yp vf_blnSeeInvisible gClipboardEditorSeeInvisibleChanged disabled, % o_L["DialogSeeInvisible"] ; enable only if g_strEditorControlHwnd contains Clipboard
 
 Gui, Add, Edit, x10 y+20 w600 vf_strEditorWordWrapOn gClipboardEditorChanged ReadOnly Multi t20 WantReturn +Wrap +hwndg_strEditorControlHwndWrapOn
@@ -1912,7 +1912,9 @@ return
 EnableEditClipboard:
 ;------------------------------------------------------------
 
-GuiControl, -ReadOnly, %g_strEditorControlHwnd%
+GuiControl, -ReadOnly, %g_strEditorControlHwndWrapOn%
+GuiControl, -ReadOnly, %g_strEditorControlHwndWrapOff%
+
 GuiControl, , f_blnSeeInvisible, 0
 Gosub, ClipboardEditorSeeInvisibleChanged
 GuiControl, Focus, %g_strEditorControlHwnd%
@@ -1963,7 +1965,7 @@ ClipboardEditorWrapChanged:
 ; never change Edit control's Wrap option, managed using 2 Edit controls +Wrap and -Wrap
 ; based on code from jblalli in "Example - General.ahk" from the Edit library)
 ;------------------------------------------------------------
-Gui,  Editor:Submit,  NoHide
+Gui, Editor:Submit,  NoHide
 
 g_strEditorControlHwnd := (f_blnWordWrap ? g_strEditorControlHwndWrapOn : g_strEditorControlHwndWrapOff)
 o_Settings.EditorWindow.blnWordWrap.IniValue := f_blnWordWrap

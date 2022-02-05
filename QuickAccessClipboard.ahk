@@ -315,10 +315,10 @@ SendMode, Input
 StringCaseSense, Off
 ComObjError(False) ; we will do our own error handling
 
-#Include %A_ScriptDir%\..\QuickAccessPopup\QAPtools.ahk ; by Jean Lalonde
-#Include %A_ScriptDir%\..\QuickAccessPopup\Class_LV_Rows.ahk ; https://github.com/Pulover/Class_LV_Rows from Rodolfo U. Batista / Pulover (as of 2020-11-22)
+#Include %A_ScriptDir%\Lib\QAPtools.ahk ; by Jean Lalonde
+#Include %A_ScriptDir%\Lib\Class_LV_Rows.ahk ; https://github.com/Pulover/Class_LV_Rows from Rodolfo U. Batista / Pulover (as of 2020-11-22)
 #Include %A_ScriptDir%\Lib\Edit.ahk ; from jballi https://www.autohotkey.com/boards/viewtopic.php?f=6&t=5063
-; #Include %A_ScriptDir%\XML_Class.ahk ; by Maestrith (Chad) https://autohotkey.com/boards/viewtopic.php?f=62&t=33114
+#Include %A_ScriptDir%\Lib\Dlg2.ahk
 
 ; avoid error message when shortcut destination is missing
 ; see http://ahkscript.org/boards/viewtopic.php?f=5&t=4477&p=25239#p25236
@@ -609,6 +609,9 @@ Hotkey, If, WinActive(QACGuiTitle("Editor"))
 	Hotkey, ^v, EditorCtrlV, On UseErrorLevel
 	Hotkey, ^e, EditorCtrlE, On UseErrorLevel
 	Hotkey, ^f, EditorCtrlF, On UseErrorLevel
+	Hotkey, F3, EditorF3, On UseErrorLevel
+	Hotkey, +F3, EditorShiftF3, On UseErrorLevel
+	Hotkey, ^h, EditorCtrlH, On UseErrorLevel
 	Hotkey, Del, EditorDel, On UseErrorLevel
 	Hotkey, +F10, EditorShiftF10, On UseErrorLevel
 	
@@ -681,13 +684,16 @@ return
 EditorCtrlC: ; Copy
 EditorCtrlE: ; Edit
 EditorCtrlF: ; Find
+EditorCtrlH: ; Replace
 EditorCtrlS: ; Save
 EditorCtrlV: ; Paste
 EditorCtrlX: ; Cut
 EditorCtrlZ: ; Undo
 EditorDel: ; Del
 EditorEsc: ; Escape::
+EditorF3: ; Find next
 EditorShiftF10: ; context menu
+EditorShiftF3: ; Find previous
 ;-----------------------------------------------------------
 Gui, Editor:Default
 
@@ -732,6 +738,18 @@ else if (A_ThisLabel = "EditorShiftF10" or A_ThisLabel = "EditorCtrlE")
 else if (A_ThisLabel = "EditorCtrlF")
 	
 	Gosub, GuiEditorFind
+
+else if (A_ThisLabel = "EditorF3")
+	
+	Gosub, GuiEditorFindNext
+
+else if (A_ThisLabel = "EditorShiftF3")
+	
+	Gosub, GuiEditorFindPrevious
+
+else if (A_ThisLabel = "EditorCtrlH")
+	
+	Gosub, GuiEditorFindReplace
 
 return
 ;-----------------------------------------------------------
@@ -1257,13 +1275,15 @@ Menu, menuBarEditorEdit, Add, % o_L["DialogDelete"] . "`t(Del)", EditorEditMenuA
 Menu, menuBarEditorEdit, Add
 Menu, menuBarEditorEdit, Add, % o_L["DialogSelectAll"] . "`t(Ctrl+A)", EditorEditMenuActions
 Menu, menuBarEditorEdit, Add
+Menu, menuBarEditorEdit, Add, % o_L["TypeFind"] . "`t(Ctrl+F)", GuiEditorFind
+Menu, menuBarEditorEdit, Add, % o_L["DialogFindNext"] . "`t(F3)", GuiEditorFindNext
+Menu, menuBarEditorEdit, Add, % o_L["DialogFindPrevious"] . "`t(Shift+F3)", GuiEditorFindPrevious
+Menu, menuBarEditorEdit, Add, % o_L["TypeReplace"] . "`t(Ctrl+H)", GuiEditorFindReplace
+
+Menu, menuBarEditorEdit, Add
 for intOrder, aaRuleType in g_saRuleTypesOrder
-{
-	if !InStr("ConvertFormat|AutoHotkey", aaRuleType.strTypeCode)
+	if !InStr("ConvertFormat|AutoHotkey|Find|Replace", aaRuleType.strTypeCode)
 		Menu, menuBarEditorEdit, Add, % aaRuleType.strTypeLabel, % "GuiEditor" . aaRuleType.strTypeCode
-	if (aaRuleType.strTypeCode = "Replace")
-		Menu, menuBarEditorEdit, Disable, % aaRuleType.strTypeLabel
-}
 
 Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyMouse"], GuiSelectShortcut3
 Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyKeyboard"], GuiSelectShortcut4
@@ -1308,7 +1328,7 @@ InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_lvRulesSelect
 InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_intSelectRuleOrGroups1",		0, 10) ; 0 set during build
 InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_intSelectRuleOrGroups2", 	0, 10) ; 0 set during build
 
-InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_btnRuleAddGroup", 		-33, 60)
+InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_btnRuleAddGroup", 		-33, 60, true)
 
 return
 ;------------------------------------------------------------
@@ -1761,7 +1781,8 @@ GuiControlGet, arrControlPos, Pos, %g_strEditorControlHwndWrapOn%
 g_saEditorControls[1].Y := arrControlPosY
 g_saEditorControls[2].Y := arrControlPosY
 
-Gui, Add, Edit, x10 yp w600 vf_strEditorWordWrapOff gClipboardEditorChanged ReadOnly Multi t20 WantReturn -Wrap +0x100000 +hwndg_strEditorControlHwndWrapOff ; +0x100000 is WS_HSCROLL
+; +0x100000 is WS_HSCROLL, +0x100 is ES_NOHIDESEL for find/replace dialog boxes
+Gui, Add, Edit, x10 yp w600 vf_strEditorWordWrapOff gClipboardEditorChanged ReadOnly Multi t20 WantReturn -Wrap +0x100000 +0x100 +hwndg_strEditorControlHwndWrapOff
 GuiControl, % (o_Settings.EditorWindow.blnUseTab.IniValue ? "+" : "-") . "WantTab", %g_strEditorControlHwndWrapOff%
 
 Gosub, ClipboardEditorAlwaysOnTopChanged
@@ -1844,15 +1865,42 @@ return
 
 ;------------------------------------------------------------
 GuiEditorFind:
+GuiEditorFindNext:
+GuiEditorFindPrevious:
+GuiEditorFindReplace:
 GuiEditorChangeCase:
 GuiEditorConvertFormat:
-GuiEditorReplace:
 GuiEditorAutoHotkey:
 GuiEditorSubString:
 GuiEditorPrefix:
 GuiEditorSuffix:
 ;------------------------------------------------------------
 Gui, Editor:Submit, NoHide
+
+if InStr(A_ThisLabel, "GuiEditorFind") ; includes GuiEditorFindNext
+{
+	strDetectHiddenWindowsBefore := A_DetectHiddenWindows
+	DetectHiddenWindows, Off ; required for find/replace dialog box
+	
+	; init variables used in .\Lib\EditFindReplace.ahk
+	Gosub, EEGUI_Init ; see #Include %A_ScriptDir%\Lib\EditFindReplace.ahk 
+	hEEGUI := g_intEditorHwnd
+	hEdit := g_strEditorControlHwnd
+	
+	if (A_ThisLabel = "GuiEditorFind")
+		Gosub, EEGUI_Find
+	else if (A_ThisLabel = "GuiEditorFindNext")
+		Gosub, EEGUI_FindNext
+	else if (A_ThisLabel = "GuiEditorFindPrevious")
+		Gosub, EEGUI_FindPrevious
+	else ; GuiEditorFindReplace
+		Gosub, EEGUI_Replace
+	
+	DetectHiddenWindows, %strDetectHiddenWindowsBefore%
+
+	return
+}
+; else continue
 
 g_strExecRuleType := StrReplace(A_ThisLabel, "GuiEditor")
 Gosub, GuiRuleForEditor
@@ -2325,7 +2373,7 @@ else if (aaEditedRule.strTypeCode = "ConvertFormat")
 
 else if InStr("Replace|Find", aaEditedRule.strTypeCode)
 {
-	Gui, 2:Add, Text, y+5, % o_L["DialogFind"]
+	Gui, 2:Add, Text, y+5, % o_L["DialogFindWhat"]
 	Gui, 2:Add, Edit, vf_varValue1 w400, % aaEditedRule.strFind ; aaEditedRule.saVarValues[4]
 	if (aaEditedRule.strTypeCode = "Replace")
 	{
@@ -6355,4 +6403,8 @@ class Rule
 	;---------------------------------------------------------
 }
 ;-------------------------------------------------------------
+
+; code extracted from Example - General.ahk in Edit library 2.0
+#Include %A_ScriptDir%\Lib\EditFindReplace.ahk ; from jballi https://www.autohotkey.com/boards/viewtopic.php?f=6&t=5063
+
 

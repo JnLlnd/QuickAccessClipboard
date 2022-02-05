@@ -609,6 +609,8 @@ Hotkey, If, WinActive(QACGuiTitle("Editor"))
 	Hotkey, ^v, EditorCtrlV, On UseErrorLevel
 	Hotkey, ^e, EditorCtrlE, On UseErrorLevel
 	Hotkey, ^f, EditorCtrlF, On UseErrorLevel
+	Hotkey, F3, EditorF3, On UseErrorLevel
+	Hotkey, +F3, EditorShiftF3, On UseErrorLevel
 	Hotkey, Del, EditorDel, On UseErrorLevel
 	Hotkey, +F10, EditorShiftF10, On UseErrorLevel
 	
@@ -687,7 +689,9 @@ EditorCtrlX: ; Cut
 EditorCtrlZ: ; Undo
 EditorDel: ; Del
 EditorEsc: ; Escape::
+EditorF3: ; Find next
 EditorShiftF10: ; context menu
+EditorShiftF3: ; Find previous
 ;-----------------------------------------------------------
 Gui, Editor:Default
 
@@ -732,6 +736,14 @@ else if (A_ThisLabel = "EditorShiftF10" or A_ThisLabel = "EditorCtrlE")
 else if (A_ThisLabel = "EditorCtrlF")
 	
 	Gosub, GuiEditorFind
+
+else if (A_ThisLabel = "EditorF3")
+	
+	Gosub, GuiEditorFindNext
+
+else if (A_ThisLabel = "EditorShiftF3")
+	
+	Gosub, GuiEditorFindPrevious
 
 return
 ;-----------------------------------------------------------
@@ -1257,13 +1269,16 @@ Menu, menuBarEditorEdit, Add, % o_L["DialogDelete"] . "`t(Del)", EditorEditMenuA
 Menu, menuBarEditorEdit, Add
 Menu, menuBarEditorEdit, Add, % o_L["DialogSelectAll"] . "`t(Ctrl+A)", EditorEditMenuActions
 Menu, menuBarEditorEdit, Add
+Menu, menuBarEditorEdit, Add, % o_L["TypeFind"] . "`t(Ctrl+F)", GuiEditorFind
+Menu, menuBarEditorEdit, Add, % o_L["DialogFindNext"] . "`t(F3)", GuiEditorFindNext
+Menu, menuBarEditorEdit, Add, % o_L["DialogFindPrevious"] . "`t(Shift+F3)", GuiEditorFindPrevious
+Menu, menuBarEditorEdit, Add, % o_L["TypeReplace"], GuiEditorFindReplace
+Menu, menuBarEditorEdit, Disable, % o_L["TypeReplace"]
+
+Menu, menuBarEditorEdit, Add
 for intOrder, aaRuleType in g_saRuleTypesOrder
-{
-	if !InStr("ConvertFormat|AutoHotkey", aaRuleType.strTypeCode)
+	if !InStr("ConvertFormat|AutoHotkey|Find|Replace", aaRuleType.strTypeCode)
 		Menu, menuBarEditorEdit, Add, % aaRuleType.strTypeLabel, % "GuiEditor" . aaRuleType.strTypeCode
-	if (aaRuleType.strTypeCode = "Replace")
-		Menu, menuBarEditorEdit, Disable, % aaRuleType.strTypeLabel
-}
 
 Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyMouse"], GuiSelectShortcut3
 Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyKeyboard"], GuiSelectShortcut4
@@ -1761,7 +1776,8 @@ GuiControlGet, arrControlPos, Pos, %g_strEditorControlHwndWrapOn%
 g_saEditorControls[1].Y := arrControlPosY
 g_saEditorControls[2].Y := arrControlPosY
 
-Gui, Add, Edit, x10 yp w600 vf_strEditorWordWrapOff gClipboardEditorChanged ReadOnly Multi t20 WantReturn -Wrap +0x100000 +hwndg_strEditorControlHwndWrapOff ; +0x100000 is WS_HSCROLL
+; +0x100000 is WS_HSCROLL, +0x100 is ES_NOHIDESEL for find/replace dialog boxes
+Gui, Add, Edit, x10 yp w600 vf_strEditorWordWrapOff gClipboardEditorChanged ReadOnly Multi t20 WantReturn -Wrap +0x100000 +0x100 +hwndg_strEditorControlHwndWrapOff
 GuiControl, % (o_Settings.EditorWindow.blnUseTab.IniValue ? "+" : "-") . "WantTab", %g_strEditorControlHwndWrapOff%
 
 Gosub, ClipboardEditorAlwaysOnTopChanged
@@ -1844,6 +1860,9 @@ return
 
 ;------------------------------------------------------------
 GuiEditorFind:
+GuiEditorFindNext:
+GuiEditorFindPrevious:
+GuiEditorFindReplace:
 GuiEditorChangeCase:
 GuiEditorConvertFormat:
 GuiEditorReplace:
@@ -1854,7 +1873,7 @@ GuiEditorSuffix:
 ;------------------------------------------------------------
 Gui, Editor:Submit, NoHide
 
-if (A_ThisLabel = "GuiEditorFind")
+if InStr(A_ThisLabel, "GuiEditorFind") ; includes GuiEditorFindNext
 {
 	$EEGUI:=2
 	
@@ -1876,7 +1895,13 @@ if (A_ThisLabel = "GuiEditorFind")
 	hEEGUI := g_intEditorHwnd
 	hEdit := g_strEditorControlHwnd
 	
-	Gosub, EEGUI_Find
+	if (A_ThisLabel = "GuiEditorFind")
+		Gosub, EEGUI_Find
+	else if (A_ThisLabel = "GuiEditorFindNext")
+		Gosub, EEGUI_Find
+	else ; GuiEditorFindPrevious
+		Gosub, EEGUI_FindPrevious
+	
 	return
 }
 ; else continue
@@ -2350,7 +2375,7 @@ else if (aaEditedRule.strTypeCode = "ConvertFormat")
 
 else if InStr("Replace|Find", aaEditedRule.strTypeCode)
 {
-	Gui, 2:Add, Text, y+5, % o_L["DialogFind"]
+	Gui, 2:Add, Text, y+5, % o_L["DialogFindWhat"]
 	Gui, 2:Add, Edit, vf_varValue1 w400, % aaEditedRule.strFind ; aaEditedRule.saVarValues[4]
 	if (aaEditedRule.strTypeCode = "Replace")
 	{
@@ -6418,9 +6443,12 @@ gui %$EEGUI%:Default
 IfWinExist ahk_id %hFRDialog%
     return
 
-;-- Bounce if Find was never called
+;-- Bounce if Find was never called (EDIT JL: call Find instead)
 if not StrLen(Dlg_FindWhat)
+{
+	Gosub, EEGUI_Find
 	return
+}
 
 ;-- Save Dlg_Flags
 $Saved_Dlg_Flags:=Dlg_Flags

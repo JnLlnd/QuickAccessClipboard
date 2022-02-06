@@ -34,6 +34,12 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
+Version ALPHA: 0.0.9.1 (2022-02-05)
+- implement Find (Ctrl-F), Find next (F3), Find previous (Shift+F3) and Find and replace (Ctrl+H) using Edit library from jballli
+- fix bug setting initial wordwrap property of editor control
+- fix bug keeping the correct readonly setting when switching wordwrap
+- fix bug suspênding hotkeys from the tray menu
+
 Version ALPHA: 0.0.9 (2022-02-03)
  
 Editor
@@ -289,7 +295,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.9
+;@Ahk2Exe-SetVersion 0.0.9.1
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -360,7 +366,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.9" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.9.1" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -4048,8 +4054,6 @@ ToggleSuspendHotkeys:
 ;------------------------------------------------------------
 
 Suspend, % (A_IsSuspended ? "Off" : "On")
-
-Menu, menuBarEditorTools, % (A_IsSuspended ? "Check" : "Uncheck"), % aaMenuToolsL["MenuSuspendHotkeys"]
 Menu, Tray, % (A_IsSuspended ? "Check" : "Uncheck"), % o_L["MenuSuspendHotkeys"]
 
 return

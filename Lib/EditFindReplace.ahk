@@ -45,8 +45,15 @@ if StrLen($Selected)
 
 ;-- Show the Find dialog
 hFRDialog :=Dlg_FindText(hEEGUI,Dlg_Flags|FR_HIDEWHOLEWORD,Dlg_FindWhat,"EEGUI_OnFind")
+; SetTimer, Check, 100
 return
 
+; Check:
+; if WinExist("ahk_id " . hFRDialog)
+    ; return
+; SetTimer, Check, Off
+; ###_V(A_ThisLabel, hFRDialog, WinExist("ahk_id " . hFRDialog))
+; return
 
 EEGUI_FindNext:
 gui %$EEGUI%:Default
@@ -443,6 +450,7 @@ EEGUI_Replace:
 gui %$EEGUI%:Default
 
 ;-- Bounce if Find or Replace dialog is already showing
+; ###_V(A_ThisLabel, hFRDialog, A_DetectHiddenWindows, WinExist("ahk_id " . hFRDialog))
 IfWinExist ahk_id %hFRDialog%
     return
 

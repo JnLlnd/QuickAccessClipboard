@@ -34,6 +34,9 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
+Version BETA: 0.1 (2022-02-05)
+- see description of features https://clipboard.quickaccesspopup.com/features/
+
 Version ALPHA: 0.0.9.1 (2022-02-05)
 - implement Find (Ctrl+F), Find next (F3), Find previous (Shift+F3) and Find and replace (Ctrl+H) using Edit library from jballli
 - fix bug setting initial wordwrap property of editor control
@@ -295,7 +298,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.9.1
+;@Ahk2Exe-SetVersion 0.0.9.2
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -366,7 +369,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.9.1" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.9.2" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -1320,7 +1323,7 @@ return
 InitRulesControls:
 ;------------------------------------------------------------
 
-InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_btnRulesClose",			0, 		-60) ; 0 set during build
+InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_btnRulesClose",			0, 		-60, , true) ; 0 set during build
 
 InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_btnRuleUndo", 			10, 	-95)
 
@@ -1331,10 +1334,10 @@ InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_btnRuleDeslec
 InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_lblSelected", 			-232, 	10)
 InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_lvRulesSelected", 		-232, 	36)
 
-InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_intSelectRuleOrGroups1",		0, 10) ; 0 set during build
-InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_intSelectRuleOrGroups2", 	0, 10) ; 0 set during build
+InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_intSelectRuleOrGroups1",		0, 10, , true) ; 0 set during build
+InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_intSelectRuleOrGroups2", 	0, 10, , true) ; 0 set during build
 
-InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_btnRuleAddGroup", 		-33, 60, true)
+InsertGuiControlPos(g_saRulesControls, g_aaRulesControlsByName, "f_btnRuleAddGroup", 		-33, 60, , true)
 
 return
 ;------------------------------------------------------------
@@ -1404,11 +1407,11 @@ Gui, Font, s9, Arial
 ; Unicode chars: https://www.fileformat.info/info/unicode/category/So/list.htm
 Gui, Add, Button, x10 ys+24 w24 vf_btnRuleAdd gGuiAddRuleSelectType, % chr(0x2795) ; or chr(0x271B)
 g_aaRulesToolTipsMessages["Button5"] := o_L["MenuRuleAdd"]
-Gui, Add, Button, ys+60 x10 w24 vf_btnRuleEdit gGuiRuleEdit, % chr(0x2328)
+Gui, Add, Button, ys+55 x10 w24 vf_btnRuleEdit gGuiRuleEdit, % chr(0x2328)
 g_aaRulesToolTipsMessages["Button6"] := o_L["MenuRuleEdit"]
-Gui, Add, Button, ys+90 x10 w24 vf_btnRuleRemove gGuiRuleRemove, % chr(0x2796)
+Gui, Add, Button, ys+85 x10 w24 vf_btnRuleRemove gGuiRuleRemove, % chr(0x2796)
 g_aaRulesToolTipsMessages["Button7"] := o_L["MenuRuleRemove"]
-Gui, Add, Button, ys+120 x10 w24 vf_btnRuleCopy gGuiRuleCopy, % chr(0x1F5D7) ; or 0x2750
+Gui, Add, Button, ys+115 x10 w24 vf_btnRuleCopy gGuiRuleCopy, % chr(0x1F5D7) ; or 0x2750
 g_aaRulesToolTipsMessages["Button8"] := o_L["MenuRuleCopy"]
 Gui, Add, Button, % "ys+173 x10 w24 vf_btnRuleUndo gGuiRuleUndo " . (g_blnUndoRulesBackupExist ? "" : "Disabled"), % chr(0x238C) ; or 0x2750
 g_aaRulesToolTipsMessages["Button9"] := o_L["MenuRuleUndo"]
@@ -1572,7 +1575,7 @@ While QACrulesExists()
 FileDelete, %g_strRulesPathNameNoExt%.ahk
 
 ; variable used in non-expression script header below
-intTimeoutMs := o_Settings.Launch.intRulesTimeoutSecs.IniValue * 1000
+intTimeoutMs := o_Settings.RulesWindow.intRulesTimeoutSecs.IniValue * 1000
 strGuiTitle := QACGuiTitle("Rules") 
 
 ; script header
@@ -1584,7 +1587,7 @@ strTop =
 	#NoTrayIcon
 	
 	global g_intLastTick ; initial timeout delay after rules are enabled
-	global g_stTargetAppTitle := `"%strGuiTitle%`"
+	global g_stTargetAppTitle := `"Quick Access Clipboard ahk_class JeanLalonde.ca`"
 	
 	Gosub, OnClipboardChangeInit
 	if RuleEnabled()
@@ -1917,6 +1920,7 @@ return
 
 ;------------------------------------------------------------
 ExecuteEditCommand:
+; using the Rules object model for all types except Replace (see GuiEditorFind for Find, Replace (etc.)
 ;------------------------------------------------------------
 
 GuiControl, Focus, %g_strEditorControlHwnd%
@@ -1929,27 +1933,13 @@ loop, % saRuleValues.Length()
 aaRuleToExecute := new Rule("RuleToexecute", saRuleValues)
 
 Edit_GetSel(g_strEditorControlHwnd, intStart, intEnd)
-if InStr("Find|Replace", aaRuleToExecute.strTypeCode)
-{
-	strFind := DecodeEolAndTab(aaRuleToExecute.strFind) ; replace `t and `n with actual tab or eol
-	intLengthStrFindBeforeOptions := StrLen(strFind)
-	strFind := DoubleDoubleQuotes(strFind) ; double double-quotes inside search string
-	strFind := EscapeRegexString(strFind) ; escape regex characters "\.*?+[{|()^$" with "\" before adding \b or i) options
-	strFind := (aaRuleToExecute.blnReplaceWholeWord ? "\b" . strFind . "\b" : strFind) ; \b...\b for whole word boundries
-	strFind := (aaRuleToExecute.blnReplaceCaseSensitive ? "" : "i)") . strFind ; by default, regex are case-sensitive, changed with "i)"
-	intFoundPosition := Edit_FindText(g_strEditorControlHwnd, strFind, intStart, , "RegEx")
-	if (intFoundPosition >= 0) ; text found, zero-based index
-		Edit_SetSel(g_strEditorControlHwnd, intFoundPosition, intFoundPosition + intLengthStrFindBeforeOptions)
-	; ##### to be completed if (aaRuleToExecute.strTypeCode = "Replace")
-}
-else
-{
-	if !Edit_TextIsSelected(g_strEditorControlHwnd)
-		Edit_SelectAll(g_strEditorControlHwnd)
-	g_strEditedText := Edit_GetSelText(g_strEditorControlHwnd)
-	g_strEditedText := aaRuleToExecute.ExecEditCommand(g_strEditedText)
-	Edit_ReplaceSel(g_strEditorControlHwnd, g_strEditedText)
-}
+if !Edit_TextIsSelected(g_strEditorControlHwnd)
+	Edit_SelectAll(g_strEditorControlHwnd)
+g_strEditedText := Edit_GetSelText(g_strEditorControlHwnd)
+
+g_strEditedText := aaRuleToExecute.ExecEditCommand(g_strEditedText)
+
+Edit_ReplaceSel(g_strEditorControlHwnd, g_strEditedText)
 
 aaRuleToExecute := ""
 intStart := ""
@@ -2345,10 +2335,9 @@ else
 		aaEditedRule := g_aaRulesByName[strName].CopyRule()
 }
 
-strGuiTitle := L(o_L["DialogAddEditRuleTitle"]
-	, (strAction = "Add" ? o_L["DialogEdit"] : (strAction = "Copy" ? o_L["DialogCopy"] : o_L["DialogAdd"]))
-	, g_strAppNameText, g_strAppVersion, aaEditedRule.strTypeLabel)
-; Gui, 2:New, +Resize -MaximizeBox +MinSize570x555 +MaxSizex555 +Hwndg_strGui2Hwnd, %strGuiTitle%
+strGuiTitle := L(o_L["DialogAddEditRuleTitle" . (strAction = "ForEditor" ? "ForEditor" : "")]
+	, aaEditedRule.strTypeLabel, g_strAppNameText, g_strAppVersion
+	, (strAction = "Add" ? o_L["DialogEdit"] : (strAction = "Copy" ? o_L["DialogCopy"] : o_L["DialogAdd"])))
 Gui, 2:New, +Resize -MaximizeBox -MinimizeBox +Hwndg_strGui2Hwnd, %strGuiTitle%
 Gui, 2:+Owner%strMainGui%
 Gui, 2:+OwnDialogs
@@ -3119,7 +3108,7 @@ Gui, 2:Submit, NoHide
 if StrLen(g_strMainGui) ; detect main window to enable after closing SelectShortcut()
 	Gui, %g_strMainGui%:Default
 else
-	###_V("Debugging flag (please report this)", "*g_strMainGui", g_strMainGui, "*A_DefaultGui", A_DefaultGui) ; #####
+	###_V("Debugging flag (please report this)", "*g_strMainGui", g_strMainGui, "*A_DefaultGui", A_DefaultGui) ; ####
 
 Gui, -Disabled
 Gui, 2:Destroy
@@ -4705,11 +4694,7 @@ AddUtm2Url(strUrl, strMedium, strCampaign)
 EditorUnsaved()
 ;------------------------------------------------------------
 {
-	global
-
-	GuiControlGet, blnSaveEditorEnabled, Editor:Enabled, f_btnEditorSave
-
-	return blnSaveEditorEnabled
+	return Edit_GetModify(g_strEditorControlHwnd)
 }
 ;------------------------------------------------------------
 

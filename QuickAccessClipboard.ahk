@@ -35,10 +35,10 @@ HISTORY
 =======
 
 Version ALPHA: 0.0.9.1 (2022-02-05)
-- implement Find (Ctrl-F), Find next (F3), Find previous (Shift+F3) and Find and replace (Ctrl+H) using Edit library from jballli
+- implement Find (Ctrl+F), Find next (F3), Find previous (Shift+F3) and Find and replace (Ctrl+H) using Edit library from jballli
 - fix bug setting initial wordwrap property of editor control
 - fix bug keeping the correct readonly setting when switching wordwrap
-- fix bug suspênding hotkeys from the tray menu
+- fix bug suspending hotkeys from the tray menu
 
 Version ALPHA: 0.0.9 (2022-02-03)
  

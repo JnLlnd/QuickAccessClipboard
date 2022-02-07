@@ -19,6 +19,8 @@ FR_REGEX         :=0x100000  ;-- FindGUI2 flag
 FR_NOREGEX       :=0x200000  ;-- FindGUI2 flag
 FR_HIDEREGEX     :=0x400000  ;-- FindGUI2 flag
 
+return
+
 
 EEGUI_Find:
 gui %$EEGUI%:Default

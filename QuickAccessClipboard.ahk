@@ -34,8 +34,14 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
-Version BETA: 0.1 (2022-02-05)
+Version BETA: 0.1 (2022-02-??)
 - see description of features https://clipboard.quickaccesspopup.com/features/
+
+Version ALPHA: 0.0.9.2 (2022-02-07)
+- fix bug displaying Replace dialog box after having used the find dialog box
+- fix bug with the Find and Replace dialog boxes when word wrap is on
+- fix timeout bug preventing disabling rules
+- minor cosmetic adjustments and fix button drawing issues when resizing the Rules window and in Rules
 
 Version ALPHA: 0.0.9.1 (2022-02-05)
 - implement Find (Ctrl+F), Find next (F3), Find previous (Shift+F3) and Find and replace (Ctrl+H) using Edit library from jballli
@@ -1783,7 +1789,7 @@ Gui, Add, Checkbox, % "x+15 yp+3 vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopCh
 Gui, Add, Checkbox, % "x+5 yp vf_blnWordWrap gClipboardEditorWrapChanged " . (o_Settings.EditorWindow.blnWordWrap.IniValue = 1 ? "checked" : ""), % o_L["DialogWordWrap"]
 Gui, Add, Checkbox, x+5 yp vf_blnSeeInvisible gClipboardEditorSeeInvisibleChanged disabled, % o_L["DialogSeeInvisible"] ; enable only if g_strEditorControlHwnd contains Clipboard
 
-Gui, Add, Edit, x10 y+20 w600 vf_strEditorWordWrapOn gClipboardEditorChanged ReadOnly Multi t20 WantReturn +Wrap +hwndg_strEditorControlHwndWrapOn
+Gui, Add, Edit, x10 y+20 w600 vf_strEditorWordWrapOn gClipboardEditorChanged ReadOnly Multi t20 WantReturn +Wrap +0x100 +hwndg_strEditorControlHwndWrapOn
 GuiControl, % (o_Settings.EditorWindow.blnUseTab.IniValue ? "+" : "-") . "WantTab", %g_strEditorControlHwndWrapOn%
 
 GuiControlGet, arrControlPos, Pos, %g_strEditorControlHwndWrapOn%

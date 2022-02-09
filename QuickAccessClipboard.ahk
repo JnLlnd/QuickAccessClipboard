@@ -37,6 +37,9 @@ HISTORY
 Version BETA: 0.1 (2022-02-??)
 - see description of features https://clipboard.quickaccesspopup.com/features/
 
+Version ALPHA: 0.0.9.3 (2022-02-09)
+- improve help text form editor's command Change case, Substring, Prefix and Suffix
+
 Version ALPHA: 0.0.9.2 (2022-02-07)
 - fix bug displaying Replace dialog box after having used the find dialog box
 - fix bug with the Find and Replace dialog boxes when word wrap is on
@@ -304,7 +307,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.0.9.2
+;@Ahk2Exe-SetVersion 0.0.9.3
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -375,7 +378,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.0.9.2" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.0.9.3" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "alpha" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"

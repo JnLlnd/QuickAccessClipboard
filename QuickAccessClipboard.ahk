@@ -37,6 +37,9 @@ HISTORY
 Version BETA: 0.1 (2022-02-??)
 - see description of features https://clipboard.quickaccesspopup.com/features/
 
+Version ALPHA: 0.0.9.3 (2022-02-09)
+- improve help text form editor's command Change case, Substring, Prefix and Suffix
+
 Version ALPHA: 0.0.9.2 (2022-02-07)
 - fix bug displaying Replace dialog box after having used the find dialog box
 - fix bug with the Find and Replace dialog boxes when word wrap is on
@@ -924,20 +927,25 @@ for intIndex, strType in saRuleTypes
 	strLabels .= o_L["Type" . strType] . "|" ; "TypeChangeCase", etc.
 
 	if (strType = "AutoHotkey")
-		strHelp .=  L(o_L["TypeAutoHotkeyHelp"], "https://www.autohotkey.com/docs/AutoHotkey.htm"
+		strHelpClipboard .=  L(o_L["TypeAutoHotkeyHelp"], "https://www.autohotkey.com/docs/AutoHotkey.htm"
 			, "https://www.autohotkey.com/docs/Variables.htm", "https://www.autohotkey.com/docs/commands/SubStr.htm"
 			, "https://www.autohotkey.com/docs/commands/InStr.htm", "https://www.autohotkey.com/docs/commands/Loop.htm"
 			, "https://www.autohotkey.com/docs/commands/IfExpression.htm")
 	else
-		strHelp .=  o_L["Type" . strType . "Help"]
-	strHelp .= "|"
+	{
+		strHelpClipboard .=  L(o_L["Type" . strType . "HelpClipboard"] . (strType = "SubString" ? o_L["TypeSubStringHelp2"] . o_L["TypeSubStringHelp3Clipboard"] : ""), o_L["TypeEncodingHelp"])
+		strHelpEditor .=  o_L["Type" . strType . "HelpEditor"] . (strType = "SubString" ? o_L["TypeSubStringHelp2"] : "")
+	}
+	strHelpClipboard .= "|"
+	strHelpEditor .= "|"
 }
 
 saRuleTypesLabels := StrSplit(SubStr(strLabels, 1, -1), "|")
-saRuleTypesHelp := StrSplit(SubStr(strHelp, 1, -1), "|")
+saRuleTypesHelpClipboard := StrSplit(SubStr(strHelpClipboard, 1, -1), "|")
+saRuleTypesHelpEditor := StrSplit(SubStr(strHelpEditor, 1, -1), "|")
 
 Loop, % saRuleTypes.Length()
-	new RuleType(saRuleTypes[A_Index], saRuleTypesLabels[A_Index], saRuleTypesHelp[A_Index])
+	new RuleType(saRuleTypes[A_Index], saRuleTypesLabels[A_Index], saRuleTypesHelpClipboard[A_Index], saRuleTypesHelpEditor[A_Index])
 
 saRuleTypes := ""
 saRuleTypesLabels := ""
@@ -2278,7 +2286,7 @@ GuiAddRuleSelectTypeRadioButtonChanged:
 Gui, 2:Submit, NoHide
 
 g_intAddRuleType := StrReplace(A_GuiControl, "f_intRadioRuleType")
-GuiControl, , f_lblAddRuleTypeHelp, % L(g_saRuleTypesOrder[g_intAddRuleType].strTypeHelp, o_L["TypeEncodingHelp"])
+GuiControl, , f_lblAddRuleTypeHelp, % g_saRuleTypesOrder[g_intAddRuleType].strTypeHelpClipboard
 
 if (A_GuiEvent = "DoubleClick")
 	Gosub, GuiAddRuleSelectTypeContinue
@@ -2361,7 +2369,7 @@ if (strAction <> "ForEditor")
 Gui, 2:Font, w600
 Gui, 2:Add, Text, y+10 w400, % aaEditedRule.strTypeLabel
 Gui, 2:Font
-Gui, 2:Add, Link, % "y+2 w" . (aaEditedRule.strTypeCode = "AutoHotkey" ? 900 : 400), % L(aaEditedRule.strTypeHelp, o_L["TypeEncodingHelp"])
+Gui, 2:Add, Link, % "y+2 w" . (aaEditedRule.strTypeCode = "AutoHotkey" ? 900 : 400), % L((strAction = "ForEditor"? aaEditedRule.strTypeHelpEditor : aaEditedRule.strTypeHelpClipboard))
 
 if (aaEditedRule.strTypeCode = "ChangeCase")
 	
@@ -2446,13 +2454,13 @@ else if InStr("Prefix Suffix", aaEditedRule.strTypeCode)
 
 if (aaEditedRule.strTypeCode = "SubString")
 {
-	Gui, 2:Add, CheckBox, x10 y+25 w400 vf_blnRepeat, % o_L["DialogRepeatOnEachLine"]
-	GuiControl, , f_blnRepeat, % (aaEditedRule.blnRepeat = true)
+	Gui, 2:Add, CheckBox, % "x10 y+25 w400 vf_blnRepeat" . (strAction = "ForEditor" ? " hidden" : ""), % o_L["DialogRepeatOnEachLine"]
+	GuiControl, , f_blnRepeat, % (strAction = "ForEditor" ? true : (aaEditedRule.blnRepeat = true))
 }
 else if InStr("Prefix Suffix", aaEditedRule.strTypeCode)
 {
-	Gui, 2:Add, CheckBox, x10 y+10 w400 vf_varValue2, % o_L["DialogRepeatOnEachLine"]
-	GuiControl, , f_varValue2, % (aaEditedRule.saVarValues[2] = true)
+	Gui, 2:Add, CheckBox, % "x10 y+10 w400 vf_varValue2" . (strAction = "ForEditor" ? " hidden" : ""), % o_L["DialogRepeatOnEachLine"]
+	GuiControl, , f_varValue2, % (strAction = "ForEditor" ? true : (aaEditedRule.saVarValues[2] = true))
 }
 
 if (strAction = "ForEditor")
@@ -6039,12 +6047,13 @@ class RuleType
 ;-------------------------------------------------------------
 {
 	;---------------------------------------------------------
-	__New(strTypeCode, strTypeLabel, strTypeHelp)
+	__New(strTypeCode, strTypeLabel, strTypeHelpClipboard, strTypeHelpEditor)
 	;---------------------------------------------------------
 	{
 		this.strTypeCode := strTypeCode
 		this.strTypeLabel := strTypeLabel
-		this.strTypeHelp := strTypeHelp
+		this.strTypeHelpClipboard := strTypeHelpClipboard
+		this.strTypeHelpEditor := strTypeHelpEditor
 		
 		g_aaRuleTypes[strTypeCode] := this
 		this.intID := g_saRuleTypesOrder.Push(this)
@@ -6066,7 +6075,8 @@ class Rule
 		this.strName := strName
 		this.strTypeCode := saRuleValues.RemoveAt(1)
 		this.strTypeLabel := g_aaRuleTypes[this.strTypeCode].strTypeLabel
-		this.strTypeHelp := g_aaRuleTypes[this.strTypeCode].strTypeHelp
+		this.strTypeHelpClipboard := g_aaRuleTypes[this.strTypeCode].strTypeHelpClipboard
+		this.strTypeHelpEditor := g_aaRuleTypes[this.strTypeCode].strTypeHelpEditor
 		this.strCategory := StrReplace(saRuleValues.RemoveAt(1), g_strPipe, "|")
 		this.strNotes := StrReplace(saRuleValues.RemoveAt(1), g_strPipe, "|")
 		; saRuleValues is now: 1) first variable value, 2) second variable value, etc.

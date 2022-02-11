@@ -34,7 +34,8 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
-Version BETA: 0.1 (2022-02-??)
+Version BETA: 0.1 (2022-02-10)
+- see Alpha releases change log below
 - see description of features https://clipboard.quickaccesspopup.com/features/
 
 Version ALPHA: 0.0.9.3 (2022-02-09)
@@ -972,7 +973,7 @@ if !(strRulesExist) ; first launch
 	strRulesList .= AddDefaultRule("Replace|Demo|Text substitution example with whole word option|this|that|1||", "Replace this with that")
 	strRulesList .= AddDefaultRule("SubString|Demo|String manipulation example|1|||0|3|-2||0|0|", "Trim 2 last characters")
 	strRulesList .= AddDefaultRule("Prefix|Demo|Append text example|Title: |", "Prefix with Title")
-	strRulesList .= AddDefaultRule("AutoHotkey|Demo|Simple AutoHotkey line of code|MsgBox`, Your Clipboard1 contains: `%Clipboard`%|", "MsgBox")
+	strRulesList .= AddDefaultRule("AutoHotkey|Demo|Simple AutoHotkey line of code|MsgBox`, Your Clipboard contains: `%Clipboard`%|", "MsgBox")
 	strRulesList .= AddDefaultRule("AutoHotkey|Demo|Multiline AHK scripting|if StrLen(Clipboard) > 500" . g_strEol
 		. g_strTab . "str := ""The 500 first characters of your Clipboard are:``n``n"" . SubStr(Clipboard, 1, 500) . ""...""" . g_strEol
 		. "else" . g_strEol

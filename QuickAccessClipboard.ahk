@@ -34,9 +34,13 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
+Version BETA: 0.1.0.1 (2022-02-??)
+-
+
 Version BETA: 0.1 (2022-02-10)
-- see Alpha releases change log below
 - see description of features https://clipboard.quickaccesspopup.com/features/
+- change Save Clipboard button label; fix typo in a rule demo example
+- see Alpha releases change log below
 
 Version ALPHA: 0.0.9.3 (2022-02-09)
 - improve help text form editor's command Change case, Substring, Prefix and Suffix
@@ -1128,8 +1132,24 @@ return
 
 
 ;------------------------------------------------------------
-UpdateEditorEditMenu:
+UpdateEditorEditMenuAndStatusBar:
 ;------------------------------------------------------------
+
+Gui, Editor:Default
+intSelSart := Edit_GetSel(g_strEditorControlHwnd) ; character index of selection start, zero-based
+intSelLine := Edit_LineFromChar(g_strEditorControlHwnd, intSelSart) ; line of selection start, zero-based
+intSelLineStart := Edit_LineIndex(g_strEditorControlHwnd, intSelLine) ; character index of line of selection start, zero-based
+intSelLength := StrLen(Edit_GetSelText(g_strEditorControlHwnd)) ; length of the selection, one-based
+
+SB_SetText(o_L["DialogLine"] . ": " . intSelLine + 1
+	. "  |  " . o_L["DialogChar"] . ": " . intSelSart - intSelLineStart + 1
+	. "  |  " . o_L["DialogPos"] . ": " . intSelSart + 1
+	. "  |  " . o_L["DialogSel"] . ": " . intSelLength, 3)
+
+GuiControlGet, blnEditClipboardButtonEnabled, Enabled, f_btnEditClipboard
+if !(blnEditClipboardButtonEnabled)
+	return ; read-only, no need to update the Edit menu
+; else continue
 
 Menu, menuBarEditorEdit, % (Edit_CanUndo(g_strEditorControlHwnd) ? "Enable" : "Disable"), % o_L["DialogUndo"] . "`t(Ctrl+Z)"
 
@@ -1139,8 +1159,10 @@ Menu, menuBarEditorEdit, % (Edit_TextIsSelected(g_strEditorControlHwnd) ? "Enabl
 
 Menu, menuBarEditorEdit, % (StrLen(Clipboard) ? "Enable" : "Disable"), % o_L["DialogPaste"] . "`t(Ctrl+V)"
 
-intStart := ""
-intEnd := ""
+intSelSart := ""
+intSelLine := ""
+intSelLineStart := ""
+intSelLength := ""
 
 return
 ;------------------------------------------------------------
@@ -1822,7 +1844,7 @@ Gui, Add, Button, vf_btnEditorClose gEditorClose x300 yp w120 h30, % o_L["GuiClo
 Gui, Font
 
 Gui, Add, StatusBar
-SB_SetParts(200, 200)
+SB_SetParts(200, 150)
 
 GetSavedGuiWindowPosition("Editor", saEditorPosition) ; format: x|y|w|h with optional |M if maximized
 
@@ -1985,11 +2007,6 @@ GuiControl, Disable, f_btnEditClipboard
 
 Menu, menuBarEditorMain, Enable, % o_L["MenuEditorEdit"]
 
-SetTimer, UpdateEditorEditMenu, 200
-;@Ahk2Exe-IgnoreBegin
-SetTimer, UpdateEditorEditMenu, Off
-;@Ahk2Exe-IgnoreEnd
-
 return
 ;------------------------------------------------------------
 
@@ -2032,6 +2049,10 @@ o_Settings.EditorWindow.blnWordWrap.IniValue := f_blnWordWrap
 strHwndSource := (g_strEditorControlHwnd = g_strEditorControlHwndWrapOn ? g_strEditorControlHwndWrapOff : g_strEditorControlHwndWrapOn)
 strHwndDest := (g_strEditorControlHwnd = g_strEditorControlHwndWrapOn ? g_strEditorControlHwndWrapOn : g_strEditorControlHwndWrapOff)
 
+; update ReadOnly state
+GuiControlGet, blnEditClipboardButtonEnabled, Enabled, f_btnEditClipboard
+GuiControl, % (blnEditClipboardButtonEnabled ? "+" : "-") . "ReadOnly", %strHwndDest%
+
 ; update modify state
 blnModify := Edit_GetModify(strHwndSource)
 Edit_SetModify(strHwndDest, blnModify)
@@ -2068,7 +2089,8 @@ if (intStartSelPos <> intEndSelPos)
 
 GuiControl, Hide, %strHwndSource%
 GuiControl, Show, %strHwndDest%
-GuiControl, Focus, %strHwndDest%
+if !(blnEditClipboardButtonEnabled) ; give focus only if not readonly
+	GuiControl, Focus, %strHwndDest%
 
 strHwndSource := ""
 strHwndDest := ""
@@ -3103,7 +3125,6 @@ Menu, menuBarEditorMain,  % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable
 
 if (A_ThisLabel = "EditorDisableSaveAndCancel")
 {
-	SetTimer, UpdateEditorEditMenu, Off
 	GuiControl, Focus, f_btnEditClipboard
 	Gosub, EnableClipboardChangesInEditor
 }
@@ -3237,7 +3258,7 @@ if InStr(A_ThisLabel, "Rules")
 	intGuiHwnd := g_intRulesHwnd
 	Gui, Rules:Default
 }
-else
+else ; Editor
 {
 	Gosub, UpdateEditorWithClipboardFromGuiShow
 	Gosub, EditorDisableSaveAndCancel ; calls EditorDisableSaveAndCancel???
@@ -3245,6 +3266,12 @@ else
 	
 	intGuiHwnd := g_intEditorHwnd
 	Gui, Editor:Default
+
+	SetTimer, UpdateEditorEditMenuAndStatusBar, 100
+	;@Ahk2Exe-IgnoreBegin
+	SetTimer, UpdateEditorEditMenuAndStatusBar, Off
+	;@Ahk2Exe-IgnoreEnd
+
 }
 
 ; if gui already visible, just activate the window

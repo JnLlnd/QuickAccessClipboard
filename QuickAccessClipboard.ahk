@@ -312,7 +312,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.1
+;@Ahk2Exe-SetVersion 0.1.0.1
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -383,7 +383,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.1" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.1.0.1" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "beta" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -724,8 +724,7 @@ if (A_ThisLabel = "EditorEsc")
 
 	Gosub, EditorClose
 	
-GuiControlGet, blnEditClipboardButtonEnabled, Enabled, f_btnEditClipboard
-if (blnEditClipboardButtonEnabled)
+if !IsEditMode()
 {
 	if (A_ThisLabel = "EditorCtrlE")
 		Gosub, EnableEditClipboard
@@ -1061,13 +1060,13 @@ if (A_IsAdmin and o_Settings.Launch.blnRunAsAdmin.IniValue)
 	Menu, Tray, Icon, % o_JLicons.strFileLocation, % (g_strCurrentBranch <> "prod" ? 68 : 67), 1
 else
 	; 70 is iconQACbeta, 71 is iconQACdev and 66 is iconQAC, last 1 to freeze icon during pause or suspend
-	Menu, Tray, Icon, % o_JLicons.strFileLocation, % (g_strCurrentBranch <> "prod" ? (g_strCurrentBranch = "beta" ? 70 : 71) : 66), 1
+	Menu, Tray, Icon, % o_JLicons.strFileLocation, % (g_strCurrentBranch = "beta" ? 70 : 66), 1
 
 g_blnTrayIconError := ErrorLevel or g_blnTrayIconError
 Menu, Tray, UseErrorLevel, Off
 
 ;@Ahk2Exe-IgnoreBegin
-Menu, Tray, Icon, % o_JLicons.strFileLocation, 51, 1 ; 51 is iconPaste
+Menu, Tray, Icon, % o_JLicons.strFileLocation, 71, 1 ; 51 is iconPaste
 Menu, Tray, Standard
 ;@Ahk2Exe-IgnoreEnd
 
@@ -1146,8 +1145,7 @@ SB_SetText(o_L["DialogLine"] . ": " . intSelLine + 1
 	. "  |  " . o_L["DialogPos"] . ": " . intSelSart + 1
 	. "  |  " . o_L["DialogSel"] . ": " . intSelLength, 3)
 
-GuiControlGet, blnEditClipboardButtonEnabled, Enabled, f_btnEditClipboard
-if !(blnEditClipboardButtonEnabled)
+if !IsEditMode()
 	return ; read-only, no need to update the Edit menu
 ; else continue
 
@@ -1386,7 +1384,7 @@ InitEditorControls:
 
 InsertGuiControlPos(g_saEditorControls, g_aaEditorControlsByName, "f_strEditorWordWrapOn",	10, 130)
 InsertGuiControlPos(g_saEditorControls, g_aaEditorControlsByName, "f_strEditorWordWrapOff",	10, 130)
-InsertGuiControlPos(g_saEditorControls, g_aaEditorControlsByName, "f_btnEditorSave",		0,  -70, , true) ; 0 set during build
+InsertGuiControlPos(g_saEditorControls, g_aaEditorControlsByName, "f_btnEditorEditOrSave",	0,  -70, , true) ; 0 set during build
 InsertGuiControlPos(g_saEditorControls, g_aaEditorControlsByName, "f_btnEditorCancel",		0,  -70, , true) ; 0 set during build
 InsertGuiControlPos(g_saEditorControls, g_aaEditorControlsByName, "f_btnEditorClose",		0,  -70, , true) ; 0 set during build
 
@@ -1646,6 +1644,7 @@ strTop =
 	{
 		; send message to main app to uncheck rules checkboxes
 		intResult := Send_WM_COPYDATA("disable_rules", g_stTargetAppTitle)
+		g_intLastTick := A_TickCount ; set timeout counter
 	}
 
 	return
@@ -1807,12 +1806,8 @@ BuildGuiEditor:
 Gui, Editor:New, +Hwndg_intEditorHwnd +Resize -MinimizeBox +MinSize%g_intEditorDefaultWidth%x%g_intEditorDefaultHeight%, % QACGuiTitle("Editor")
 Gui, Menu, menuBarEditorMain
 
-Gui, Font, s8 w600, Verdana
-Gui, Add, Button, x10 y10 vf_btnEditClipboard gEnableEditClipboard Default h26, % " Edit Clipboard "
-Gui, Font
-GuiControl, Focus, f_btnEditClipboard
 
-Gui, Add, Checkbox, % "x+15 yp+5 vf_blnFixedFont gClipboardEditorFontChanged " . (o_Settings.EditorWindow.blnFixedFont.IniValue = 1 ? "checked" : ""), % o_L["DialogFixedFont"]
+Gui, Add, Checkbox, % "x10 vf_blnFixedFont gClipboardEditorFontChanged " . (o_Settings.EditorWindow.blnFixedFont.IniValue = 1 ? "checked" : ""), % o_L["DialogFixedFont"]
 Gui, Add, Text, x+5 yp vf_lblFontSize, % o_L["DialogFontSize"]
 Gui, Add, Edit, x+5 yp-3 w40 vf_intFontSize gClipboardEditorFontChanged
 Gui, Add, UpDown, Range6-36 vf_intFontUpDown, % o_Settings.EditorWindow.intFontSize.IniValue
@@ -1820,7 +1815,7 @@ Gui, Add, Checkbox, % "x+15 yp+3 vf_blnAlwaysOnTop gClipboardEditorAlwaysOnTopCh
 Gui, Add, Checkbox, % "x+5 yp vf_blnWordWrap gClipboardEditorWrapChanged " . (o_Settings.EditorWindow.blnWordWrap.IniValue = 1 ? "checked" : ""), % o_L["DialogWordWrap"]
 Gui, Add, Checkbox, x+5 yp vf_blnSeeInvisible gClipboardEditorSeeInvisibleChanged disabled, % o_L["DialogSeeInvisible"] ; enable only if g_strEditorControlHwnd contains Clipboard
 
-Gui, Add, Edit, x10 y+20 w600 vf_strEditorWordWrapOn gClipboardEditorChanged ReadOnly Multi t20 WantReturn +Wrap +0x100 +hwndg_strEditorControlHwndWrapOn
+Gui, Add, Edit, x10 y+10 w600 vf_strEditorWordWrapOn gClipboardEditorChanged ReadOnly Multi t20 WantReturn +Wrap +0x100 +hwndg_strEditorControlHwndWrapOn
 GuiControl, % (o_Settings.EditorWindow.blnUseTab.IniValue ? "+" : "-") . "WantTab", %g_strEditorControlHwndWrapOn%
 
 GuiControlGet, arrControlPos, Pos, %g_strEditorControlHwndWrapOn%
@@ -1838,10 +1833,11 @@ g_strEditorControlHwnd := (o_Settings.EditorWindow.blnWordWrap.IniValue ? g_strE
 Gosub, ClipboardEditorWrapChanged
 
 Gui, Font, s8 w600, Verdana
-Gui, Add, Button, vf_btnEditorSave Disabled gEditorSave x100 y+10 w140 h30, % o_L["GuiSaveEditor"]
-Gui, Add, Button, vf_btnEditorCancel gEditorCancel x200 yp w120 h30, % o_L["GuiCancel"]
+Gui, Add, Button, vf_btnEditorEditOrSave gEditorEditOrSave x100 y+10 w140 h30, % o_L["GuiEditClipboard"] ; can also be o_L["GuiSaveEditor"]
+Gui, Add, Button, vf_btnEditorCancel gEditorCancel Disabled x200 yp w120 h30, % o_L["GuiCancel"]
 Gui, Add, Button, vf_btnEditorClose gEditorClose x300 yp w120 h30, % o_L["GuiClose"]
 Gui, Font
+GuiControl, Focus, f_btnEditorEditOrSave
 
 Gui, Add, StatusBar
 SB_SetParts(200, 150)
@@ -1990,6 +1986,19 @@ return
 
 
 ;------------------------------------------------------------
+EditorEditOrSave:
+;------------------------------------------------------------
+
+if IsEditMode()
+	Gosub, EditorSave
+else
+	Gosub, EnableEditClipboard
+	
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
 EnableEditClipboard:
 ;------------------------------------------------------------
 
@@ -2001,9 +2010,10 @@ Gosub, ClipboardEditorSeeInvisibleChanged
 GuiControl, Focus, %g_strEditorControlHwnd%
 
 Gosub, ClipboardEditorChanged ; update the status bar
-Gosub, EditorEnableSaveAndCancel ; calls DisableClipboardChangesInEditor
+Gosub, EditorButtonsSaveCancelClose ; calls DisableClipboardChangesInEditor
 
-GuiControl, Disable, f_btnEditClipboard
+GuiControl, , f_btnEditorEditOrSave, % o_L["GuiSaveEditor"]
+GuiControl, Disable, f_btnEditorEditOrSave
 
 Menu, menuBarEditorMain, Enable, % o_L["MenuEditorEdit"]
 
@@ -2014,6 +2024,9 @@ return
 ;------------------------------------------------------------
 ClipboardEditorChanged:
 ;------------------------------------------------------------
+
+GuiControl, Enable, f_btnEditorEditOrSave
+GuiControl, Enable, f_btnEditorCancel
 
 intLength := Edit_GetTextLength(g_strEditorControlHwnd)
 SB_SetText(o_L["MenuEditor"] . ": " . L((intLength <= 1 ? o_L["GuiCharacter"] : o_L["GuiCharacters"]), intLength), 1)
@@ -2050,8 +2063,7 @@ strHwndSource := (g_strEditorControlHwnd = g_strEditorControlHwndWrapOn ? g_strE
 strHwndDest := (g_strEditorControlHwnd = g_strEditorControlHwndWrapOn ? g_strEditorControlHwndWrapOn : g_strEditorControlHwndWrapOff)
 
 ; update ReadOnly state
-GuiControlGet, blnEditClipboardButtonEnabled, Enabled, f_btnEditClipboard
-GuiControl, % (blnEditClipboardButtonEnabled ? "+" : "-") . "ReadOnly", %strHwndDest%
+GuiControl, % (!IsEditMode() ? "+" : "-") . "ReadOnly", %strHwndDest%
 
 ; update modify state
 blnModify := Edit_GetModify(strHwndSource)
@@ -2089,7 +2101,7 @@ if (intStartSelPos <> intEndSelPos)
 
 GuiControl, Hide, %strHwndSource%
 GuiControl, Show, %strHwndDest%
-if !(blnEditClipboardButtonEnabled) ; give focus only if not readonly
+if IsEditMode() ; give focus only if not readonly
 	GuiControl, Focus, %strHwndDest%
 
 strHwndSource := ""
@@ -2107,7 +2119,7 @@ Gui, Editor:Submit, NoHide
 if (f_blnSeeInvisible)
 {
 	GuiControl, +ReadOnly, %g_strEditorControlHwnd%
-	GuiControl, Enable, f_btnEditClipboard
+	GuiControl, , f_btnEditorEditOrSave, % o_L["GuiEditClipboard"]
 }
 
 GuiControlGet, strText, , %g_strEditorControlHwnd% ; get text with GuiControlGet because strText must contain eol with LF only
@@ -2161,7 +2173,7 @@ EditorSave:
 ;------------------------------------------------------------
 Gui, Submit, NoHide
 
-Gosub, EditorDisableSaveAndCancel
+Gosub, EditorButtonsEditCancelClose
 
 if (A_ThisLabel = "EditorSave")
 	Clipboard := Edit_GetText(g_strEditorControlHwnd)
@@ -2223,7 +2235,7 @@ for intIndex, aaGuiControl in (strGui = "Rules" ? g_saRulesControls : g_saEditor
 	}
 	else ; Editor
 	{
-		if (aaGuiControl.Name = "f_btnEditorSave")
+		if (aaGuiControl.Name = "f_btnEditorEditOrSave")
 			intX := 80 + intButtonSpacing
 		else if (aaGuiControl.Name = "f_btnEditorCancel")
 			intX := 80 + (2 * intButtonSpacing) + 140 ; 140 for 1st button
@@ -3097,7 +3109,7 @@ if (InStr(A_ThisLabel, "Editor") and EditorUnsaved())
 }
 
 if (strGui = "Editor")
-	Gosub, EditorDisableSaveAndCancel
+	Gosub, EditorButtonsEditCancelClose
 
 if (A_ThisLabel = "EditorCancel")
 	Gosub, UpdateEditorWithClipboard
@@ -3111,21 +3123,21 @@ return
 
 
 ;------------------------------------------------------------
-EditorEnableSaveAndCancel:
-EditorDisableSaveAndCancel:
+EditorButtonsSaveCancelClose:
+EditorButtonsEditCancelClose:
 ;------------------------------------------------------------
 
 Gui, Editor:Default
-GuiControl, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), f_btnEditorSave
-GuiControl, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), f_btnEditorCancel
-GuiControl, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Disable" : "Enable"), f_btnEditClipboard
+GuiControl, , f_btnEditorEditOrSave, % (A_ThisLabel = "EditorButtonsSaveCancelClose" ? o_L["GuiSaveEditor"] : o_L["GuiEditClipboard"])
+GuiControl, % (A_ThisLabel = "EditorButtonsSaveCancelClose" ? "Disable" : "Enable"), f_btnEditorEditOrSave
+GuiControl, Disable, f_btnEditorCancel ; always disable, will be enabled if editor is modified
 
-Menu, menuBarEditorFile, % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["GuiSaveEditor"] . "`t(Ctrl+S)"
-Menu, menuBarEditorMain,  % (A_ThisLabel = "EditorEnableSaveAndCancel" ? "Enable" : "Disable"), % o_L["MenuEditorEdit"]
+Menu, menuBarEditorFile, % (A_ThisLabel = "EditorButtonsSaveCancelClose" ? "Enable" : "Disable"), % o_L["GuiSaveEditor"] . "`t(Ctrl+S)"
+Menu, menuBarEditorMain,  % (A_ThisLabel = "EditorButtonsSaveCancelClose" ? "Enable" : "Disable"), % o_L["MenuEditorEdit"]
 
-if (A_ThisLabel = "EditorDisableSaveAndCancel")
+if (A_ThisLabel = "EditorButtonsEditCancelClose")
 {
-	GuiControl, Focus, f_btnEditClipboard
+	GuiControl, Focus, f_btnEditorEditOrSave
 	Gosub, EnableClipboardChangesInEditor
 }
 else
@@ -3261,16 +3273,18 @@ if InStr(A_ThisLabel, "Rules")
 else ; Editor
 {
 	Gosub, UpdateEditorWithClipboardFromGuiShow
-	Gosub, EditorDisableSaveAndCancel ; calls EditorDisableSaveAndCancel???
+	Gosub, EditorButtonsEditCancelClose
 	Menu, menuBarEditorMain, Disable, % o_L["MenuEditorEdit"]
 	
 	intGuiHwnd := g_intEditorHwnd
 	Gui, Editor:Default
 
 	SetTimer, UpdateEditorEditMenuAndStatusBar, 100
+	; ####
 	;@Ahk2Exe-IgnoreBegin
 	SetTimer, UpdateEditorEditMenuAndStatusBar, Off
 	;@Ahk2Exe-IgnoreEnd
+	; ####
 
 }
 
@@ -4768,8 +4782,7 @@ WM_RBUTTONUP()
 {
     if InStr(A_GuiControl, "f_strEditorWordWrap") ; f_strEditorWordWrapOff or f_strEditorWordWrapOn
 	{
-		GuiControlGet, blnEditClipboardButtonEnabled, Enabled, f_btnEditClipboard
-		if (blnEditClipboardButtonEnabled)
+		if !IsEditMode()
 			Oops(1, o_L["GuiEnableEditor"])
 		else
 			Gosub, ShowEditorEditMenu
@@ -4961,6 +4974,17 @@ ToggleCase(strText)
 	}
 	
 	return strToggledText
+}
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+IsEditMode()
+;------------------------------------------------------------
+{
+	GuiControlGet, strEditorEditSaveLabel, , f_btnEditorEditOrSave
+	; if button is save, this is edit mode
+	return (strEditorEditSaveLabel = o_L["GuiSaveEditor"])
 }
 ;------------------------------------------------------------
 

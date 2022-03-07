@@ -400,6 +400,7 @@ else ; setup mode
 ;---------------------------------
 ; Init Settings instance
 global o_Settings := new Settings
+g_blnIniFileCreation := !FileExist(o_Settings.strIniFile)
 
 ;---------------------------------
 ; Check if we received an alternative settings file in parameter /Settings:
@@ -595,17 +596,16 @@ if (o_Settings.Launch.blnDisplayTrayTip.IniValue)
 	Sleep, 20 ; tip from Lexikos for Windows 10 "Just sleep for any amount of time after each call to TrayTip" (http://ahkscript.org/boards/viewtopic.php?p=50389&sid=29b33964c05f6a937794f88b6ac924c0#p50389)
 }
 
+if (g_blnIniFileCreation and !g_blnPortableMode)
+	SetRegistry("QuickAccessClipboard.exe", "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", g_strAppNameText)
+	
 if (g_blnPortableMode)
 	blnStartup := StrLen(FileExist(A_Startup . "\" . g_strAppNameFile . ".lnk")) ; convert file attribute to numeric (boolean) value
 else
 	blnStartup := RegistryExist("HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", g_strAppNameText)
 
 if (blnStartup) ; both setup and portable
-{
-	Menu, Tray, Check, % o_L["MenuRunAtStartup"]
-	Menu, menuBarRulesOptions, Check, % o_L["MenuRunAtStartup"]
-	Menu, menuBarEditorOptions, Check, % o_L["MenuRunAtStartup"]
-}
+	Gosub, UpdateStartupMenus
 
 ; startups count and trace
 IniWrite, % (intStartups + 1), % o_Settings.strIniFile, Internal, Startups
@@ -992,7 +992,6 @@ else
 ; Load Options
 
 ; Group Launch
-o_Settings.ReadIniOption("Launch", "blnRunAtStartup", "", , "f_lblOptionsRunAtStartup|f_blnOptionsRunAtStartup") ; blnRunAtStartup is not used but strGuiControls is
 o_Settings.ReadIniOption("Launch", "blnDisplayTrayTip", "DisplayTrayTip", 1, "f_blnDisplayTrayTip") ; g_blnDisplayTrayTip
 o_Settings.ReadIniOption("Launch", "blnCheck4Update", "Check4Update", (g_blnPortableMode ? 0 : 1), "f_blnCheck4Update|f_lnkCheck4Update") ; g_blnCheck4Update ; enable by default only in setup install mode
 o_Settings.ReadIniOption("Launch", "strBackupFolder", "BackupFolder", A_WorkingDir
@@ -1001,9 +1000,9 @@ o_Settings.ReadIniOption("Launch", "blnDiagMode", "DiagMode", 0) ; g_blnDiagMode
 ; not ready !! o_Settings.ReadIniOption("Launch", "blnRunAsAdmin", "RunAsAdmin", 0, "f_blnRunAsAdmin|f_picRunAsAdmin") ; default false, if true reload QAC as admin
 
 ; Group EditorWindow
-o_Settings.ReadIniOption("EditorWindow", "blnDisplayEditorAtStartup", "DisplayEditorAtStartup", 1, "f_blnDisplayEditorAtStartup|f_lblOptionsEditorWindow")
-o_Settings.ReadIniOption("EditorWindow", "blnRememberEditorPosition", "RememberEditorPosition", 1, "f_blnRememberEditorPosition")
-o_Settings.ReadIniOption("EditorWindow", "blnOpenEditorOnActiveMonitor", "OpenEditorOnActiveMonitor", 1, "f_blnOpenEditorOnActiveMonitor")
+o_Settings.ReadIniOption("EditorWindow", "blnDisplayEditorAtStartup", "DisplayEditorAtStartup", (g_blnPortableMode ? 0 : 1), "f_blnDisplayEditorAtStartup|f_lblOptionsEditorWindow")
+o_Settings.ReadIniOption("EditorWindow", "blnRememberEditorPosition", "RememberEditorPosition", (g_blnPortableMode ? 0 : 1), "f_blnRememberEditorPosition")
+o_Settings.ReadIniOption("EditorWindow", "blnOpenEditorOnActiveMonitor", "OpenEditorOnActiveMonitor", (g_blnPortableMode ? 0 : 1), "f_blnOpenEditorOnActiveMonitor")
 o_Settings.ReadIniOption("EditorWindow", "blnFixedFont", "FixedFont", 1, "")
 o_Settings.ReadIniOption("EditorWindow", "intFontSize", "FontSize", 12, "")
 o_Settings.ReadIniOption("EditorWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "")
@@ -1012,11 +1011,12 @@ o_Settings.ReadIniOption("EditorWindow", "blnUseTab", "UseTab", 0, "")
 ; need improvement !! o_Settings.ReadIniOption("EditorWindow", "blnDarkModeCustomize", "DarkModeCustomize", 0, "f_blnDarkModeCustomize")
 
 ; Group RulesWindow
-o_Settings.ReadIniOption("RulesWindow", "blnDisplayRulesAtStartup", "DisplayRulesAtStartup", 1, "f_blnDisplayRulesAtStartup|f_lblOptionsRulesWindow")
-o_Settings.ReadIniOption("RulesWindow", "blnRememberRulesPosition", "RememberRulesPosition", 1, "f_blnRememberRulesPosition")
-o_Settings.ReadIniOption("RulesWindow", "blnOpenRulesOnActiveMonitor", "OpenRulesOnActiveMonitor", 1, "f_blnOpenRulesOnActiveMonitor")
+o_Settings.ReadIniOption("RulesWindow", "blnDisplayRulesAtStartup", "DisplayRulesAtStartup", (g_blnPortableMode ? 0 : 1), "f_blnDisplayRulesAtStartup|f_lblOptionsRulesWindow")
+o_Settings.ReadIniOption("RulesWindow", "blnRememberRulesPosition", "RememberRulesPosition", (g_blnPortableMode ? 0 : 1), "f_blnRememberRulesPosition")
+o_Settings.ReadIniOption("RulesWindow", "blnOpenRulesOnActiveMonitor", "OpenRulesOnActiveMonitor", (g_blnPortableMode ? 0 : 1), "f_blnOpenRulesOnActiveMonitor")
 o_Settings.ReadIniOption("RulesWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "")
 o_Settings.ReadIniOption("RulesWindow", "intRulesTimeoutSecs", "RulesTimeoutSecs", 60, "")
+o_Settings.ReadIniOption("RulesWindow", "blnRulesTimeoutDebug", "RulesTimeoutDebug", 0, "")
 ; need improvement !! o_Settings.ReadIniOption("RulesWindow", "blnDarkModeCustomize", "DarkModeCustomize", 0, "f_blnDarkModeCustomize")
 
 strLanguageCode := ""
@@ -1088,7 +1088,8 @@ Menu, Tray, Add
 Menu, Tray, Add, % o_L["MenuOpenWorkingDirectory"], OpenWorkingDirectory
 Menu, Tray, Add
 Menu, Tray, Add, % o_L["MenuSuspendHotkeys"], ToggleSuspendHotkeys
-Menu, Tray, Add, % o_L["MenuRunAtStartup"], ToggleRunAtStartup
+Menu, Tray, Add, % o_L["MenuRunAtStartupEditor"], ToggleRunAtStartup
+Menu, Tray, Add, % o_L["MenuRunAtStartupRules"], ToggleRunAtStartup
 Menu, Tray, Add
 Menu, Tray, Add, % L(o_L["MenuReload"], g_strAppNameText), CleanUpBeforeReload
 Menu, Tray, Add, % L(o_L["MenuExitApp"], g_strAppNameText), RulesCloseAndExitApp
@@ -1270,7 +1271,7 @@ Menu, menuBarRulesRule, Add, % o_L["MenuRuleDeselectAll"], GuiRuleDeselectAll
 Menu, menuBarRulesOptions, Add, % o_L["MenuSelectRulesHotkeyMouse"], GuiSelectShortcut1
 Menu, menuBarRulesOptions, Add, % o_L["MenuSelectRulesHotkeyKeyboard"], GuiSelectShortcut2
 Menu, menuBarRulesOptions, Add
-Menu, menuBarRulesOptions, Add, % o_L["MenuRunAtStartup"], ToggleRunAtStartup
+Menu, menuBarRulesOptions, Add, % o_L["MenuRunAtStartupRules"], ToggleRunAtStartup
 Menu, menuBarRulesOptions, Add
 Menu, menuBarRulesOptions, Add, % L(o_L["MenuEditIniFile"], o_Settings.strIniFileNameExtOnly), ShowSettingsIniFile
 
@@ -1332,7 +1333,7 @@ for intOrder, aaRuleType in g_saRuleTypesOrder
 Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyMouse"], GuiSelectShortcut3
 Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyKeyboard"], GuiSelectShortcut4
 Menu, menuBarEditorOptions, Add
-Menu, menuBarEditorOptions, Add, % o_L["MenuRunAtStartup"], ToggleRunAtStartup
+Menu, menuBarEditorOptions, Add, % o_L["MenuRunAtStartupEditor"], ToggleRunAtStartup
 Menu, menuBarEditorOptions, Add
 Menu, menuBarEditorOptions, Add, % L(o_L["MenuEditIniFile"], o_Settings.strIniFileNameExtOnly), ShowSettingsIniFile
 
@@ -1610,6 +1611,7 @@ While QACrulesExists()
 FileDelete, %g_strRulesPathNameNoExt%.ahk
 
 ; variable used in non-expression script header below
+blnTimeoutDebug := (o_Settings.RulesWindow.blnRulesTimeoutDebug.IniValue = 1 ? "1" : "0") ; avoid empty value
 intTimeoutMs := o_Settings.RulesWindow.intRulesTimeoutSecs.IniValue * 1000
 strGuiTitle := QACGuiTitle("Rules") 
 
@@ -1626,7 +1628,7 @@ strTop =
 	
 	Gosub, OnClipboardChangeInit
 	if RuleEnabled()
-		SetTimer, CheckTimeOut, 2000
+		SetTimer, CheckTimeOut, 1000
 	
 	; Respond to SendMessage sent by QAC requesting execution of a rule
 	OnMessage(0x4a, "RECEIVE_QACMAIN")
@@ -1640,8 +1642,12 @@ strTop =
 	CheckTimeOut:
 	;-----------------------------------------------------------
 
+	if (%blnTimeoutDebug%)
+		ToolTip, `% A_TickCount - g_intLastTick . " > %intTimeoutMs%", 500, 5
 	if ((A_TickCount - g_intLastTick) > %intTimeoutMs%)
 	{
+		if (%blnTimeoutDebug%)
+			ToolTip
 		; send message to main app to uncheck rules checkboxes
 		intResult := Send_WM_COPYDATA("disable_rules", g_stTargetAppTitle)
 		g_intLastTick := A_TickCount ; set timeout counter
@@ -3300,16 +3306,14 @@ if (blnExist) ; keep the gui as-is if it is not closed
 }
 ; else continue
 
-if (InStr(A_ThisLabel, "Rules") and o_Settings.RulesWindow.blnOpenRulesOnActiveMonitor.IniValue)
-	or (InStr(A_ThisLabel, "Editor") and o_Settings.EditorWindow.blnOpenEditorOnActiveMonitor.IniValue)
-{
-	GetPositionFromMouseOrKeyboard("ahk_id " . intGuiHwnd, g_strMenuTriggerLabel, A_ThisHotkey, intActiveX, intActiveY)
-	if GetWindowPositionOnActiveMonitor("ahk_id " . intGuiHwnd, intActiveX, intActiveY, intPositionX, intPositionY)
+GetPositionFromMouseOrKeyboard(g_strMenuTriggerLabel, A_ThisHotkey, intActiveX, intActiveY)
+if ((InStr(A_ThisLabel, "Rules") and o_Settings.RulesWindow.blnOpenRulesOnActiveMonitor.IniValue)
+	or (InStr(A_ThisLabel, "Editor") and o_Settings.EditorWindow.blnOpenEditorOnActiveMonitor.IniValue))
+	and GetWindowPositionOnActiveMonitor("ahk_id " . intGuiHwnd, intActiveX, intActiveY, intPositionX, intPositionY)
 	; display at center of active monitor
 		Gui, Show, % "x" . intPositionX . " y" . intPositionY
 	else ; keep existing position
 		Gui, Show
-}
 intGuiHwnd := ""
 
 return
@@ -4045,37 +4049,31 @@ ProposeUpdate(strVersionNew, strVersionRunning, strVersionSkipped)
 
 
 ;------------------------------------------------------------
-ToggleRunAtStartup(blnForce := -1)
-; blnForce: -1 toggle, 0 disable, 1 enable
+ToggleRunAtStartup(strMenuItemName)
+; function assigned to menu puts the menu name in first parameter (https://hotkeyit.github.io/v2/docs/commands/Menu.htm#Add_or_Change_Items_in_a_Menu)
 ;------------------------------------------------------------
 {
-	if (blnForce = o_L["MenuRunAtStartup"]) ; toggle from Tray menu
-		; function assigned to Tray menu puts the menu name in first parameter (https://hotkeyit.github.io/v2/docs/commands/Menu.htm#Add_or_Change_Items_in_a_Menu)
-		; when called from Tray menu, toggle blnForce
-		blnForce := -1
-	
-	if (g_blnPortableMode)
-		blnValueBefore := StrLen(FileExist(A_Startup . "\" . g_strAppNameFile . ".lnk")) ; convert file attribute to numeric (boolean) value
-	else
-		blnValueBefore := RegistryExist("HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", g_strAppNameText)
+	if (strMenuItemName = o_L["MenuRunAtStartupEditor"])
+		o_Settings.EditorWindow.blnDisplayEditorAtStartup.IniValue := !o_Settings.EditorWindow.blnDisplayEditorAtStartup.IniValue
+	else ; o_L["MenuRunAtStartupRules"]
+		o_Settings.RulesWindow.blnDisplayRulesAtStartup.IniValue := !o_Settings.RulesWindow.blnDisplayRulesAtStartup.IniValue
 
-	blnValueAfter := (blnForce = -1 ? !blnValueBefore : blnForce)
+	; update Tray and Options menus
+	Gosub, UpdateStartupMenus
 
-	Menu, Tray, % (blnValueAfter ? "Check" : "Uncheck"), % o_L["MenuRunAtStartup"]
-	Menu, menuBarRulesOptions, % (blnValueAfter ? "Check" : "Uncheck"), % o_L["MenuRunAtStartup"]
-	Menu, menuBarEditorOptions, % (blnValueAfter ? "Check" : "Uncheck"), % o_L["MenuRunAtStartup"]
-	
+	; update app startup values
 	if (g_blnPortableMode)
 	{
-		; Startup code adapted from Avi Aryan Ryan in Clipjump
-		if FileExist(A_Startup . "\" . g_strAppNameFile . ".lnk")
-			FileDelete, %A_Startup%\%g_strAppNameFile%.lnk
-		if (blnValueAfter)
-			Gosub, CreateStartupShortcut
+		strAppShortcut := A_Startup . "\" . g_strAppNameFile . ".lnk"
+		if FileExist(strAppShortcut)
+			FileDelete, %strAppShortcut%
+		if (o_Settings.EditorWindow.blnDisplayEditorAtStartup.IniValue or o_Settings.RulesWindow.blnDisplayRulesAtStartup.IniValue)
+			FileCreateShortcut, %A_ScriptFullPath%, %strAppShortcut%, %A_WorkingDir%
+				, % o_CommandLineParameters.strParams
 	}
 	else ; setup mode
 
-		if (blnValueAfter)
+		if (o_Settings.EditorWindow.blnDisplayEditorAtStartup.IniValue or o_Settings.RulesWindow.blnDisplayRulesAtStartup.IniValue)
 			SetRegistry("QuickAccessClipboard.exe", "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", g_strAppNameText)
 		else
 			RemoveRegistry("HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", g_strAppNameText)
@@ -4084,11 +4082,13 @@ ToggleRunAtStartup(blnForce := -1)
 
 
 ;------------------------------------------------------------
-CreateStartupShortcut:
+UpdateStartupMenus:
 ;------------------------------------------------------------
 
-FileCreateShortcut, %A_ScriptFullPath%, %A_Startup%\%g_strAppNameFile%.lnk, %A_WorkingDir%
-	, % o_CommandLineParameters.strParams ; since version 8.7.1 now includes the changed /Settings: parameter if user switched settings file
+Menu, Tray, % (o_Settings.EditorWindow.blnDisplayEditorAtStartup.IniValue ? "Check" : "Uncheck"), % o_L["MenuRunAtStartupEditor"]
+Menu, menuBarEditorOptions, % (o_Settings.EditorWindow.blnDisplayEditorAtStartup.IniValue ? "Check" : "Uncheck"), % o_L["MenuRunAtStartupEditor"]
+Menu, Tray, % (o_Settings.RulesWindow.blnDisplayRulesAtStartup.IniValue ? "Check" : "Uncheck"), % o_L["MenuRunAtStartupRules"]
+Menu, menuBarRulesOptions, % (o_Settings.RulesWindow.blnDisplayRulesAtStartup.IniValue ? "Check" : "Uncheck"), % o_L["MenuRunAtStartupRules"]
 
 return
 ;------------------------------------------------------------
@@ -4499,7 +4499,7 @@ GetActiveMonitorForPosition(intX, intY, ByRef intNbMonitors)
 
 
 ;------------------------------------------------------------
-GetPositionFromMouseOrKeyboard(strWindowId, strMenuTriggerLabel, strThisHotkey, ByRef intPositionX, ByRef intPositionY)
+GetPositionFromMouseOrKeyboard(strMenuTriggerLabel, strThisHotkey, ByRef intPositionX, ByRef intPositionY)
 ; get current mouse position (if gui was open with mouse) or active window position (if gui was open with keyboard)
 ;------------------------------------------------------------
 {
@@ -4516,7 +4516,7 @@ GetPositionFromMouseOrKeyboard(strWindowId, strMenuTriggerLabel, strThisHotkey, 
 		MouseGetPos, intPositionX, intPositionY
 	}
 	else
-		WinGetPos, intPositionX, intPositionY, , , %strWindowId% ; window top-left position
+		WinGetPos, intPositionX, intPositionY, , , A ; window top-left position
 }
 ;------------------------------------------------------------
 

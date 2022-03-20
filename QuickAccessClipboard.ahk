@@ -2048,7 +2048,6 @@ ClipboardEditorChanged:
 ;------------------------------------------------------------
 
 GuiControl, Enable, f_btnEditorEditOrSave
-GuiControl, Enable, f_btnEditorCancel
 
 intLength := Edit_GetTextLength(g_strEditorControlHwnd)
 SB_SetText(o_L["MenuEditor"] . ": " . L((intLength <= 1 ? o_L["GuiCharacter"] : o_L["GuiCharacters"]), intLength), 1)
@@ -3152,7 +3151,7 @@ EditorButtonsEditCancelClose:
 Gui, Editor:Default
 GuiControl, , f_btnEditorEditOrSave, % (A_ThisLabel = "EditorButtonsSaveCancelClose" ? o_L["GuiSaveEditor"] : o_L["GuiEditClipboard"])
 GuiControl, % (A_ThisLabel = "EditorButtonsSaveCancelClose" ? "Disable" : "Enable"), f_btnEditorEditOrSave
-GuiControl, Disable, f_btnEditorCancel ; always disable, will be enabled if editor is modified
+GuiControl, % (A_ThisLabel = "EditorButtonsSaveCancelClose" ? "Enable" : "Disable"), f_btnEditorCancel
 
 Menu, menuBarEditorFile, % (A_ThisLabel = "EditorButtonsSaveCancelClose" ? "Enable" : "Disable"), % o_L["GuiSaveEditor"] . "`t(Ctrl+S)"
 Menu, menuBarEditorMain,  % (A_ThisLabel = "EditorButtonsSaveCancelClose" ? "Enable" : "Disable"), % o_L["MenuEditorEdit"]

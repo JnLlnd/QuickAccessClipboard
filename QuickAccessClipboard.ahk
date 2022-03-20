@@ -34,6 +34,9 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
+Version BETA: 0.1.0.2 (2022-03-??)
+- working
+
 Version BETA: 0.1.0.1 (2022-03-07)
  
 Editor
@@ -328,7 +331,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.1.0.1
+;@Ahk2Exe-SetVersion 0.1.0.2
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -399,7 +402,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.1.0.1" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.1.0.2" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "beta" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -490,6 +493,7 @@ global g_blnUndoRulesBackupExist := StrLen(o_Settings.ReadIniSection("Rules-back
 global g_aaRulesToolTipsMessages := Object() ; messages to display by ToolTip when mouse is over selected buttons in Settings
 global g_blnRulesRemovedByTimeOut ; to define what tooltip display after QACrules update
 global g_intAddRuleType ; numeric type of rule to add
+global g_strClipboardBeforeRules ; updated by QACrules.exe using SendMessage when wht first rule is executed
 
 ; Editor
 global g_intEditorDefaultWidth := 640
@@ -676,6 +680,18 @@ return
 ;========================================================================================================================
 ; END !_011_INITIALIZATION:
 ;========================================================================================================================
+
+;-----------------------------------------------------------
++^z:: ; will be configurable in future release
+;-----------------------------------------------------------
+
+Gosub, DisableAndReloadRules
+
+Clipboard := g_strClipboardBeforeRules
+MsgBox B %Clipboard%
+
+return
+;-----------------------------------------------------------
 
 
 ;========================================================================================================================
@@ -928,7 +944,7 @@ return
 InitFileInstall:
 ;-----------------------------------------------------------
 
-FileInstall, FileInstall\QACrules.exe, %g_strTempDir%\QACrules.exe, 1
+FileInstall, FileInstall\QACrules.exe, %g_strTempDir%\QACrules.exe, 1 ; this is the AHK runtime with JL certificate renamed QACrules.exe
 	
 return
 ;-----------------------------------------------------------
@@ -1640,7 +1656,7 @@ strTop =
 	#NoTrayIcon
 	
 	global g_intLastTick ; initial timeout delay after rules are enabled
-	global g_stTargetAppTitle := `"Quick Access Clipboard ahk_class JeanLalonde.ca`"
+	global g_strTargetAppTitle := `"Quick Access Clipboard ahk_class JeanLalonde.ca`"
 	
 	Gosub, OnClipboardChangeInit
 	if RuleEnabled()
@@ -1665,7 +1681,7 @@ strTop =
 		if (%blnTimeoutDebug%)
 			ToolTip
 		; send message to main app to uncheck rules checkboxes
-		intResult := Send_WM_COPYDATA("disable_rules", g_stTargetAppTitle)
+		intResult := Send_WM_COPYDATA("disable_rules", g_strTargetAppTitle)
 		g_intLastTick := A_TickCount ; set timeout counter
 	}
 
@@ -1789,9 +1805,16 @@ strBottom =
 
 strSource := strTop . strOnClipboardChange . strBottom
 
-; add rules code
-for strName, aaRule in g_aaRulesByName
-	strSource .= aaRule.GetCode()
+loop, Parse, % "f_lvRulesSelected|f_lvRulesAvailable", |
+{
+	Gui, Rules:ListView, %A_LoopField%
+	loop, % LV_GetCount()
+	{
+		LV_GetText(strName, A_Index, 1)
+		strSource .= g_aaRulesByName[strName].GetCode(A_LoopField = "f_lvRulesSelected" ? A_Index : 0) ; flag the first rule to be executed
+	}
+}
+Gui, Rules:ListView, f_lvRulesSelected
 
 ; save AHK script file QACrules.ahk
 FileAppend, %strSource%, %g_strRulesPathNameNoExt%.ahk, % (A_IsUnicode ? "UTF-16" : "")
@@ -1816,6 +1839,20 @@ strSource := ""
 strGuiTitle := ""
 intTimeoutMs := ""
 strName := ""
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+DisableAndReloadRules:
+;------------------------------------------------------------
+
+Gosub, GuiRuleDeselectAll
+; disable because rules were already removed by QACrules
+g_blnRulesRemovedByTimeOut := true
+Gosub, LoadRules
+g_blnRulesRemovedByTimeOut := false
 
 return
 ;------------------------------------------------------------
@@ -3025,11 +3062,14 @@ if FileExist(o_Settings.strIniFile) ; in case user deleted the ini file to creat
 	o_Settings.EditorWindow.intFontSize.WriteIni(o_Settings.EditorWindow.intFontSize.IniValue)
 	o_Settings.EditorWindow.blnAlwaysOnTop.WriteIni(o_Settings.EditorWindow.blnAlwaysOnTop.IniValue)
 	o_Settings.EditorWindow.blnWordWrap.WriteIni(o_Settings.EditorWindow.blnWordWrap.IniValue)
-
-	if (o_Settings.RulesWindow.blnRememberRulesPosition.IniValue)
-		SaveWindowPosition("RulesPosition", "ahk_id " . g_intRulesHwnd)
+	o_Settings.EditorWindow.blnDisplayEditorAtStartup.WriteIni(o_Settings.EditorWindow.blnDisplayEditorAtStartup.IniValue)
 	if (o_Settings.EditorWindow.blnRememberEditorPosition.IniValue)
 		SaveWindowPosition("EditorPosition", "ahk_id " . g_intEditorHwnd)
+	
+	o_Settings.RulesWindow.blnDisplayRulesAtStartup.WriteIni(o_Settings.RulesWindow.blnDisplayRulesAtStartup.IniValue)
+	if (o_Settings.RulesWindow.blnRememberRulesPosition.IniValue)
+		SaveWindowPosition("RulesPosition", "ahk_id " . g_intRulesHwnd)
+
 	IniWrite, % GetScreenConfiguration(), % o_Settings.strIniFile, Internal, LastScreenConfiguration
 }
 DllCall("LockWindowUpdate", Uint, 0)  ; 0 to unlock the window
@@ -4048,8 +4088,8 @@ return
 
 ;------------------------------------------------------------
 ProposeUpdate(strVersionNew, strVersionRunning, strVersionSkipped)
-	; si (version_nouveau_beta > version_installe_beta) / il y a une nouvelle version
-		; et (version_nouveau_beta <= version_sautee_beta / et elle n'a pas été sautée
+	; if (version_new_beta > version_installed_beta) / there is a new release
+		; and (version_new_beta <= version_skipped_beta / and has not been skipped
 ;------------------------------------------------------------
 {
 	; ###_V(A_ThisFunc, strVersionNew, strVersionRunning, strVersionSkipped
@@ -5107,12 +5147,12 @@ RECEIVE_QACRULES(wParam, lParam)
 	
 	if (strCopyOfData = "disable_rules")
 	{
-		Gosub, GuiRuleDeselectAll
-		; disable because rules were already removed by QACrules
-		g_blnRulesRemovedByTimeOut := true
-		Gosub, LoadRules
-		g_blnRulesRemovedByTimeOut := false
-		
+		Gosub, DisableAndReloadRules
+		return 1 ; success
+	}
+	else if SubStr(strCopyOfData, 1, 17) = "backup_clipboard|" ; update Clipboard backup
+	{
+		g_strClipboardBeforeRules := SubStr(strCopyOfData, 18)
 		return 1 ; success
 	}
 	else
@@ -6272,7 +6312,8 @@ class Rule
 	;---------------------------------------------------------
 	
 	;---------------------------------------------------------
-	GetCode()
+	GetCode(intRuleOrder)
+	; if intruleorder = 1, this is the first rule to be executed
 	;---------------------------------------------------------
 	{
 		; begin rule
@@ -6281,6 +6322,13 @@ class Rule
 		strCode .= ";------------------------------------------------------------`n{`n"
 		strCode .= "if (strType = 1) `; text`n{`n"
 		
+		if (intRuleOrder = 1) ; this is the first active rule, take a backup of the Clipboard
+		{
+			strcode .= "Sleep, 100`n" ; without this delay, only the 1st copydata succeeds
+			strcode .= "intResult := Send_WM_COPYDATA(""backup_clipboard|"" . Clipboard, g_strTargetAppTitle)`n"
+			strcode .= "ToolTip, Sent `%Clipboard`% with result `%intResult`%`n"
+		}
+			
 		; strCode .= "`; strBefore := Clipboard`n"
 		if (this.strTypeCode = "ChangeCase")
 		{

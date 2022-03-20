@@ -34,8 +34,24 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
-Version BETA: 0.1.0.1 (2022-02-??)
--
+Version BETA: 0.1.0.1 (2022-03-07)
+ 
+Editor
+- add line number, character number, index from start and selection length to status bar
+- merge "Edit Clipboard" and "Save Clipboard" buttons in one button with different labels at the window bottom
+- add menu item "Display Editor window at startup" under "Options" menu and Tray menu
+- fix bug turning editor read-only off when changing word wrap
+- after word wrap change, set focus to edit control only if not read-only
+ 
+Rules Manager
+- add timeout debug option with default false (RulesTimeoutDebug=0) displaying a tooltip with remaining seconds before timeout at the top of active window (change value to ="1" if desired)
+- add menu item "Display Rules Manager window at startup" under "Options" menu and Tray menu
+- fix bug when getting current position of window
+
+General
+- application now available in portable ZIP file
+- in Portable mode, set default values to "no" for startup options for Editor (DisplayEditorAtStartup=0) and Rules manager (DisplayRulesAtStartup=0) windows, remember window position (RememberEditorPosition=0 and RememberRulesPosition=0) and open on active monitor (OpenEditorOnActiveMonitor=0 and OpenRulesOnActiveMonitor=0); change these values to "=1" in QuickAccessClipboard.ini file if desired
+- in Setup mode, fix bug setting startup registry key at first launch
 
 Version BETA: 0.1 (2022-02-10)
 - see description of features https://clipboard.quickaccesspopup.com/features/

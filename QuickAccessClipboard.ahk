@@ -491,6 +491,7 @@ global g_saRulesBackupSelectedOrder ; backup of selected rules
 global g_saRulesBackupSelectedByName ; backup of selected rules
 global g_blnUndoRulesBackupExist := StrLen(o_Settings.ReadIniSection("Rules-backup")) ; used in BuildGuiEditor and BuildEditorMenuBar
 global g_aaRulesToolTipsMessages := Object() ; messages to display by ToolTip when mouse is over selected buttons in Settings
+global g_blnRulesRemovedByRestore ; to define what tooltip display after QACrules update
 global g_blnRulesRemovedByTimeOut ; to define what tooltip display after QACrules update
 global g_intAddRuleType ; numeric type of rule to add
 global g_strClipboardBeforeRules ; updated by QACrules.exe using SendMessage when wht first rule is executed
@@ -552,10 +553,12 @@ if (g_blnPortableMode)
 ; Init class for Triggers (must be before LoadIniFile)
 global o_MouseButtons := new Triggers.MouseButtons
 global o_PopupHotkeys := new Triggers.PopupHotkeys ; load QAC menu triggers from ini file
-global o_PopupHotkeyOpenRulesHotkeyMouse := o_PopupHotkeys.SA[1]
-global o_PopupHotkeyOpenRulesHotkeyKeyboard := o_PopupHotkeys.SA[2]
 global o_PopupHotkeyOpenEditorHotkeyMouse := o_PopupHotkeys.SA[3]
 global o_PopupHotkeyOpenEditorHotkeyKeyboard := o_PopupHotkeys.SA[4]
+global o_PopupHotkeyOpenRulesHotkeyMouse := o_PopupHotkeys.SA[1]
+global o_PopupHotkeyOpenRulesHotkeyKeyboard := o_PopupHotkeys.SA[2]
+global o_PopupHotkeyRestoreClipboardMouse := o_PopupHotkeys.SA[5]
+global o_PopupHotkeyRestoreClipboardKeyboard := o_PopupHotkeys.SA[6]
 
 ;---------------------------------
 ; Init class for UTC time conversion
@@ -682,13 +685,15 @@ return
 ;========================================================================================================================
 
 ;-----------------------------------------------------------
-+^z:: ; will be configurable in future release
+RestoreClipboard:
+RestoreClipboardHotkeyMouse:
+RestoreClipboardHotkeyKeyboard:
+; by default +^z, configurable
 ;-----------------------------------------------------------
 
-Gosub, DisableAndReloadRules
+Gosub, DisableAndReloadRulesRestore
 
 Clipboard := g_strClipboardBeforeRules
-MsgBox B %Clipboard%
 
 return
 ;-----------------------------------------------------------
@@ -1117,6 +1122,9 @@ Menu, Tray, Add, %strEditorMenuName% , GuiShowEditorFromTray
 Menu, Tray, Add, % o_L["MenuRules"] . " (" . o_PopupHotkeyOpenRulesHotkeyMouse.AA.strPopupHotkeyTextShort . " " . o_L["DialogOr"]
 	. " " . o_PopupHotkeyOpenRulesHotkeyKeyboard.AA.strPopupHotkeyTextShort . ")", GuiShowRulesFromTray
 Menu, Tray, Add
+Menu, Tray, Add, % o_L["MenuRestoreClipboard"] . " (" . o_PopupHotkeyRestoreClipboardMouse.AA.strPopupHotkeyTextShort . " " . o_L["DialogOr"]
+	. " " . o_PopupHotkeyRestoreClipboardKeyboard.AA.strPopupHotkeyTextShort . ")", RestoreClipboard
+Menu, Tray, Add
 Menu, Tray, Add, % o_L["MenuOpenWorkingDirectory"], OpenWorkingDirectory
 Menu, Tray, Add
 Menu, Tray, Add, % o_L["MenuSuspendHotkeys"], ToggleSuspendHotkeys
@@ -1293,15 +1301,20 @@ Menu, menuBarRulesRule, Add, % o_L["MenuRuleEdit"], GuiRuleEdit
 Menu, menuBarRulesRule, Add, % o_L["MenuRuleRemove"], GuiRuleRemove
 Menu, menuBarRulesRule, Add, % o_L["MenuRuleCopy"], GuiRuleCopy
 Menu, menuBarRulesRule, Add
-Menu, menuBarRulesRule, Add, % o_L["MenuRuleUndo"], GuiRuleUndo
-Menu, menuBarRulesRule, % (g_blnUndoRulesBackupExist ? "Enable" : "Disable"), % o_L["MenuRuleUndo"]
-Menu, menuBarRulesRule, Add
 Menu, menuBarRulesRule, Add, % o_L["MenuRuleSelect"], GuiRuleSelect
 Menu, menuBarRulesRule, Add, % o_L["MenuRuleDeselect"], GuiRuleDeselect
 Menu, menuBarRulesRule, Add, % o_L["MenuRuleDeselectAll"], GuiRuleDeselectAll
+Menu, menuBarRulesRule, Add
+Menu, menuBarRulesRule, Add, % o_L["MenuRuleUndo"], GuiRuleUndo
+Menu, menuBarRulesRule, % (g_blnUndoRulesBackupExist ? "Enable" : "Disable"), % o_L["MenuRuleUndo"]
+Menu, menuBarRulesRule, Add, % o_L["MenuRestoreClipboard"] . " (" . o_PopupHotkeyRestoreClipboardMouse.AA.strPopupHotkeyTextShort . " " . o_L["DialogOr"]
+	. " " . o_PopupHotkeyRestoreClipboardKeyboard.AA.strPopupHotkeyTextShort . ")", RestoreClipboard
 
 Menu, menuBarRulesOptions, Add, % o_L["MenuSelectRulesHotkeyMouse"], GuiSelectShortcut1
 Menu, menuBarRulesOptions, Add, % o_L["MenuSelectRulesHotkeyKeyboard"], GuiSelectShortcut2
+Menu, menuBarRulesOptions, Add
+Menu, menuBarRulesOptions, Add, % o_L["MenuSelectRestoreClipboardHotkeyMouse"], GuiSelectShortcut5
+Menu, menuBarRulesOptions, Add, % o_L["MenuSelectRestoreClipboardHotkeyKeyboard"], GuiSelectShortcut6
 Menu, menuBarRulesOptions, Add
 Menu, menuBarRulesOptions, Add, % o_L["MenuRunAtStartupRules"], ToggleRunAtStartup
 Menu, menuBarRulesOptions, Add
@@ -1657,6 +1670,8 @@ strTop =
 	
 	global g_intLastTick ; initial timeout delay after rules are enabled
 	global g_strTargetAppTitle := `"Quick Access Clipboard ahk_class JeanLalonde.ca`"
+	global g_intLastOnChangeStart
+	global g_intLastOnChangeFinish
 	
 	Gosub, OnClipboardChangeInit
 	if RuleEnabled()
@@ -1675,7 +1690,8 @@ strTop =
 	;-----------------------------------------------------------
 
 	if (%blnTimeoutDebug%)
-		ToolTip, `% A_TickCount - g_intLastTick . " > %intTimeoutMs%", 500, 5
+		ToolTip, `% A_TickCount - g_intLastTick . " > %intTimeoutMs%"
+			. (g_intLastOnChangeFinish - g_intLastOnChangeStart > 0 ? " (last Clipboard change: " . g_intLastOnChangeFinish - g_intLastOnChangeStart . " ms)" : ""), 500, 5
 	if ((A_TickCount - g_intLastTick) > %intTimeoutMs%)
 	{
 		if (%blnTimeoutDebug%)
@@ -1821,8 +1837,13 @@ FileAppend, %strSource%, %g_strRulesPathNameNoExt%.ahk, % (A_IsUnicode ? "UTF-16
 
 if (g_blnRulesRemovedByTimeOut)
 {
-	ToolTip, % L(o_L["RulesRemoved"], g_strAppNameText), , , 3
+	ToolTip, % L(o_L["RulesRemovedTimeout"], g_strAppNameText, o_Settings.RulesWindow.intRulesTimeoutSecs.IniValue), , , 3
 	SetTimer, RemoveToolTip3, -2000 ; run once in 2 seconds
+}
+else if (g_blnRulesRemovedByRestore)
+{
+	ToolTip, % L(o_L["RulesRemovedRestore"], g_strAppNameText), , , 3
+	SetTimer, RemoveToolTip3, -3000 ; run once in 2 seconds
 }
 else
 {
@@ -1845,13 +1866,16 @@ return
 
 
 ;------------------------------------------------------------
-DisableAndReloadRules:
+DisableAndReloadRulesRestore:
+DisableAndReloadRulesTimeout:
 ;------------------------------------------------------------
 
 Gosub, GuiRuleDeselectAll
 ; disable because rules were already removed by QACrules
-g_blnRulesRemovedByTimeOut := true
+g_blnRulesRemovedByRestore := (A_ThisLabel = "DisableAndReloadRulesRestore")
+g_blnRulesRemovedByTimeOut := (A_ThisLabel = "DisableAndReloadRulesTimeout")
 Gosub, LoadRules
+g_blnRulesRemovedByRestore := false
 g_blnRulesRemovedByTimeOut := false
 
 return
@@ -3469,6 +3493,8 @@ GuiSelectShortcut1: ; RulesHotkeyMouse
 GuiSelectShortcut2: ; RulesHotkeyKeyboard
 GuiSelectShortcut3: ; EditorHotkeyMouse
 GuiSelectShortcut4: ; EditorHotkeyKeyboard
+GuiSelectShortcut5: ; RestoreClipboardMouse
+GuiSelectShortcut6: ; RestoreClipboardButton
 ;------------------------------------------------------------
 
 o_PopupHotkeys.BackupPopupHotkeys()
@@ -5147,7 +5173,7 @@ RECEIVE_QACRULES(wParam, lParam)
 	
 	if (strCopyOfData = "disable_rules")
 	{
-		Gosub, DisableAndReloadRules
+		Gosub, DisableAndReloadRulesTimeout
 		return 1 ; success
 	}
 	else if SubStr(strCopyOfData, 1, 17) = "backup_clipboard|" ; update Clipboard backup
@@ -5638,8 +5664,8 @@ class Triggers.MouseButtons
 			SA := Object() ; simple array
 			saPopupHotkeyInternalNames := Object() ; simple array
 			
-			saPopupHotkeyInternalNames := ["OpenRulesHotkeyMouse", "OpenRulesHotkeyKeyboard", "OpenEditorHotkeyMouse", "OpenEditorHotkeyKeyboard"]
-			saPopupHotkeyDefaults := StrSplit("!MButton|!#v|^MButton|^#v", "|")
+			saPopupHotkeyInternalNames := ["OpenRulesHotkeyMouse", "OpenRulesHotkeyKeyboard", "OpenEditorHotkeyMouse", "OpenEditorHotkeyKeyboard", "RestoreClipboardMouse", "RestoreClipboardKeyboard"]
+			saPopupHotkeyDefaults := StrSplit("!MButton|!#v|^MButton|^#v|!^MButton|^#z", "|")
 			saOptionsPopupHotkeyLocalizedNames := StrSplit(L(o_L["OptionsPopupHotkeyTitles"], g_strAppNameText), "|")
 			saOptionsPopupHotkeyLocalizedDescriptions := StrSplit(L(o_L["OptionsPopupHotkeyTitlesSub"], g_strAppNameText), "|")
 			
@@ -5669,6 +5695,8 @@ class Triggers.MouseButtons
 				this.SA[2].EnableHotkey("OpenRules", "Keyboard")
 				this.SA[3].EnableHotkey("OpenEditor", "Mouse")
 				this.SA[4].EnableHotkey("OpenEditor", "Keyboard")
+				this.SA[5].EnableHotkey("RestoreClipboard", "Mouse")
+				this.SA[6].EnableHotkey("RestoreClipboard", "Keyboard")
 			Hotkey, If
 		}
 		;-----------------------------------------------------
@@ -6326,10 +6354,9 @@ class Rule
 		{
 			strcode .= "Sleep, 100`n" ; without this delay, only the 1st copydata succeeds
 			strcode .= "intResult := Send_WM_COPYDATA(""backup_clipboard|"" . Clipboard, g_strTargetAppTitle)`n"
-			strcode .= "ToolTip, Sent `%Clipboard`% with result `%intResult`%`n"
+			strcode .= "g_intLastOnChangeStart := A_TickCount`n"
 		}
 			
-		; strCode .= "`; strBefore := Clipboard`n"
 		if (this.strTypeCode = "ChangeCase")
 		{
 			strCode .= "if (" . this.intCaseType . " = 4)`n"
@@ -6401,10 +6428,9 @@ class Rule
 		strCode .= "`n"
 		strCode .= "g_intLastTick := A_TickCount `; reset timeout counter`n"
 		strCode .= "Sleep, 50`n"
-		; strCode .= "`; strAfter := Clipboard`n"
-		; strCode .= "`; MsgBox, Before:``n%strBefore%``n``nAfter:``n%strAfter%"
 		
 		; end rule
+		strcode .= "g_intLastOnChangeFinish := A_TickCount`n" ; update for each running rule, only the last value will remain
 		strCode .= "}`n}`n;------------------------------------------------------------`n`n"
 		
 		return strCode

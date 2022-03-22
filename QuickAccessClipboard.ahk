@@ -34,8 +34,17 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
-Version BETA: 0.1.0.2 (2022-03-??)
-- working
+Version BETA: 0.1.0.2 (2022-03-22)
+ 
+Rules Manager
+- in QAC Rules, each time the rule(s) are executed, take backup of the Clipboard
+- new mouse and keyboard hotkeys to Restore the content of the Clipboard to its content before the last execution of rule(s)
+- add menu items on Tray menu and Rules manager window to Restore Clipboard
+- in Rules debug mode, add the number of seconds to execute the last rule(s) - to enable rules debug mode, in ini file, under [RulesWindow], change RulesTimeoutDebug=0 to RulesTimeoutDebug=1
+ 
+Various improvements
+- enable the "Cancel" button as soon as the "Edit Clipboard" button is clicked, allowing to revert the editor to the current Clipboard content
+- fix a bug preventing saving of "Display at startup" options to ini file
 
 Version BETA: 0.1.0.1 (2022-03-07)
  
@@ -5665,7 +5674,7 @@ class Triggers.MouseButtons
 			saPopupHotkeyInternalNames := Object() ; simple array
 			
 			saPopupHotkeyInternalNames := ["OpenRulesHotkeyMouse", "OpenRulesHotkeyKeyboard", "OpenEditorHotkeyMouse", "OpenEditorHotkeyKeyboard", "RestoreClipboardMouse", "RestoreClipboardKeyboard"]
-			saPopupHotkeyDefaults := StrSplit("!MButton|!#v|^MButton|^#v|!^MButton|^#z", "|")
+			saPopupHotkeyDefaults := StrSplit("!MButton|!#v|^MButton|^#v|!^MButton|^!z", "|")
 			saOptionsPopupHotkeyLocalizedNames := StrSplit(L(o_L["OptionsPopupHotkeyTitles"], g_strAppNameText), "|")
 			saOptionsPopupHotkeyLocalizedDescriptions := StrSplit(L(o_L["OptionsPopupHotkeyTitlesSub"], g_strAppNameText), "|")
 			

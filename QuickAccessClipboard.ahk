@@ -3524,6 +3524,10 @@ if StrLen(o_PopupHotkeys.SA[intHotkeyIndex].P_strAhkHotkey) ; empty if SelectSho
 {
 	o_Settings.Hotkeys["str" . o_PopupHotkeys.SA[intHotkeyIndex].AA.strPopupHotkeyInternalName].WriteIni(o_PopupHotkeys.SA[intHotkeyIndex].P_strAhkHotkey)
 	o_PopupHotkeys.EnablePopupHotkeys()
+
+	MsgBox, 52, %g_strAppNameText%, % L(o_L["ReloadPrompt"], g_strAppNameText)
+	IfMsgBox, Yes
+		Gosub, ReloadQAC
 }
 
 intHotkeyType := ""
@@ -4238,6 +4242,50 @@ GuiDonate:
 ;------------------------------------------------------------
 
 Run, % AddUtm2Url("https://www.paypal.com/donate/?hosted_button_id=F22JAQULFM6C4", A_ThisLabel, "Donation")
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+ReloadQAC:
+ReloadQACAsAdmin:
+;------------------------------------------------------------
+
+; Do not use the Reload command: Any command-line parameters passed to the original script are not passed to the new instance.
+; Also, include the string /restart as the first parameter (i.e. after the name of the executable), which tells the program to
+; use the same behavior as Reload.
+
+; make sure the default system mouse pointer are reset before reloading QAP
+SetCursor(false)
+
+; keep params received from command-line as collected in o_CommandLineParameters
+strCurrentCommandLineParameters := o_CommandLineParameters.strParams
+
+; Why using RunWait instead of Run... AHK Doc: "To keep the script running even if it failed to restart (if user answered "No" to
+; UAC prompt), remove ExitApp and use RunWait instead of Run. On success, /restart causes the new instance to terminate the old one.
+; On failure, the new instance exits and RunWait returns."
+
+; Putting "*RunAs" in a variable caused an error when making it empty to launch without admin right
+
+try
+{
+	if (A_IsCompiled)
+		if (A_ThisLabel = "ReloadQACAsAdmin" or A_IsAdmin)
+			RunWait, *RunAs %A_ScriptFullPath% /restart %strCurrentCommandLineParameters%
+		else
+			RunWait, %A_ScriptFullPath% /restart %strCurrentCommandLineParameters% ; double-quotes already included in strCurrentCommandLineParameters
+	else
+		if (A_ThisLabel = "ReloadQACAsAdmin" or A_IsAdmin)
+			RunWait, *RunAs %A_AhkPath% /restart %A_ScriptFullPath% %strCurrentCommandLineParameters%
+		else
+			RunWait, %A_AhkPath% /restart %A_ScriptFullPath% %strCurrentCommandLineParameters% ; double-quotes already included in strCurrentCommandLineParameters
+	ExitApp
+}
+
+Oops(0, o_L["OopsNotAdmin"], g_strAppNameText)
+
+strCurrentCommandLineParameters := ""
 
 return
 ;------------------------------------------------------------

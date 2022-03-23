@@ -1594,7 +1594,6 @@ else
 }
 
 Gosub, GuiApplyRules
-SB_SetText(o_L["GuiSelectedRules"] . ": " . g_strActiveRules, 1)
 
 intPosition := ""
 intOrder := ""
@@ -1650,6 +1649,8 @@ Gui, Submit, NoHide
 
 Gosub, BackupSelectedRules
 Gosub, LaunchQACrules
+
+SB_SetText(o_L["GuiSelectedRules"] . ": " . g_strActiveRules, 1)
 
 return
 ;------------------------------------------------------------

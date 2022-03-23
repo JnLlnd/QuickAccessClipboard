@@ -6425,14 +6425,22 @@ class Rule
 			else
 				strCode .= "Clipboard := " . strSubString
 		}
-		else if InStr("Prefix Suffix", this.strTypeCode)
+		else if (this.strTypeCode = "Prefix")
 			if (this.blnRepeat)
 				strCode .= "strTemp := """"`n"
 					. "Loop, Parse, Clipboard, ``n`n"
-					. "`tstrTemp .=  """ . (this.strTypeCode = "Prefix" ? this.strPrefix : "") . """ . A_LoopField . """ . (this.strTypeCode = "Suffix" ? this.strSuffix : "") . "``n""`n"
+					. "`tstrTemp .=  """ . this.strPrefix . """ . A_LoopField . ""``n""`n"
 					. "Clipboard := SubStr(strTemp, 1, -1) `; remove last eol"
 			else
-				strCode .= "Clipboard := """ . (this.strTypeCode = "Prefix" ? this.strPrefix : "") . """ . Clipboard . """ . (this.strTypeCode = "Suffix" ? this.strSuffix : "") . """"
+				strCode .= "Clipboard := """ . this.strPrefix . """ . Clipboard"
+		else if (this.strTypeCode = "Suffix")
+			if (this.blnRepeat)
+				strCode .= "strTemp := """"`n"
+					. "Loop, Parse, Clipboard, ``n`n"
+					. "`tstrTemp .=  StrReplace(A_LoopField, Chr(13), """ . this.strSuffix . """ . Chr(13)) . ""``n""`n"
+					. "Clipboard := SubStr(strTemp, 1, -1) `; remove last eol"
+			else
+				strCode .= "Clipboard := Clipboard . """ . this.strSuffix . """"
 		
 		strCode .= "`n"
 		strCode .= "g_intLastTick := A_TickCount `; reset timeout counter`n"

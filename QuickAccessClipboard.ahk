@@ -34,6 +34,8 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
+Version BETA: 0.1.0.3 (2022-03-??)
+
 Version BETA: 0.1.0.2 (2022-03-22)
  
 Rules Manager
@@ -340,7 +342,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.1.0.2
+;@Ahk2Exe-SetVersion 0.1.0.3
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -411,7 +413,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.1.0.2" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.1.0.3" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "beta" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -1823,6 +1825,22 @@ strBottom =
 	;------------------------------------------------------------
 
 	;------------------------------------------------------------
+	SentenceCase(strText)
+	; based on code from laszlo (https://www.autohotkey.com/board/topic/51153-sentence-case/#entry320221)
+	;------------------------------------------------------------
+	{
+		Loop, Parse, `% RegExReplace(strText, "[\.\!\?]\s+|\R+", "$0þ"), þ ; mark 1st letters of sentences with char 254
+		{
+		   StringLower, strLower, A_LoopField
+		   strUpper := Chr(Asc(A_LoopField)) ; same as SubStr(A_LoopField, 1, 1) but probably faster
+		   StringUpper strUpper, strUpper
+		   strSentence .= strUpper .  SubStr(strLower, 2)
+		}
+		return strSentence
+	}
+	;------------------------------------------------------------
+
+	;------------------------------------------------------------
 	; RULES
 	;------------------------------------------------------------
 
@@ -2500,7 +2518,7 @@ Gui, 2:Add, Link, % "y+2 w" . (aaEditedRule.strTypeCode = "AutoHotkey" ? 900 : 4
 
 if (aaEditedRule.strTypeCode = "ChangeCase")
 	
-	loop, 4
+	loop, 5
 		Gui, 2:Add, Radio, % (A_Index = 1 ? "vf_varValue1 " : "") . ((aaEditedRule.intCaseType = A_Index or aaEditedRule.intCaseType = "" and A_Index = 1) ? " checked" : ""), % o_L["DialogCaseType" . A_Index]
 	
 else if (aaEditedRule.strTypeCode = "ConvertFormat")
@@ -5118,6 +5136,24 @@ ToggleCase(strText)
 
 
 ;------------------------------------------------------------
+SentenceCase(strText)
+; based on code from laszlo (https://www.autohotkey.com/board/topic/51153-sentence-case/#entry320221)
+; alternative RegEx RegExReplace(str, "m`a)([.?!] +|\A)\K(.)(.*)", "$U2$L3") mais ne fait pas les débuts de ligne ou de paragraphe
+;------------------------------------------------------------
+{
+	Loop, Parse, % RegExReplace(strText, "[\.\!\?]\s+|\R+", "$0þ"), þ ; mark 1st letters of sentences with char 254
+	{
+	   StringLower, strLower, A_LoopField
+	   strUpper := Chr(Asc(A_LoopField)) ; same as SubStr(A_LoopField, 1, 1) but probably faster
+	   StringUpper strUpper, strUpper
+	   strSentence .= strUpper .  SubStr(strLower, 2)
+	}
+	return strSentence
+}
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
 IsEditMode()
 ;------------------------------------------------------------
 {
@@ -6419,6 +6455,8 @@ class Rule
 		{
 			strCode .= "if (" . this.intCaseType . " = 4)`n"
 			strCode .= "`tClipboard := ToggleCase(Clipboard)`n"
+			strCode .= "else if (" . this.intCaseType . " = 5)`n"
+			strCode .= "`tClipboard := SentenceCase(Clipboard)`n"
 			strCode .= "else`n"
 			strCode .= "`tClipboard := RegExReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
 		}
@@ -6510,6 +6548,8 @@ class Rule
 		if (this.strTypeCode = "ChangeCase")
 			if (this.intCaseType = 4) ; toggle
 				return ToggleCase(strText)
+			else if (this.intCaseType = 5) ; sentence
+				return SentenceCase(strText)
 			else
 				return RegExReplace(strText, this.strFind, this.strReplace) ; .strFind is ".*", .strReplace is one of "$L0|$U0|$T0" (lower, upper, title)
 		else if InStr("Replace|Find", this.strTypeCode)

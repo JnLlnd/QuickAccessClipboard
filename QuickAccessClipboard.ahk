@@ -13,7 +13,7 @@ OBJECT MODEL
 
 RULE TYPES
 ----------
-Types: ChangeCase, ConvertFormat, Replace, AutoHotkey, SubString, Prefix, Suffix
+Types: ChangeCase, ConvertFormat, Replace, AutoHotkey, SubString, Prefix, Suffix, Sort
 Values: .strTypeCode, .strTypeLabel, .strTypeHelp, .intID
 Collections: g_aaRuleTypes (by strTypeCode), g_saRuleTypesOrder (by intID)
 
@@ -28,6 +28,7 @@ SubString: .intSubStringFromType (1: 1-FromStart, 2-FromPosition, 3-FromBeginTex
 	, .intSubStringToType (5: 1-ToEnd, 2-ToLength, 3-ToBeforeEnd, 4-ToBeginText, 5-ToEndText), .intSubStringToLength (6, positive or negative), .strSubStringToText (7), .intSubStringToPlusMinus (8), .blnRepeat (9)
 Prefix: .strPrefix (1), .blnRepeat(2)
 Suffix: .strSuffix (1), .blnRepeat(2)
+Sort: .strSortOptions (on or more R C CL N U \ or Random), .intSortPosition (for option P)
 Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 
 
@@ -973,7 +974,7 @@ InitRuleTypes:
 global g_aaRuleTypes = Object()
 global g_saRuleTypesOrder = Object()
 
-saRuleTypes := StrSplit("Find|Replace|ChangeCase|ConvertFormat|AutoHotkey|Prefix|Suffix|SubString", "|")
+saRuleTypes := StrSplit("Find|Replace|ChangeCase|ConvertFormat|AutoHotkey|Prefix|Suffix|SubString|Sort", "|")
 for intIndex, strType in saRuleTypes
 {
 	strLabels .= o_L["Type" . strType] . "|" ; "TypeChangeCase", etc.
@@ -983,6 +984,11 @@ for intIndex, strType in saRuleTypes
 			, "https://www.autohotkey.com/docs/Variables.htm", "https://www.autohotkey.com/docs/commands/SubStr.htm"
 			, "https://www.autohotkey.com/docs/commands/InStr.htm", "https://www.autohotkey.com/docs/commands/Loop.htm"
 			, "https://www.autohotkey.com/docs/commands/IfExpression.htm")
+	else if (strType = "Sort")
+	{
+		strHelpClipboard .= o_L["TypeSortHelpClipboard"] . " " . L(o_L["TypeSortHelpLink"], "https://www.autohotkey.com/docs/commands/Sort.htm")
+		strHelpEditor .= o_L["TypeSortHelpEditor"] . " " . L(o_L["TypeSortHelpLink"], "https://www.autohotkey.com/docs/commands/Sort.htm")
+	}
 	else
 	{
 		strHelpClipboard .=  L(o_L["Type" . strType . "HelpClipboard"] . (strType = "SubString" ? o_L["TypeSubStringHelp2"] . o_L["TypeSubStringHelp3Clipboard"] : ""), o_L["TypeEncodingHelp"])
@@ -2026,6 +2032,7 @@ GuiEditorConvertFormat:
 GuiEditorAutoHotkey:
 GuiEditorSubString:
 GuiEditorPrefix:
+GuiEditorSort:
 GuiEditorSuffix:
 ;------------------------------------------------------------
 Gui, Editor:Submit, NoHide
@@ -2559,7 +2566,7 @@ else if (aaEditedRule.strTypeCode = "SubString")
 	GuiControlGet, arrWidth3, Pos, f_blnRadioSubStringFromEndText
 	Gui, 2:Add, Edit, % "x" . arrWidth1w + 15 . " ys-5 w40 Number Center vf_intRadioSubStringFromPosition disabled"
 		, % aaEditedRule.intSubStringFromPosition
-	Gui, 2:Add, Text, yp x+5 vf_lblRadioSubStringFromPosition disabled, % o_L["DialogSubStringCharacters"]
+	Gui, 2:Add, Text, yp+5 x+5 vf_lblRadioSubStringFromPosition disabled, % o_L["DialogSubStringCharacters"]
 	Gui, 2:Add, Edit, % "x" . (arrWidth2w > arrWidth3w ? arrWidth2w : arrWidth3w) + 15 . " ys+25 w150 vf_strRadioSubStringFromText disabled"
 		, % aaEditedRule.strSubStringFromText
 	Gui, 2:Add, Text, x+10 yp+3, +/-
@@ -2582,7 +2589,7 @@ else if (aaEditedRule.strTypeCode = "SubString")
 	GuiControlGet, arrWidth4, Pos, f_blnRadioSubStringToEndText
 	Gui, 2:Add, Edit, % "x" . (arrWidth1w > arrWidth2w ? arrWidth1w : arrWidth2w) + 15 . " ys+5 w40 Number Center vf_intSubStringCharacters disabled"
 		, % Abs(aaEditedRule.intSubStringToLength) ; stored as positive or negative
-	Gui, 2:Add, Text, yp x+5 vf_lblSubStringCharacters disabled, % o_L["DialogSubStringCharacters"]
+	Gui, 2:Add, Text, yp+5 x+5 vf_lblSubStringCharacters disabled, % o_L["DialogSubStringCharacters"]
 	Gui, 2:Add, Edit, % "x" . (arrWidth3w > arrWidth4w ? arrWidth3w : arrWidth4w) + 15 . " ys+45 w150 vf_strRadioSubStringToText disabled"
 		, % aaEditedRule.strSubStringToText
 	Gui, 2:Add, Text, x+10 yp+3, +/-
@@ -2595,6 +2602,20 @@ else if InStr("Prefix Suffix", aaEditedRule.strTypeCode)
 {
 	Gui, 2:Add, Text, y+5 w400, % o_L["DialogTextToAdd"]
 	Gui, 2:Add, Edit, w400 vf_varValue1, % aaEditedRule.saVarValues[1] ; aaEditedRule.strPrefix or aaEditedRule.strSuffix
+}
+else if (aaEditedRule.strTypeCode = "Sort")
+{
+	; Reverse (R), Case sensitive (C), Case sensitive Regional (CL), Numeric (N), Unique (U), After last backslash (AHK: \, QAC: BS, N P ignored), Random (Random, all except D Z U ignored), Position (Pn)
+	Loop, Parse, % "R |C |CL |N |U |BS |Random |P", | ; keep space after each option except P
+	{
+		Gui, 2:Add, Checkbox, % (A_Index = 1 ? "x10 y+10 " : "") . " gGuiEditRuleSortTypeChanged vf_strSortOption" . A_LoopField
+			. (InStr(aaEditedRule.strSortOptions, A_LoopField) ? " Checked" : ""), % o_L["DialogSortOption" . Trim(A_LoopField)]
+		if (A_LoopField = "P" and InStr(aaEditedRule.strSortOptions, "P"))
+			intFromPosition := Trim(SubStr(aaEditedRule.strSortOptions, InStr(aaEditedRule.strSortOptions, "P") + 1)) ; to the end, P option is always last
+	}
+	Gui, 2:Add, Edit, % "x+5 yp-3 w40 Number Center vf_intSortOptionPosition disabled", %intFromPosition%
+	Gui, 2:Add, Text, yp+3 x+5 vf_lblSortOptionPosition disabled, % o_L["DialogSubStringCharacters"]
+	Gosub, GuiEditRuleSortTypeChanged
 }
 
 if (aaEditedRule.strTypeCode = "SubString")
@@ -2661,6 +2682,30 @@ return
 
 
 ;------------------------------------------------------------
+GuiEditRuleSortTypeChanged:
+; After last backslash (AHK: \, QAC: BS, N P ignored), Random (Random, all except D Z U ignored), Position (Pn)
+;------------------------------------------------------------
+Gui, 2:Submit, NoHide
+
+Loop, Parse, % "R|C|CL|N|BS|P", |
+	GuiControl, % (f_strSortOptionRandom ? "Disable" : "Enable"), % "f_strSortOption" . A_LoopField
+
+GuiControl, % (f_strSortOptionN or f_strSortOptionRandom ? "Disable" : "Enable"), f_strSortOptionC
+
+GuiControl, % (f_strSortOptionC  or f_strSortOptionRandom ? "Disable" : "Enable"), f_strSortOptionCL
+GuiControl, % (f_strSortOptionCL  or f_strSortOptionRandom ? "Disable" : "Enable"), f_strSortOptionC
+
+GuiControl, % (f_strSortOptionBS or f_strSortOptionRandom ? "Disable" : "Enable"), f_strSortOptionN
+GuiControl, % (f_strSortOptionBS or f_strSortOptionRandom ? "Disable" : "Enable"), f_strSortOptionP
+
+GuiControl, % (f_strSortOptionP and !f_strSortOptionRandom and !f_strSortOptionBS ? "Enable" : "Disable"), f_intSortOptionPosition
+GuiControl, % (f_strSortOptionP and !f_strSortOptionRandom and !f_strSortOptionBS ? "Enable" : "Disable"), f_lblSortOptionPosition
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
 GuiRuleSave:
 GuiEditCommand:
 ;------------------------------------------------------------
@@ -2688,6 +2733,7 @@ if (A_ThisLabel = "GuiRuleSave")
 }
 
 if InStr("Replace AutoHotkey Prefix Suffix", aaEditedRule.strTypeCode) and !StrLen(f_varValue1)
+	or (aaEditedRule.strTypeCode = "Sort" and and f_intSortOptionP and !StrLen(f_intSortOptionPosition))
 {
 	Oops(2, o_L["OopsValueMissing"])
 	return
@@ -2739,6 +2785,24 @@ else if (aaEditedRule.strTypeCode = "AutoHotkey")
 	
 	saValues[1] := EncodeAutoHokeyCodeForIni(f_varValue1)
 
+else if (aaEditedRule.strTypeCode = "Sort")
+{
+	strSortOptions := ""
+	Loop, Parse, % "R |C |CL |N |U |BS |Random |P ", |
+	{
+		GuiControlGet, blnOn, , % "f_strSortOption" . Trim(A_LoopField)
+		GuiControlGet, blnEnabled, Enabled, % "f_strSortOption" . Trim(A_LoopField)
+		
+		if (blnOn and blnEnabled)
+			if (A_LoopField = "BS ")
+				strSortOptions .= "\ "
+			else if (A_LoopField = "P ")
+				strSortOptions .= "P" . f_intSortOptionPosition . " "
+			else 
+				strSortOptions .= A_LoopField
+	}
+	saValues[1] := strSortOptions
+}
 else
 	Loop, 9
 		saValues.Push(EncodeForIni(f_varValue%A_Index%))
@@ -6352,6 +6416,8 @@ class Rule
 			this.strPrefix := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
 		else if (this.strTypeCode = "Suffix")
 			this.strSuffix := StrReplace(saRuleValues[1], g_strPipe, "|") ; also in this.saVarValues[1]
+		else if (this.strTypeCode = "Sort")
+			this.strSortOptions := saRuleValues[1]
 		
 		if InStr("Prefix Suffix", this.strTypeCode)
 			this.blnRepeat := saRuleValues[2]
@@ -6528,6 +6594,8 @@ class Rule
 					. "Clipboard := SubStr(strTemp, 1, -1) `; remove last eol"
 			else
 				strCode .= "Clipboard := Clipboard . """ . this.strSuffix . """"
+		else if (this.strTypeCode = "Sort")
+			strCode .= "Sort, Clipboard, " . this.strSortOptions
 		
 		strCode .= "`n"
 		strCode .= "g_intLastTick := A_TickCount `; reset timeout counter`n"
@@ -6619,6 +6687,11 @@ class Rule
 			}
 			else
 				return (this.strTypeCode = "Prefix" ? this.strPrefix : "") . strText . (this.strTypeCode = "Suffix" ? this.strSuffix : "")
+		else if (this.strTypeCode = "Sort")
+		{
+			Sort, strText, % this.strSortOptions
+			return strText
+		}
 	}
 	;---------------------------------------------------------
 	

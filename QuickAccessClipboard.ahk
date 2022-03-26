@@ -2042,13 +2042,8 @@ return
 
 
 ;------------------------------------------------------------
-GuiEditorSortAgain: ; keep existing RuleToExecute in ini file and gosub ExecuteEditCommand
-GuiEditorSortQuick: ; save new RuleToExecute without options in ini file and gosub ExecuteEditCommand
 ;------------------------------------------------------------
 
-; IniRead, strRule, % o_Settings.strIniFile, RuleForEditor, RuleToExecute ; same section and item name
-; [RuleForEditor]
-; RuleToExecute=Sort|||R |||||||||
 
 return
 ;------------------------------------------------------------
@@ -2065,6 +2060,8 @@ GuiEditorAutoHotkey:
 GuiEditorSubString:
 GuiEditorPrefix:
 GuiEditorSort:
+GuiEditorSortAgain:
+GuiEditorSortQuick:
 GuiEditorSuffix:
 ;------------------------------------------------------------
 Gui, Editor:Submit, NoHide
@@ -2092,10 +2089,20 @@ if InStr(A_ThisLabel, "GuiEditorFind") ; includes GuiEditorFindNext
 
 	return
 }
-; else continue
 
-g_strExecRuleType := StrReplace(A_ThisLabel, "GuiEditor")
-Gosub, GuiRuleForEditor
+if InStr("GuiEditorSortAgain|GuiEditorSortQuick|", A_ThisLabel . "|")
+{
+	if (A_ThisLabel = "GuiEditorSortQuick")
+		IniWrite, Sort||||||||||||, % o_Settings.strIniFile, RuleForEditor, RuleToExecute
+	; for GuiEditorSortAgain, keep existing RuleToExecute value
+	Gosub, ExecuteEditCommand
+}
+else
+{
+	; ChangeCase, ConvertFormat, AutoHotkey, SubString, Prefix, Sort, Suffix
+	g_strExecRuleType := StrReplace(A_ThisLabel, "GuiEditor")
+	Gosub, GuiRuleForEditor
+}
 
 return
 ;------------------------------------------------------------

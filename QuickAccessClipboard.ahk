@@ -3310,10 +3310,6 @@ strGui := (SubStr(A_ThisLabel, 1, 5) = "Rules" ? "Rules" : "Editor")
 Gui, %strGui%:Default
 Gui, %strGui%:Submit, NoHide
 
-if InStr(A_ThisLabel, "ExitApp")
-	ExitApp
-; else continue
-
 if (InStr(A_ThisLabel, "Editor") and EditorUnsaved())
 {
 	Gui, +OwnDialogs
@@ -3321,6 +3317,10 @@ if (InStr(A_ThisLabel, "Editor") and EditorUnsaved())
 	IfMsgBox, No
 		return
 }
+
+if InStr(A_ThisLabel, "ExitApp")
+	ExitApp
+; else continue
 
 if (strGui = "Editor")
 	Gosub, EditorButtonsEditCancelClose
@@ -6619,20 +6619,20 @@ class Rule
 			if (this.blnRepeat)
 				strCode .= "strTemp := """"`n"
 					. "Loop, Parse, Clipboard, ``n`n"
-					. "`tstrTemp .=  """ . this.strPrefix . """ . A_LoopField . ""``n""`n"
+					. "`tstrTemp .=  """ . DoubleDoubleQuotes(this.strPrefix) . """ . A_LoopField . ""``n""`n"
 					. "Clipboard := SubStr(strTemp, 1, -1) `; remove last eol"
 			else
-				strCode .= "Clipboard := """ . this.strPrefix . """ . Clipboard"
+				strCode .= "Clipboard := """ . DoubleDoubleQuotes(this.strPrefix) . """ . Clipboard"
 		else if (this.strTypeCode = "Suffix")
 			if (this.blnRepeat)
 				strCode .= "strTemp := """"`n"
 					. "Loop, Parse, Clipboard, ``n`n"
-					. "`tstrTemp .=  StrReplace(A_LoopField, Chr(13), """ . this.strSuffix . """ . Chr(13)) . ""``n""`n"
+					. "`tstrTemp .=  StrReplace(A_LoopField, Chr(13), """ . DoubleDoubleQuotes(this.strSuffix) . """ . Chr(13)) . ""``n""`n"
 					. "Clipboard := SubStr(strTemp, 1, -1) `; remove last eol"
 			else
-				strCode .= "Clipboard := Clipboard . """ . this.strSuffix . """"
+				strCode .= "Clipboard := Clipboard . """ . DoubleDoubleQuotes(this.strSuffix) . """"
 		else if (this.strTypeCode = "Sort")
-			strCode .= "Sort, Clipboard, " . this.strSortOptions
+			strCode .= "Sort, Clipboard, " . DoubleDoubleQuotes(this.strSortOptions) ; DoubleDoubleQuotes in case we process delimiter " later
 		
 		strCode .= "`n"
 		strCode .= "g_intLastTick := A_TickCount `; reset timeout counter`n"

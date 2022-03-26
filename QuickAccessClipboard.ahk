@@ -36,6 +36,20 @@ HISTORY
 =======
 
 Version BETA: 0.1.0.3 (2022-03-??)
+ 
+Rules Manager
+- add new rule type "Sort", by default, sorting the Clipboard lines alphabetically
+- add "Sort" rules options: Reverse order, Case sensitive, Case sensitive considering regional settings, Numeric values, Unique lines, From last bakslash, Randomly and Starting from a given position
+- add "Sentence case" option in for "Change case" rules
+- fix bug in rule suffix that was inserting the suffix between the CR and LF, now insert before CR
+- in Rules manager, update list of rules in status bar when changing order in Active listview using drag-and-drop
+ 
+Editor
+- add "Sentence case" option "Edit, Change case" menu
+- add "Edit, Sort" menu, by default, sorting the Editor's lines alphabetically with the same options described above for Sort rules
+ 
+General
+- prompt to reload QAC after changing a hotkey
 
 Version BETA: 0.1.0.2 (2022-03-22)
  
@@ -1389,8 +1403,13 @@ Menu, menuBarEditorEdit, Add, % o_L["TypeReplace"] . "`t(Ctrl+H)", GuiEditorFind
 
 Menu, menuBarEditorEdit, Add
 for intOrder, aaRuleType in g_saRuleTypesOrder
-	if !InStr("ConvertFormat|AutoHotkey|Find|Replace", aaRuleType.strTypeCode)
+	if !InStr("ConvertFormat|AutoHotkey|Find|Replace|Sort", aaRuleType.strTypeCode)
 		Menu, menuBarEditorEdit, Add, % aaRuleType.strTypeLabel, % "GuiEditor" . aaRuleType.strTypeCode
+
+Menu, menuBarEditorEdit, Add
+Menu, menuBarEditorEdit, Add, % o_L["MenuSortQuick"], GuiEditorSortQuick
+Menu, menuBarEditorEdit, Add, % o_L["MenuSortOptions"], GuiEditorSort
+Menu, menuBarEditorEdit, Add, % o_L["MenuSortAgain"], GuiEditorSortAgain
 
 Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyMouse"], GuiSelectShortcut3
 Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyKeyboard"], GuiSelectShortcut4
@@ -2023,6 +2042,19 @@ return
 
 
 ;------------------------------------------------------------
+GuiEditorSortAgain: ; keep existing RuleToExecute in ini file and gosub ExecuteEditCommand
+GuiEditorSortQuick: ; save new RuleToExecute without options in ini file and gosub ExecuteEditCommand
+;------------------------------------------------------------
+
+; IniRead, strRule, % o_Settings.strIniFile, RuleForEditor, RuleToExecute ; same section and item name
+; [RuleForEditor]
+; RuleToExecute=Sort|||R |||||||||
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
 GuiEditorFind:
 GuiEditorFindNext:
 GuiEditorFindPrevious:
@@ -2081,7 +2113,7 @@ IniRead, strRule, % o_Settings.strIniFile, RuleForEditor, RuleToExecute ; same s
 saRuleValues := StrSplit(strRule, "|")
 loop, % saRuleValues.Length()
 	saRuleValues[A_Index] := DecodeFromIni(saRuleValues[A_Index])
-aaRuleToExecute := new Rule("RuleToexecute", saRuleValues)
+aaRuleToExecute := new Rule("RuleToExecute", saRuleValues)
 
 Edit_GetSel(g_strEditorControlHwnd, intStart, intEnd)
 if !Edit_TextIsSelected(g_strEditorControlHwnd)
@@ -2606,15 +2638,19 @@ else if InStr("Prefix Suffix", aaEditedRule.strTypeCode)
 else if (aaEditedRule.strTypeCode = "Sort")
 {
 	; Reverse (R), Case sensitive (C), Case sensitive Regional (CL), Numeric (N), Unique (U), After last backslash (AHK: \, QAC: BS, N P ignored), Random (Random, all except D Z U ignored), Position (Pn)
-	Loop, Parse, % "R |C |CL |N |U |BS |Random |P", | ; keep space after each option except P
+	aaLineSpacing :=  {"C ": "", "P": "", "U ": ""} ; keep space after each key except P
+	Loop, Parse, % "R |N |C |CL |P|BS |U |Random", | ; keep space after each option except P
 	{
-		Gui, 2:Add, Checkbox, % (A_Index = 1 ? "x10 y+10 " : "") . " gGuiEditRuleSortTypeChanged vf_strSortOption" . A_LoopField
+		Gui, 2:Add, Checkbox, % (A_Index = 1 ? "x10 y+10 " : (aaLineSpacing.HasKey(A_LoopField) ? "x10 yp+25 " : "x10 ")) . " gGuiEditRuleSortTypeChanged vf_strSortOption" . A_LoopField
 			. (InStr(aaEditedRule.strSortOptions, A_LoopField) ? " Checked" : ""), % o_L["DialogSortOption" . Trim(A_LoopField)]
 		if (A_LoopField = "P" and InStr(aaEditedRule.strSortOptions, "P"))
 			intFromPosition := Trim(SubStr(aaEditedRule.strSortOptions, InStr(aaEditedRule.strSortOptions, "P") + 1)) ; to the end, P option is always last
+		if (A_LoopField = "P")
+		{
+			Gui, 2:Add, Edit, % "x+5 yp-3 w40 Number Center vf_intSortOptionPosition disabled", %intFromPosition%
+			Gui, 2:Add, Text, yp+3 x+5 vf_lblSortOptionPosition disabled, % o_L["DialogSubStringCharacters"]
+		}
 	}
-	Gui, 2:Add, Edit, % "x+5 yp-3 w40 Number Center vf_intSortOptionPosition disabled", %intFromPosition%
-	Gui, 2:Add, Text, yp+3 x+5 vf_lblSortOptionPosition disabled, % o_L["DialogSubStringCharacters"]
 	Gosub, GuiEditRuleSortTypeChanged
 }
 
@@ -2655,6 +2691,7 @@ arrWidth2 := ""
 arrWidth3 := ""
 arrWidth4 := ""
 strMainGui := ""
+aaLineSpacing := ""
 
 return
 ;------------------------------------------------------------
@@ -2733,7 +2770,7 @@ if (A_ThisLabel = "GuiRuleSave")
 }
 
 if InStr("Replace AutoHotkey Prefix Suffix", aaEditedRule.strTypeCode) and !StrLen(f_varValue1)
-	or (aaEditedRule.strTypeCode = "Sort" and and f_intSortOptionP and !StrLen(f_intSortOptionPosition))
+	or (aaEditedRule.strTypeCode = "Sort" and f_intSortOptionP and !StrLen(f_intSortOptionPosition))
 {
 	Oops(2, o_L["OopsValueMissing"])
 	return
@@ -6520,9 +6557,9 @@ class Rule
 		if (this.strTypeCode = "ChangeCase")
 		{
 			strCode .= "if (" . this.intCaseType . " = 4)`n"
-			strCode .= "`tClipboard := ToggleCase(Clipboard)`n"
-			strCode .= "else if (" . this.intCaseType . " = 5)`n"
 			strCode .= "`tClipboard := SentenceCase(Clipboard)`n"
+			strCode .= "else if (" . this.intCaseType . " = 5)`n"
+			strCode .= "`tClipboard := ToggleCase(Clipboard)`n"
 			strCode .= "else`n"
 			strCode .= "`tClipboard := RegExReplace(Clipboard, """ . this.strFind . """, """ . this.strReplace . """)"
 		}
@@ -6614,10 +6651,10 @@ class Rule
 	;---------------------------------------------------------
 	{
 		if (this.strTypeCode = "ChangeCase")
-			if (this.intCaseType = 4) ; toggle
-				return ToggleCase(strText)
-			else if (this.intCaseType = 5) ; sentence
+			if (this.intCaseType = 4)
 				return SentenceCase(strText)
+			else if (this.intCaseType = 5)
+				return ToggleCase(strText)
 			else
 				return RegExReplace(strText, this.strFind, this.strReplace) ; .strFind is ".*", .strReplace is one of "$L0|$U0|$T0" (lower, upper, title)
 		else if InStr("Replace|Find", this.strTypeCode)

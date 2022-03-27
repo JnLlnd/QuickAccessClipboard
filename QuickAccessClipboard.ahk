@@ -39,17 +39,23 @@ Version BETA: 0.1.0.3 (2022-03-??)
  
 Rules Manager
 - add new rule type "Sort", by default, sorting the Clipboard lines alphabetically
-- add "Sort" rules options: Reverse order, Case sensitive, Case sensitive considering regional settings, Numeric values, Unique lines, From last bakslash, Randomly and Starting from a given position
+- add "Sort" rules options: Reverse order, Numeric values, Case sensitive, Case sensitive considering regional settings, From a given position, From last bakslash, Unique (remove duplicate lines) and Randomly
 - add "Sentence case" option in for "Change case" rules
+- never timeout rules when value RulesTimeoutSecs=0 under [RulesWindow]
+- change order and internal code for "Change case" options 4 (now "Sentence case") and 5 (now "Toggle case") - BREAKING CHANGE: current rules for "Sentence case" and "Toggle case" must be updated
 - fix bug in rule suffix that was inserting the suffix between the CR and LF, now insert before CR
 - in Rules manager, update list of rules in status bar when changing order in Active listview using drag-and-drop
  
 Editor
 - add "Sentence case" option "Edit, Change case" menu
-- add "Edit, Sort" menu, by default, sorting the Editor's lines alphabetically with the same options described above for Sort rules
+- add "Edit, Quick Sort (alphabetically)" menu, sorting the Editor's lines alphabetically
+- add "Edit, Sort with options" menu, with the same options described above for Sort rules (Reverse order, Numeric values, etc.)
+- add "Edit, Sort again" menu, sorting the Editor's lines with the options defined the last time the "Sort with options" command was used
  
 General
 - prompt to reload QAC after changing a hotkey
+- in Editor, fix bug to check for unsaved changes before Exiting the app
+- in Rules, fix bug with prefix or suffix including double-quotes
 
 Version BETA: 0.1.0.2 (2022-03-22)
  
@@ -1729,7 +1735,7 @@ strTop =
 	if (%blnTimeoutDebug%)
 		ToolTip, `% A_TickCount - g_intLastTick . " > %intTimeoutMs%"
 			. (g_intLastOnChangeFinish - g_intLastOnChangeStart > 0 ? " (last Clipboard change: " . g_intLastOnChangeFinish - g_intLastOnChangeStart . " ms)" : ""), 500, 5
-	if ((A_TickCount - g_intLastTick) > %intTimeoutMs%)
+	if ((A_TickCount - g_intLastTick) > %intTimeoutMs% and %intTimeoutMs% > 0)
 	{
 		if (%blnTimeoutDebug%)
 			ToolTip

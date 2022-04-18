@@ -654,13 +654,7 @@ if (o_Settings.Launch.blnDisplayTrayTip.IniValue)
 if (g_blnIniFileCreation and !g_blnPortableMode)
 	SetRegistry("QuickAccessClipboard.exe", "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", g_strAppNameText)
 	
-if (g_blnPortableMode)
-	blnStartup := StrLen(FileExist(A_Startup . "\" . g_strAppNameFile . ".lnk")) ; convert file attribute to numeric (boolean) value
-else
-	blnStartup := RegistryExist("HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", g_strAppNameText)
-
-if (blnStartup) ; both setup and portable
-	Gosub, UpdateStartupMenus
+Gosub, UpdateStartupMenus
 
 ; startups count and trace
 IniWrite, % (intStartups + 1), % o_Settings.strIniFile, Internal, Startups
@@ -1066,11 +1060,12 @@ else
 ; Load Options
 
 ; Group Launch
-o_Settings.ReadIniOption("Launch", "blnDisplayTrayTip", "DisplayTrayTip", 1, "f_blnDisplayTrayTip") ; g_blnDisplayTrayTip
-o_Settings.ReadIniOption("Launch", "blnCheck4Update", "Check4Update", (g_blnPortableMode ? 0 : 1), "f_blnCheck4Update|f_lnkCheck4Update") ; g_blnCheck4Update ; enable by default only in setup install mode
+o_Settings.ReadIniOption("Launch", "blnDisplayTrayTip", "DisplayTrayTip", 1, "f_blnDisplayTrayTip")
+o_Settings.ReadIniOption("Launch", "blnCheck4Update", "Check4Update", (g_blnPortableMode ? 0 : 1), "f_blnCheck4Update|f_lnkCheck4Update") ; enable by default only in setup install mode
 o_Settings.ReadIniOption("Launch", "strBackupFolder", "BackupFolder", A_WorkingDir
 	, "f_lblBackupFolder|f_strBackupFolder|f_btnBackupFolder|f_lblWorkingFolder|f_strWorkingFolder|f_btnWorkingFolder|f_lblWorkingFolderDisabled")
-o_Settings.ReadIniOption("Launch", "blnDiagMode", "DiagMode", 0) ; g_blnDiagMode
+o_Settings.ReadIniOption("Launch", "blnDiagMode", "DiagMode", 0)
+o_Settings.ReadIniOption("Launch", "blnLaunchAtStartup", "LaunchAtStartup", 1)
 ; not ready !! o_Settings.ReadIniOption("Launch", "blnRunAsAdmin", "RunAsAdmin", 0, "f_blnRunAsAdmin|f_picRunAsAdmin") ; default false, if true reload QAC as admin
 
 ; Group EditorWindow
@@ -1165,6 +1160,8 @@ Menu, Tray, Add
 Menu, Tray, Add, % o_L["MenuOpenWorkingDirectory"], OpenWorkingDirectory
 Menu, Tray, Add
 Menu, Tray, Add, % o_L["MenuSuspendHotkeys"], ToggleSuspendHotkeys
+Menu, Tray, Add
+Menu, Tray, Add, % o_L["MenuRunAtStartupQAC"], ToggleRunAtStartup
 Menu, Tray, Add, % o_L["MenuRunAtStartupEditor"], ToggleRunAtStartup
 Menu, Tray, Add, % o_L["MenuRunAtStartupRules"], ToggleRunAtStartup
 Menu, Tray, Add
@@ -1354,6 +1351,7 @@ Menu, menuBarRulesOptions, Add, % o_L["MenuSelectRestoreClipboardHotkeyMouse"], 
 Menu, menuBarRulesOptions, Add, % o_L["MenuSelectRestoreClipboardHotkeyKeyboard"], GuiSelectShortcut6
 Menu, menuBarRulesOptions, Add
 Menu, menuBarRulesOptions, Add, % o_L["MenuRunAtStartupRules"], ToggleRunAtStartup
+Menu, menuBarRulesOptions, Add, % o_L["MenuRunAtStartupQAC"], ToggleRunAtStartup
 Menu, menuBarRulesOptions, Add
 Menu, menuBarRulesOptions, Add, % L(o_L["MenuEditIniFile"], o_Settings.strIniFileNameExtOnly), ShowSettingsIniFile
 
@@ -1421,6 +1419,7 @@ Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyMouse"], GuiSelect
 Menu, menuBarEditorOptions, Add, % o_L["MenuSelectEditorHotkeyKeyboard"], GuiSelectShortcut4
 Menu, menuBarEditorOptions, Add
 Menu, menuBarEditorOptions, Add, % o_L["MenuRunAtStartupEditor"], ToggleRunAtStartup
+Menu, menuBarEditorOptions, Add, % o_L["MenuRunAtStartupQAC"], ToggleRunAtStartup
 Menu, menuBarEditorOptions, Add
 Menu, menuBarEditorOptions, Add, % L(o_L["MenuEditIniFile"], o_Settings.strIniFileNameExtOnly), ShowSettingsIniFile
 
@@ -3235,6 +3234,7 @@ if FileExist(o_Settings.strIniFile) ; in case user deleted the ini file to creat
 	o_Settings.RulesWindow.blnDisplayRulesAtStartup.WriteIni(o_Settings.RulesWindow.blnDisplayRulesAtStartup.IniValue)
 	if (o_Settings.RulesWindow.blnRememberRulesPosition.IniValue)
 		SaveWindowPosition("RulesPosition", "ahk_id " . g_intRulesHwnd)
+	o_Settings.Launch.blnLaunchAtStartup.WriteIni(o_Settings.Launch.blnLaunchAtStartup.IniValue)
 
 	IniWrite, % GetScreenConfiguration(), % o_Settings.strIniFile, Internal, LastScreenConfiguration
 }
@@ -4282,28 +4282,32 @@ ToggleRunAtStartup(strMenuItemName)
 {
 	if (strMenuItemName = o_L["MenuRunAtStartupEditor"])
 		o_Settings.EditorWindow.blnDisplayEditorAtStartup.IniValue := !o_Settings.EditorWindow.blnDisplayEditorAtStartup.IniValue
-	else ; o_L["MenuRunAtStartupRules"]
+	else if (strMenuItemName = o_L["MenuRunAtStartupRules"])
 		o_Settings.RulesWindow.blnDisplayRulesAtStartup.IniValue := !o_Settings.RulesWindow.blnDisplayRulesAtStartup.IniValue
+	else ; MenuRunAtStartupQAC
+	{
+		o_Settings.Launch.blnLaunchAtStartup.IniValue := !o_Settings.Launch.blnLaunchAtStartup.IniValue
+		
+		; update app startup values
+		if (g_blnPortableMode)
+		{
+			strAppShortcut := A_Startup . "\" . g_strAppNameFile . ".lnk"
+			if FileExist(strAppShortcut)
+				FileDelete, %strAppShortcut%
+			if (o_Settings.Launch.blnLaunchAtStartup.IniValue)
+				FileCreateShortcut, %A_ScriptFullPath%, %strAppShortcut%, %A_WorkingDir%
+					, % o_CommandLineParameters.strParams
+		}
+		else ; setup mode
+			if (o_Settings.Launch.blnLaunchAtStartup.IniValue)
+				SetRegistry("QuickAccessClipboard.exe", "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", g_strAppNameText)
+			else
+				RemoveRegistry("HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", g_strAppNameText)
+	}
 
 	; update Tray and Options menus
 	Gosub, UpdateStartupMenus
 
-	; update app startup values
-	if (g_blnPortableMode)
-	{
-		strAppShortcut := A_Startup . "\" . g_strAppNameFile . ".lnk"
-		if FileExist(strAppShortcut)
-			FileDelete, %strAppShortcut%
-		if (o_Settings.EditorWindow.blnDisplayEditorAtStartup.IniValue or o_Settings.RulesWindow.blnDisplayRulesAtStartup.IniValue)
-			FileCreateShortcut, %A_ScriptFullPath%, %strAppShortcut%, %A_WorkingDir%
-				, % o_CommandLineParameters.strParams
-	}
-	else ; setup mode
-
-		if (o_Settings.EditorWindow.blnDisplayEditorAtStartup.IniValue or o_Settings.RulesWindow.blnDisplayRulesAtStartup.IniValue)
-			SetRegistry("QuickAccessClipboard.exe", "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", g_strAppNameText)
-		else
-			RemoveRegistry("HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", g_strAppNameText)
 }
 ;------------------------------------------------------------
 
@@ -4312,6 +4316,9 @@ ToggleRunAtStartup(strMenuItemName)
 UpdateStartupMenus:
 ;------------------------------------------------------------
 
+Menu, Tray, % (o_Settings.Launch.blnLaunchAtStartup.IniValue ? "Check" : "Uncheck"), % o_L["MenuRunAtStartupQAC"]
+Menu, menuBarEditorOptions, % (o_Settings.Launch.blnLaunchAtStartup.IniValue ? "Check" : "Uncheck"), % o_L["MenuRunAtStartupQAC"]
+Menu, menuBarRulesOptions, % (o_Settings.Launch.blnLaunchAtStartup.IniValue ? "Check" : "Uncheck"), % o_L["MenuRunAtStartupQAC"]
 Menu, Tray, % (o_Settings.EditorWindow.blnDisplayEditorAtStartup.IniValue ? "Check" : "Uncheck"), % o_L["MenuRunAtStartupEditor"]
 Menu, menuBarEditorOptions, % (o_Settings.EditorWindow.blnDisplayEditorAtStartup.IniValue ? "Check" : "Uncheck"), % o_L["MenuRunAtStartupEditor"]
 Menu, Tray, % (o_Settings.RulesWindow.blnDisplayRulesAtStartup.IniValue ? "Check" : "Uncheck"), % o_L["MenuRunAtStartupRules"]

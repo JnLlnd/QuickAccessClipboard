@@ -35,11 +35,11 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
-Version BETA: 0.1.0.3 (2022-03-??)
+Version BETA: 0.1.0.3 (2022-03-27)
  
 Rules Manager
 - add new rule type "Sort", by default, sorting the Clipboard lines alphabetically
-- add "Sort" rules options: Reverse order, Numeric values, Case sensitive, Case sensitive considering regional settings, From a given position, From last bakslash, Unique (remove duplicate lines) and Randomly
+- add "Sort" rules options: Reverse order, Numeric values, Case sensitive, Case sensitive considering regional settings, From a given position, From last backslash, Unique (remove duplicate lines) and Randomly
 - add "Sentence case" option in for "Change case" rules
 - never timeout rules when value RulesTimeoutSecs=0 under [RulesWindow]
 - change order and internal code for "Change case" options 4 (now "Sentence case") and 5 (now "Toggle case") - BREAKING CHANGE: current rules for "Sentence case" and "Toggle case" must be updated
@@ -363,7 +363,7 @@ Version ALPHA: 0.0.1 (2021-11-14)
 ; Doc: http://fincs.ahk4.net/Ahk2ExeDirectives.htm
 ; Note: prefix comma with `
 
-;@Ahk2Exe-SetVersion 0.1.0.3
+;@Ahk2Exe-SetVersion 0.1.0.4
 ;@Ahk2Exe-SetName Quick Access Clipboard
 ;@Ahk2Exe-SetDescription Quick Access Clipboard (Windows Clipboard editor)
 ;@Ahk2Exe-SetOrigFilename QuickAccessClipboard.exe
@@ -434,7 +434,7 @@ OnExit, CleanUpBeforeExit ; must be positioned before InitFileInstall to ensure 
 ;---------------------------------
 ; Version global variables
 
-global g_strCurrentVersion := "0.1.0.3" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
+global g_strCurrentVersion := "0.1.0.4" ; "major.minor.bugs" or "major.minor.beta.release", currently support up to 5 levels (1.2.3.4.5)
 global g_strCurrentBranch := "beta" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
@@ -3507,11 +3507,11 @@ else ; Editor
 	Gui, Editor:Default
 
 	SetTimer, UpdateEditorEditMenuAndStatusBar, 100
-	; ####
-	;@Ahk2Exe-IgnoreBegin
+; ####
+;@Ahk2Exe-IgnoreBegin
 	SetTimer, UpdateEditorEditMenuAndStatusBar, Off
-	;@Ahk2Exe-IgnoreEnd
-	; ####
+;@Ahk2Exe-IgnoreEnd
+; ####
 
 }
 

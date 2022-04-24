@@ -438,6 +438,7 @@ global g_strCurrentVersion := "0.1.0.4" ; "major.minor.bugs" or "major.minor.bet
 global g_strCurrentBranch := "beta" ; "prod", "beta" or "alpha", always lowercase for filename
 global g_strAppVersion := "v" . g_strCurrentVersion . (g_strCurrentBranch <> "prod" ? " " . g_strCurrentBranch : "")
 global g_strJLiconsVersion := "1.6.3"
+global g_strLastVersionUsed := "" ; regardless of the branch, used to track if update to ini file is required
 
 ;---------------------------------
 ; Init class for JLicons
@@ -514,8 +515,8 @@ global g_aaRulesByName ; object initialized when loading rules
 global g_saRulesOrder ; object initialized when loading rules
 
 ; Rules Manager
-global g_intRulesDefaultWidth := 700
-global g_intRulesDefaultHeight := 375
+global g_intRulesDefaultWidth := 800
+global g_intRulesDefaultHeight := 400
 global g_saRulesControls := Object() ; to build Rules gui
 global g_aaRulesControlsByName := Object() ; to build Rules gui
 global g_intRulesHwnd ; rules window ID
@@ -597,14 +598,22 @@ global o_PopupHotkeyRestoreClipboardKeyboard := o_PopupHotkeys.SA[6]
 global o_Utc2LocalTime := new Utc2LocalTime
 
 ;---------------------------------
+; Init startups and last version used
+intStartups := o_Settings.ReadIniValue("Startups", 0)
+IniWrite, % (intStartups + 1), % o_Settings.strIniFile, Internal, Startups
+IniWrite, % (g_blnPortableMode ? "Portable" : "Easy Setup"), % o_Settings.strIniFile, Internal, Installation
+IniRead, strLastVersionUsedBeta, % o_Settings.strIniFile, Internal, LastVersionUsedBeta, %A_Space%
+IniRead, strLastVersionUsedProd, % o_Settings.strIniFile, Internal, LastVersionUsedProd, %A_Space%
+IniWrite, %g_strCurrentVersion%, % o_Settings.strIniFile, Internal, % "LastVersionUsed" . (g_strCurrentBranch = "alpha" ? "Alpha" : (g_strCurrentBranch = "beta" ? "Beta" : "Prod"))
+
+g_strLastVersionUsed := (ComparableVersionNumber(strLastVersionUsedBeta) > ComparableVersionNumber(strLastVersionUsedProd) ? strLastVersionUsedBeta : strLastVersionUsedProd)
+strLastVersionUsedBeta := ""
+strLastVersionUsedProd := ""
+
+;---------------------------------
 ; Init rule types
 
 Gosub, InitRuleTypes
-
-;---------------------------------
-; Init startups and last version used
-intStartups := o_Settings.ReadIniValue("Startups", 0)
-global g_strLastVersionUsed := o_Settings.ReadIniValue("LastVersionUsed" . (g_strCurrentBranch = "alpha" ? "Alpha" : (g_strCurrentBranch = "beta" ? "Beta" : "Prod")), 0.0)
 
 ;---------------------------------
 ; Load Settings file
@@ -655,11 +664,6 @@ if (g_blnIniFileCreation and !g_blnPortableMode)
 	SetRegistry("QuickAccessClipboard.exe", "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", g_strAppNameText)
 	
 Gosub, UpdateStartupMenus
-
-; startups count and trace
-IniWrite, % (intStartups + 1), % o_Settings.strIniFile, Internal, Startups
-IniWrite, %g_strCurrentVersion%, % o_Settings.strIniFile, Internal, % "LastVersionUsed" . (g_strCurrentBranch = "alpha" ? "Alpha" : (g_strCurrentBranch = "beta" ? "Beta" : "Prod"))
-IniWrite, % (g_blnPortableMode ? "Portable" : "Easy Setup"), % o_Settings.strIniFile, Internal, Installation
 
 ;---------------------------------
 ; Load the cursor and start the "hook" to change mouse cursor in Settings - See WM_MOUSEMOVE function below
@@ -1069,9 +1073,9 @@ o_Settings.ReadIniOption("Launch", "blnLaunchAtStartup", "LaunchAtStartup", 1)
 ; not ready !! o_Settings.ReadIniOption("Launch", "blnRunAsAdmin", "RunAsAdmin", 0, "f_blnRunAsAdmin|f_picRunAsAdmin") ; default false, if true reload QAC as admin
 
 ; Group EditorWindow
-o_Settings.ReadIniOption("EditorWindow", "blnDisplayEditorAtStartup", "DisplayEditorAtStartup", (g_blnPortableMode ? 0 : 1), "f_blnDisplayEditorAtStartup|f_lblOptionsEditorWindow")
+o_Settings.ReadIniOption("EditorWindow", "blnDisplayEditorAtStartup", "DisplayEditorAtStartup", 1, "f_blnDisplayEditorAtStartup|f_lblOptionsEditorWindow")
 o_Settings.ReadIniOption("EditorWindow", "blnRememberEditorPosition", "RememberEditorPosition", (g_blnPortableMode ? 0 : 1), "f_blnRememberEditorPosition")
-o_Settings.ReadIniOption("EditorWindow", "blnOpenEditorOnActiveMonitor", "OpenEditorOnActiveMonitor", (g_blnPortableMode ? 0 : 1), "f_blnOpenEditorOnActiveMonitor")
+o_Settings.ReadIniOption("EditorWindow", "blnOpenEditorOnActiveMonitor", "OpenEditorOnActiveMonitor", 1, "f_blnOpenEditorOnActiveMonitor")
 o_Settings.ReadIniOption("EditorWindow", "blnFixedFont", "FixedFont", 1, "")
 o_Settings.ReadIniOption("EditorWindow", "intFontSize", "FontSize", 12, "")
 o_Settings.ReadIniOption("EditorWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "")
@@ -1080,12 +1084,14 @@ o_Settings.ReadIniOption("EditorWindow", "blnUseTab", "UseTab", 0, "")
 ; need improvement !! o_Settings.ReadIniOption("EditorWindow", "blnDarkModeCustomize", "DarkModeCustomize", 0, "f_blnDarkModeCustomize")
 
 ; Group RulesWindow
-o_Settings.ReadIniOption("RulesWindow", "blnDisplayRulesAtStartup", "DisplayRulesAtStartup", (g_blnPortableMode ? 0 : 1), "f_blnDisplayRulesAtStartup|f_lblOptionsRulesWindow")
+o_Settings.ReadIniOption("RulesWindow", "blnDisplayRulesAtStartup", "DisplayRulesAtStartup", 1, "f_blnDisplayRulesAtStartup|f_lblOptionsRulesWindow")
 o_Settings.ReadIniOption("RulesWindow", "blnRememberRulesPosition", "RememberRulesPosition", (g_blnPortableMode ? 0 : 1), "f_blnRememberRulesPosition")
-o_Settings.ReadIniOption("RulesWindow", "blnOpenRulesOnActiveMonitor", "OpenRulesOnActiveMonitor", (g_blnPortableMode ? 0 : 1), "f_blnOpenRulesOnActiveMonitor")
+o_Settings.ReadIniOption("RulesWindow", "blnOpenRulesOnActiveMonitor", "OpenRulesOnActiveMonitor", 1, "f_blnOpenRulesOnActiveMonitor")
 o_Settings.ReadIniOption("RulesWindow", "blnAlwaysOnTop", "AlwaysOnTop", 0, "")
 o_Settings.ReadIniOption("RulesWindow", "intRulesTimeoutSecs", "RulesTimeoutSecs", 60, "")
 o_Settings.ReadIniOption("RulesWindow", "blnRulesTimeoutDebug", "RulesTimeoutDebug", 0, "")
+o_Settings.ReadIniOption("RulesWindow", "intAvailableRulesSortOrder", "AvailableRulesSortOrder", 1, "") ; remember column number for sort order, negative if sort descending, initial col 1 asc
+o_Settings.ReadIniOption("RulesWindow", "strLastModifiedDateFormat", "LastModifiedDateFormat", "ShortDate", "") ; see https://www.autohotkey.com/docs/commands/FormatTime.htm
 ; need improvement !! o_Settings.ReadIniOption("RulesWindow", "blnDarkModeCustomize", "DarkModeCustomize", 0, "f_blnDarkModeCustomize")
 
 strLanguageCode := ""
@@ -1540,8 +1546,8 @@ g_aaRulesToolTipsMessages["Button9"] := o_L["MenuRuleUndo"]
 Gui, Font
 
 Gui, Add, ListView
-	, % "vf_lvRulesAvailable +Hwndg_strRulesAvailableHwnd Count48 Sort -Multi AltSubmit LV0x10 LV0x10000 gGuiRulesAvailableEvents x40 ys w491 r25 Section"
-	, % o_L["DialogRuleName"] . "|" . o_L["DialogRuleType"] . "|" . o_L["DialogRuleCategory"] . "|" . o_L["DialogRuleNotes"] ; SysHeader321 / SysListView321
+	, % "vf_lvRulesAvailable +Hwndg_strRulesAvailableHwnd Count48 NoSort -Multi AltSubmit LV0x10 LV0x10000 gGuiRulesAvailableEvents x40 ys w491 r25 Section"
+	, % o_L["DialogRuleName"] . "|" . o_L["DialogRuleType"] . "|" . o_L["DialogRuleLastModified"] . "|" . o_L["DialogRuleCategory"] . "|" . o_L["DialogRuleNotes"] . "|DateSort" ; SysHeader321 / SysListView321
 
 Gui, Font, s9, Arial
 ; Unicode chars: https://www.fileformat.info/info/unicode/category/So/list.htm
@@ -1595,6 +1601,9 @@ if (saRulesPosition[1] <> -1)
 		WinHide, ahk_id %g_intRulesHwnd%
 	}
 }
+; sort by last saved sort order
+Gui, ListView, f_lvRulesAvailable
+LV_ModifyCol(Abs(o_Settings.RulesWindow.intAvailableRulesSortOrder.IniValue), (o_Settings.RulesWindow.intAvailableRulesSortOrder.IniValue > 0 ? "Sort" : "SortDesc"))
 
 return
 ;------------------------------------------------------------
@@ -1623,6 +1632,9 @@ else
 
 	Gui, ListView, % (A_ThisLabel = "GuiRuleDeselect" ? "f_lvRulesAvailable" : "f_lvRulesSelected")
 	g_aaRulesByName[strName].ListViewAdd((A_ThisLabel = "GuiRuleDeselect" ? "f_lvRulesAvailable" : "f_lvRulesSelected"), "Select")
+	if (A_ThisLabel = "GuiRuleDeselect")
+		LV_ModifyCol(Abs(o_Settings.RulesWindow.intAvailableRulesSortOrder.IniValue)
+			, (o_Settings.RulesWindow.intAvailableRulesSortOrder.IniValue > 0 ? "Sort" : "SortDesc"))
 }
 
 Gosub, GuiApplyRules
@@ -1641,6 +1653,21 @@ GuiRulesSelectedEvents:
 ;------------------------------------------------------------
 
 Gui, Rules:Default
+
+if (A_GuiEvent = "ColClick" and A_GuiControl = "f_lvRulesAvailable")
+{
+	intClickedCol := (A_EventInfo = 3 ? 6 : A_EventInfo) ; for col 3, sort by date using col 6
+
+	if (Abs(o_Settings.RulesWindow.intAvailableRulesSortOrder.IniValue) = intClickedCol) ; change order of current sort column
+		o_Settings.RulesWindow.intAvailableRulesSortOrder.IniValue := -o_Settings.RulesWindow.intAvailableRulesSortOrder.IniValue
+	else ; new sort order column, ascending
+		o_Settings.RulesWindow.intAvailableRulesSortOrder.IniValue := intClickedCol
+	
+	Gui, ListView, f_lvRulesAvailable
+	LV_ModifyCol(Abs(o_Settings.RulesWindow.intAvailableRulesSortOrder.IniValue), (o_Settings.RulesWindow.intAvailableRulesSortOrder.IniValue > 0 ? "Sort" : "SortDesc"))
+
+	intClickedCol := ""
+}
 
 if (A_GuiEvent = "DoubleClick")
 {
@@ -2977,16 +3004,22 @@ if !FileExist(o_Settings.strIniFile)
 }
 else
 {
-	; Name=Type|Category|Notes|param1|param2|...
-	; example:
-	; Lower case=ChangeCase|Example|My notes|.*|$L0
 	
+	; Name=Type|Category|Notes|LastModified|param1|param2|...
+	; example:
+	; Lower case=ChangeCase|Example|My notes|2022-04-20 12:34:56|.*|$L0
+
 	g_aaRulesByName := Object() ; reset list of rules by name
 	g_saRulesOrder := Object()
 	
 	IniRead, strRules, % o_Settings.strIniFile, Rules-index, Rules
+	if (ComparableVersionNumber(g_strLastVersionUsed) < ComparableVersionNumber("0.1.0.4"))
+		gosub, UpdateForVersion0104
+		
 	Loop, Parse, % SubStr(strRules, 2), `; ; A_LoopField is rule name
 	{
+		if !StrLen(A_LoopField) ; for last ;
+			break
 		IniRead, strRule, % o_Settings.strIniFile, Rules, %A_LoopField%
 		saRuleValues := StrSplit(strRule, "|")
 		loop, % saRuleValues.Length()
@@ -2994,6 +3027,7 @@ else
 				saRuleValues[A_Index] := DecodeAutoHokeyCodeFromIni(saRuleValues[A_Index])
 			else
 				saRuleValues[A_Index] := DecodeFromIni(saRuleValues[A_Index])
+		
 		new Rule(A_LoopField, saRuleValues)
 	}
 	
@@ -3002,6 +3036,31 @@ else
 	intEqualSign := ""
 	strRuleName := ""
 }
+
+return
+;------------------------------------------------------------
+
+
+;------------------------------------------------------------
+UpdateForVersion0104:
+; add the last modified date for v0.1.0.4 without decoding or re-encodding values
+;------------------------------------------------------------
+
+Loop, Parse, % SubStr(strRules, 2), `; ; A_LoopField is rule name
+{
+	IniRead, strIniLine, % o_Settings.strIniFile, Rules, %A_LoopField%
+	saRuleValues := StrSplit(strIniLine, "|")
+	saRuleValues.Insert(4, A_Now)
+	strIniLine := ""
+	loop, % saRuleValues.Length()
+		strIniLine .= saRuleValues[A_Index] . "|"
+	IniWrite, %strIniLine%, % o_Settings.strIniFile, Rules, %A_LoopField%
+}
+
+strNow := ""
+strIniLine := ""
+saRuleValues := ""
+; do not delete strRules used back in LoadRulesFromIni
 
 return
 ;------------------------------------------------------------
@@ -3019,6 +3078,8 @@ for strName, aaRule in g_aaRulesByName
 		aaRule.ListViewAdd("f_lvRulesAvailable")
 
 LV_ModifyCol()
+LV_ModifyCol(6, 0) ; hide date sort column
+LV_ModifyCol(Abs(o_Settings.RulesWindow.intAvailableRulesSortOrder.IniValue), (o_Settings.RulesWindow.intAvailableRulesSortOrder.IniValue > 0 ? "Sort" : "SortDesc"))
 
 if (A_ThisLabel = "GuiLoadRulesAvailableAll")
 {
@@ -3232,8 +3293,10 @@ if FileExist(o_Settings.strIniFile) ; in case user deleted the ini file to creat
 		SaveWindowPosition("EditorPosition", "ahk_id " . g_intEditorHwnd)
 	
 	o_Settings.RulesWindow.blnDisplayRulesAtStartup.WriteIni(o_Settings.RulesWindow.blnDisplayRulesAtStartup.IniValue)
+	o_Settings.RulesWindow.intAvailableRulesSortOrder.WriteIni(o_Settings.RulesWindow.intAvailableRulesSortOrder.IniValue)
 	if (o_Settings.RulesWindow.blnRememberRulesPosition.IniValue)
 		SaveWindowPosition("RulesPosition", "ahk_id " . g_intRulesHwnd)
+	
 	o_Settings.Launch.blnLaunchAtStartup.WriteIni(o_Settings.Launch.blnLaunchAtStartup.IniValue)
 
 	IniWrite, % GetScreenConfiguration(), % o_Settings.strIniFile, Internal, LastScreenConfiguration
@@ -6423,12 +6486,15 @@ class Rule
 	;---------------------------------------------------------
 	{
 		this.strName := strName
-		this.strTypeCode := saRuleValues.RemoveAt(1)
+		
+		this.strTypeCode := saRuleValues.RemoveAt(1) ; value 1
 		this.strTypeLabel := g_aaRuleTypes[this.strTypeCode].strTypeLabel
 		this.strTypeHelpClipboard := g_aaRuleTypes[this.strTypeCode].strTypeHelpClipboard
 		this.strTypeHelpEditor := g_aaRuleTypes[this.strTypeCode].strTypeHelpEditor
-		this.strCategory := StrReplace(saRuleValues.RemoveAt(1), g_strPipe, "|")
-		this.strNotes := StrReplace(saRuleValues.RemoveAt(1), g_strPipe, "|")
+		
+		this.strCategory := StrReplace(saRuleValues.RemoveAt(1), g_strPipe, "|") ; value 2
+		this.strNotes := StrReplace(saRuleValues.RemoveAt(1), g_strPipe, "|") ; value 3
+		this.strLastModified := StrReplace(saRuleValues.RemoveAt(1), g_strPipe, "|") ; value 4
 		; saRuleValues is now: 1) first variable value, 2) second variable value, etc.
 		this.saVarValues := saRuleValues
 		
@@ -6492,7 +6558,10 @@ class Rule
 	;---------------------------------------------------------
 	{
 		if (strListView = "f_lvRulesAvailable")
-			LV_Add(strOption, this.strName, this.strTypeLabel, this.strCategory, this.strNotes)
+		{
+			FormatTime, strNow, % this.strLastModified, % o_Settings.RulesWindow.strLastModifiedDateFormat.IniValue
+			LV_Add(strOption, this.strName, this.strTypeLabel, strNow, this.strCategory, this.strNotes, this.strLastModified)
+		}
 		else
 			LV_Add(strOption, this.strName)
 	}
@@ -6506,6 +6575,7 @@ class Rule
 		strIniLine := this.strTypeCode . "|"
 		strIniLine .= StrReplace(this.strCategory, "|", g_strPipe) . "|"
 		strIniLine .= StrReplace(this.strNotes, "|", g_strPipe) . "|"
+		strIniLine .= A_Now . "|"
 		Loop, 9
 			strIniLine .= StrReplace(saValues[A_Index], "|", g_strPipe) . "|"
 			; do not remove last | in case we have a space as last character

@@ -35,6 +35,22 @@ Collections: g_aaRulesByName (by strName), g_saRulesOrder (by intID)
 HISTORY
 =======
 
+Version BETA: 0.1.0.4 (2022-04-25)
+ 
+Rules Manager
+- in "Available rules" list, add a column "Last modified" to display the last modified date-time of rules (sortable)
+- new ini option LastModifiedDateFormat to set the last modified column date format, default "ShortDate" (see https://www.autohotkey.com/docs/commands/FormatTime.htm for other formats)
+- if last used used version is before v0.1.0.4, update rules values in ini file to add last modified date
+- new ini option AvailableRulesSortOrder to remember the last sort column of "Available rules" list
+- improved clarity text of substring dialog box
+ 
+Editor
+- fix bug not updating the status bar with cursor position and selection length
+- when showing hidden characters, new ini option ShowHiddenEolAsLfOnly to show end-of-line as CR+LF (two characters) or only LF (default)
+ 
+General
+- new in option to launch QAC at Windows startup independently of options to display Editor or Rules windows at QAC startup
+
 Version BETA: 0.1.0.3 (2022-03-27)
  
 Rules Manager

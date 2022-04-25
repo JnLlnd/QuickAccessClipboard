@@ -1092,6 +1092,7 @@ o_Settings.ReadIniOption("RulesWindow", "intRulesTimeoutSecs", "RulesTimeoutSecs
 o_Settings.ReadIniOption("RulesWindow", "blnRulesTimeoutDebug", "RulesTimeoutDebug", 0, "")
 o_Settings.ReadIniOption("RulesWindow", "intAvailableRulesSortOrder", "AvailableRulesSortOrder", 1, "") ; remember column number for sort order, negative if sort descending, initial col 1 asc
 o_Settings.ReadIniOption("RulesWindow", "strLastModifiedDateFormat", "LastModifiedDateFormat", "ShortDate", "") ; see https://www.autohotkey.com/docs/commands/FormatTime.htm
+o_Settings.ReadIniOption("RulesWindow", "blnShowHiddenEolAsLfOnly", "ShowHiddenEolAsLfOnly", 1, "")
 ; need improvement !! o_Settings.ReadIniOption("RulesWindow", "blnDarkModeCustomize", "DarkModeCustomize", 0, "f_blnDarkModeCustomize")
 
 strLanguageCode := ""
@@ -2310,7 +2311,14 @@ if (f_blnSeeInvisible)
 	GuiControl, , f_btnEditorEditOrSave, % o_L["GuiEditClipboard"]
 }
 
-GuiControlGet, strText, , %g_strEditorControlHwnd% ; get text with GuiControlGet because strText must contain eol with LF only
+if (o_Settings.RulesWindow.blnShowHiddenEolAsLfOnly.IniValue)
+	GuiControlGet, strText, , %g_strEditorControlHwnd% ; with GuiControlGet CRLF are converted to LF only
+else
+{
+	Edit_SelectAll(g_strEditorControlHwnd)
+	strText := Edit_GetSelText(g_strEditorControlHwnd) ; with Edit_ command, CRLF are retreived as-is
+}
+
 GuiControl, , %g_strEditorControlHwnd%, % (f_blnSeeInvisible ? ConvertInvisible(strText) : Clipboard)
 
 strText := ""

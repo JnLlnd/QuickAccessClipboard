@@ -1085,7 +1085,7 @@ o_Settings.ReadIniOption("Launch", "blnCheck4Update", "Check4Update", (g_blnPort
 o_Settings.ReadIniOption("Launch", "strBackupFolder", "BackupFolder", A_WorkingDir
 	, "f_lblBackupFolder|f_strBackupFolder|f_btnBackupFolder|f_lblWorkingFolder|f_strWorkingFolder|f_btnWorkingFolder|f_lblWorkingFolderDisabled")
 o_Settings.ReadIniOption("Launch", "blnDiagMode", "DiagMode", 0)
-o_Settings.ReadIniOption("Launch", "blnLaunchAtStartup", "LaunchAtStartup", 1)
+o_Settings.ReadIniOption("Launch", "blnLaunchAtStartup", "LaunchAtStartup", (g_blnPortableMode ? 0 : 1))
 ; not ready !! o_Settings.ReadIniOption("Launch", "blnRunAsAdmin", "RunAsAdmin", 0, "f_blnRunAsAdmin|f_picRunAsAdmin") ; default false, if true reload QAC as admin
 
 ; Group EditorWindow
